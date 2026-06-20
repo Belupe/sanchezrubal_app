@@ -1,0 +1,81 @@
+# Portal Familia
+
+Gestión de casas familiares (calendario, reservas, inspecciones con fotos/vídeo, anuncios,
+sorteos, usuarios). **Una sola base de código Flutter** → **3 apps nativas**:
+
+| Plataforma | Distribución | Auto-update |
+|-----------|--------------|-------------|
+| **Android** | APK propio alojado en tu Docker (sin Google Play) | ✅ desde la app |
+| **Windows** | Instalador `.exe` (Inno Setup) alojado en tu Docker | ✅ desde la app |
+| **Apple (iOS)** | TestFlight privado (App Store Connect) | ⛔ vía TestFlight (Apple no permite auto-update propio) |
+
+**Backend:** Supabase Cloud (Postgres + Auth + API + Edge Functions). **Media** (fotos/vídeo):
+**MinIO self-hosted** en tu Docker — los archivos viven en tu servidor, no en Supabase.
+
+> Arquitectura completa: [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
+
+---
+
+## Estructura del repo
+
+```
+README.md          ← este archivo
+.env.example       ← ÚNICA fuente de configuración (credenciales, rutas, URLs)
+compose.yaml       ← Docker: minio + updates  (docker compose up -d)
+app_flutter/       ← la app (android/ · ios/ · windows/ · lib/)
+supabase/          ← migraciones + Edge Functions
+server/            ← soporte del servidor:  nginx/ · cloudflared/ · updates/ (plantillas)
+scripts/           ← release.ps1 · build-android.ps1 · build-windows.ps1 · push-supabase-secrets.*
+docs/              ← ANDROID.md · WINDOWS.md · APPLE.md · ARQUITECTURA.md
+dist/              ← (generado) artefactos finales: APK, setup.exe, version.json
+```
+
+## Configuración: un único `.env`
+
+Toda la configuración está en **`.env`** (copia de `.env.example`). Es la única fuente de la
+verdad. Como Docker, Supabase y las apps son sistemas distintos que no leen el mismo archivo en
+ejecución, **3 adaptadores** lo reparten (sin filtrar secretos al cliente):
+
+| Adaptador | Qué hace |
+|-----------|----------|
+| **Docker** | `docker compose up -d` lee `.env` directamente (MinIO + updates) |
+| **Supabase** | `scripts/push-supabase-secrets.*` sube los *secrets* a las Edge Functions |
+| **Apps** | `scripts/build-*.ps1` hornean SOLO los valores **públicos** (`SUPABASE_URL/ANON_KEY`, `MEDIA_PUBLIC_URL`, `UPDATES_PUBLIC_URL`) con `--dart-define` |
+
+## Puesta en marcha del servidor (una vez)
+
+1. **Instala Docker** (Docker Desktop en Windows/Mac, o Docker Engine en Linux): https://docs.docker.com/get-docker/
+2. `cp .env.example .env` y rellena las líneas marcadas con ⬅️ CAMBIA (rutas de almacenamiento,
+   contraseña de MinIO, subdominios).
+3. `docker compose up -d` → levanta **MinIO** (media) y **updates** (instaladores).
+4. **cloudflared** (en el host) para publicar `media.` y `app.`: ver
+   [server/cloudflared/config.example.yml](server/cloudflared/config.example.yml).
+5. `./scripts/push-supabase-secrets.ps1` (o `.sh`) → sube los secrets de Supabase.
+
+## Las 3 apps
+
+| Plataforma | Cómo se compila y se actualiza | Guía |
+|-----------|-------------------------------|------|
+| Android | `flutter build apk` en tu PC (Android SDK) → APK firmado; auto-update | [docs/ANDROID.md](docs/ANDROID.md) |
+| Windows | `flutter build windows` (Visual Studio C++) + Inno Setup → `setup.exe`; auto-update | [docs/WINDOWS.md](docs/WINDOWS.md) |
+| Apple | `flutter build ipa` en un **Mac** → App Store Connect → **TestFlight** privado | [docs/APPLE.md](docs/APPLE.md) |
+
+## Publicar una actualización (un comando)
+
+```powershell
+./scripts/release.ps1 -Bump
+```
+Sube el número de versión de `app_flutter/pubspec.yaml`, compila Android (+ Windows si tienes la
+toolchain), deja los artefactos en `dist/` y —si `UPDATES_DATA_DIR` es accesible— los **publica**
+en el servidor. **No** hace falta reconstruir imágenes ni reiniciar contenedores: el servicio
+`updates` sirve la carpeta en vivo y **las apps de Android/Windows se actualizan solas** al
+reabrirse. (iOS se actualiza aparte, por TestFlight — ver su guía.)
+
+> Si el servidor Docker está en otra máquina (Linux), copia el contenido de `dist/` a la carpeta
+> `UPDATES_DATA_DIR` de ese servidor (la primera vez incluye `index.html`).
+
+## Herramientas por plataforma (en tu máquina de desarrollo)
+
+- **Android**: Android Studio o el Android SDK (cmdline-tools). Keystore de firma (ver ANDROID.md).
+- **Windows**: Visual Studio con *Desktop development with C++* + **Inno Setup**.
+- **Apple**: un **Mac** con Xcode + **Apple Developer Program** (99 €/año).

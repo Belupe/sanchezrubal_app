@@ -1,0 +1,70 @@
+# =====================================================================
+#  Portal Familia — servidor Docker (media + actualizaciones)
+# =====================================================================
+#  Listo para copiar/pegar. Configúralo con el .env de al lado:
+#      cp .env.example .env   &&   edítalo   &&   docker compose up -d
+#
+#  Servicios:
+#   - minio:         almacén S3 self-hosted de fotos/vídeo (en MEDIA_DATA_DIR).
+#   - createbuckets: crea el bucket privado al arrancar.
+#   - updates:       nginx que sirve los instaladores + version.json para que
+#                    Android y Windows se auto-actualicen (en UPDATES_DATA_DIR).
+#
+#  La BD/Auth/API están en Supabase Cloud (no aquí). El túnel cloudflared
+#  corre en el HOST: ver server/cloudflared/config.example.yml.
+# =====================================================================
+
+name: portal-familia
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: pf_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # URL pública del API S3 (subdominio del túnel): necesaria para que las
+      # URLs prefirmadas validen la firma con el host correcto.
+      MINIO_SERVER_URL: ${MEDIA_PUBLIC_URL}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_CONSOLE_URL:-}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ORIGIN:-*}
+    volumes:
+      # <<< UBICACIÓN de TODAS las fotos/vídeos (carpeta del host) >>>
+      - ${MEDIA_DATA_DIR}:/data
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"          # API S3
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"  # consola web
+
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
+        echo 'esperando a minio...'; sleep 2;
+      done;
+      mc mb -p local/${MEDIA_BUCKET:-inspections} || true;
+      mc anonymous set none local/${MEDIA_BUCKET:-inspections};
+      echo 'Bucket ${MEDIA_BUCKET:-inspections} listo (privado).';
+      "
+    restart: "no"
+
+  # Sirve los instaladores + version.json de cada plataforma. La familia
+  # descarga desde UPDATES_PUBLIC_URL (tras cloudflared) y las apps de Android
+  # y Windows se auto-actualizan. El contenido vive en UPDATES_DATA_DIR (host)
+  # y lo genera scripts/release.ps1.
+  updates:
+    image: nginx:alpine
+    container_name: pf_updates
+    restart: unless-stopped
+    volumes:
+      - ${UPDATES_DATA_DIR}:/usr/share/nginx/html:ro
+      - ./server/nginx/updates.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:${UPDATES_PORT:-8090}:80"

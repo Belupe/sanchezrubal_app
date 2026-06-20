@@ -1,0 +1,411 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../main.dart';
+import '../models/announcement.dart';
+import '../models/audit_log.dart';
+import '../models/family_group.dart';
+import '../models/out_report.dart';
+import '../models/profile.dart';
+import '../models/property.dart';
+import '../models/reservation.dart';
+import '../models/sorteo.dart';
+import '../models/system_config.dart';
+import '../models/waitlist_entry.dart';
+
+/// Acceso a datos vía Supabase. El RLS decide qué puede ver/hacer cada rol.
+class DataService {
+  static String? get uid => supabase.auth.currentUser?.id;
+
+  // ----------------------------------------------------------------
+  // Perfil propio
+  // ----------------------------------------------------------------
+  static Future<Map<String, dynamic>?> myProfile() async {
+    final id = uid;
+    if (id == null) return null;
+    return await supabase
+        .from('profiles')
+        .select('id, name, email, role, family_group_id, image, ui_preferences')
+        .eq('id', id)
+        .maybeSingle();
+  }
+
+  static Future<String?> currentRole() async =>
+      (await myProfile())?['role'] as String?;
+
+  static Future<void> updateMyProfile({String? name, String? image}) async {
+    final patch = <String, dynamic>{};
+    if (name != null) patch['name'] = name;
+    if (image != null) patch['image'] = image;
+    if (patch.isEmpty) return;
+    await supabase.from('profiles').update(patch).eq('id', uid!);
+  }
+
+  static Future<void> changePassword(String newPassword) async {
+    await supabase.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  /// Cambia el correo (Supabase envía confirmación al nuevo email) y lo
+  /// refleja en el perfil.
+  static Future<void> changeEmail(String newEmail) async {
+    await supabase.auth.updateUser(UserAttributes(email: newEmail));
+    await supabase.from('profiles').update({'email': newEmail}).eq('id', uid!);
+  }
+
+  /// Guarda la preferencia de tema ('system' | 'light' | 'dark').
+  static Future<void> saveThemeMode(String mode) async {
+    await supabase
+        .from('profiles')
+        .update({'ui_preferences': {'theme': mode}})
+        .eq('id', uid!);
+  }
+
+  // ----------------------------------------------------------------
+  // Propiedades (domicilios)
+  // ----------------------------------------------------------------
+  static Future<List<Property>> properties() async {
+    final rows = await supabase.from('properties').select().order('name');
+    return (rows as List).map((e) => Property.fromMap(e)).toList();
+  }
+
+  static Future<void> createProperty({required String name, String? description}) async {
+    await supabase.from('properties').insert({'name': name, 'description': description});
+  }
+
+  static Future<void> updateProperty(String id,
+      {required String name, String? description}) async {
+    await supabase
+        .from('properties')
+        .update({'name': name, 'description': description})
+        .eq('id', id);
+  }
+
+  static Future<void> deleteProperty(String id) async {
+    await supabase.from('properties').delete().eq('id', id);
+  }
+
+  // ----------------------------------------------------------------
+  // Reservas
+  // ----------------------------------------------------------------
+  static Future<List<Reservation>> reservations() async {
+    final rows = await supabase
+        .from('reservations')
+        .select('*, properties(name), family_groups(name, color)')
+        .order('start_date');
+    return (rows as List).map((e) => Reservation.fromMap(e)).toList();
+  }
+
+  /// Reservas de un domicilio concreto (para su calendario individual).
+  static Future<List<Reservation>> reservationsForProperty(String propertyId) async {
+    final rows = await supabase
+        .from('reservations')
+        .select('*, properties(name), family_groups(name, color)')
+        .eq('property_id', propertyId)
+        .order('start_date');
+    return (rows as List).map((e) => Reservation.fromMap(e)).toList();
+  }
+
+  static Future<Reservation> createReservation({
+    required String propertyId,
+    required DateTime start,
+    required DateTime end,
+    required int guestCount,
+    String? familyGroupId,
+    String? notes,
+    bool isMaintenance = false,
+  }) async {
+    final inserted = await supabase
+        .from('reservations')
+        .insert({
+          'property_id': propertyId,
+          'created_by_id': uid,
+          'family_group_id': familyGroupId,
+          'start_date': start.toIso8601String(),
+          'end_date': end.toIso8601String(),
+          'guest_count': guestCount,
+          'notes': notes,
+          'is_maintenance': isMaintenance,
+        })
+        .select('*, properties(name)')
+        .single();
+    return Reservation.fromMap(inserted);
+  }
+
+  /// El creador solo puede ajustar personas/notas (el trigger de la BD
+  /// rechaza cambios de fecha si no es admin).
+  static Future<void> updateReservationDetails(String id,
+      {int? guestCount, String? notes}) async {
+    final patch = <String, dynamic>{};
+    if (guestCount != null) patch['guest_count'] = guestCount;
+    if (notes != null) patch['notes'] = notes;
+    if (patch.isEmpty) return;
+    await supabase.from('reservations').update(patch).eq('id', id);
+  }
+
+  /// Solo admin del grupo / principal (lo impone el RLS + trigger).
+  static Future<void> updateReservationDates(String id,
+      {required DateTime start, required DateTime end}) async {
+    await supabase.from('reservations').update({
+      'start_date': start.toIso8601String(),
+      'end_date': end.toIso8601String(),
+    }).eq('id', id);
+  }
+
+  static Future<void> deleteReservation(String id) async {
+    await supabase.from('reservations').delete().eq('id', id);
+  }
+
+  static Future<int> maxReservationDays() async {
+    final row = await supabase
+        .from('system_config')
+        .select('max_reservation_days')
+        .eq('id', 'global')
+        .maybeSingle();
+    return (row?['max_reservation_days'] as int?) ?? 30;
+  }
+
+  /// Pide al backend que envíe el correo (best-effort).
+  static Future<void> sendReservationEmail(String reservationId,
+      {required bool maintenance}) async {
+    try {
+      await supabase.functions.invoke('send-email', body: {
+        'type': maintenance ? 'maintenance' : 'reservation_confirmation',
+        'reservationId': reservationId,
+      });
+    } catch (_) {/* no bloquea la creación */}
+  }
+
+  /// Envía un correo de prueba con la config SMTP (solo mega). Devuelve null
+  /// si fue bien, o el mensaje de error.
+  static Future<String?> testSmtp(String to) async {
+    final res = await supabase.functions.invoke('test-smtp', body: {'to': to});
+    final data = res.data;
+    if (data is Map && data['error'] != null) return data['error'].toString();
+    return null;
+  }
+
+  // ----------------------------------------------------------------
+  // Lista de espera (cola) de reservas
+  // ----------------------------------------------------------------
+
+  /// Se apunta a la cola de un domicilio para unas fechas ocupadas. Si la
+  /// reserva que las bloquea se cancela, un trigger de la BD promueve al
+  /// primero de la cola y le crea la reserva (+ 2 notificaciones).
+  static Future<void> joinWaitlist({
+    required String propertyId,
+    required DateTime start,
+    required DateTime end,
+    required int guestCount,
+    String? familyGroupId,
+    String? notes,
+  }) async {
+    await supabase.from('reservation_waitlist').insert({
+      'property_id': propertyId,
+      'requested_by_id': uid,
+      'family_group_id': familyGroupId,
+      'start_date': start.toIso8601String(),
+      'end_date': end.toIso8601String(),
+      'guest_count': guestCount,
+      'notes': notes,
+    });
+  }
+
+  /// Cola activa (en espera) de un domicilio, en orden FIFO. Incluye el
+  /// nombre del solicitante para mostrar la lista y calcular la posición.
+  static Future<List<WaitlistEntry>> waitlistForProperty(String propertyId) async {
+    final rows = await supabase
+        .from('reservation_waitlist')
+        .select('*, profiles!reservation_waitlist_requested_by_id_fkey(name)')
+        .eq('property_id', propertyId)
+        .eq('status', 'waiting')
+        .order('created_at');
+    return (rows as List).map((e) => WaitlistEntry.fromMap(e)).toList();
+  }
+
+  /// Mis solicitudes en cola (cualquier estado), para "Mis listas de espera".
+  static Future<List<WaitlistEntry>> myWaitlistEntries() async {
+    final rows = await supabase
+        .from('reservation_waitlist')
+        .select('*, properties(name)')
+        .eq('requested_by_id', uid!)
+        .order('created_at', ascending: false);
+    return (rows as List).map((e) => WaitlistEntry.fromMap(e)).toList();
+  }
+
+  /// Retira una solicitud de la cola (el solicitante o un admin del grupo).
+  static Future<void> cancelWaitlistEntry(String id) async {
+    await supabase.from('reservation_waitlist').delete().eq('id', id);
+  }
+
+  // ----------------------------------------------------------------
+  // Grupos familiares y miembros
+  // ----------------------------------------------------------------
+  static Future<List<FamilyGroup>> familyGroups() async {
+    final rows = await supabase
+        .from('family_groups')
+        .select('id, name, color, owner_id, '
+            'profiles!profiles_family_group_id_fkey(id, name, email, role, family_group_id, image)')
+        .order('name');
+    return (rows as List).map((e) => FamilyGroup.fromMap(e)).toList();
+  }
+
+  static Future<void> updateFamilyGroup(String id, {String? name, String? color}) async {
+    final patch = <String, dynamic>{};
+    if (name != null) patch['name'] = name;
+    if (color != null) patch['color'] = color;
+    if (patch.isEmpty) return;
+    await supabase.from('family_groups').update(patch).eq('id', id);
+  }
+
+  static Future<void> deleteFamilyGroup(String id) async {
+    await supabase.from('family_groups').delete().eq('id', id);
+  }
+
+  static Future<List<Profile>> allProfiles() async {
+    final rows = await supabase
+        .from('profiles')
+        .select('id, name, email, role, family_group_id, image')
+        .order('name');
+    return (rows as List).map((e) => Profile.fromMap(e)).toList();
+  }
+
+  /// Cambiar el rol de un usuario (principal, vía RLS).
+  static Future<void> setRole(String userId, String role) async {
+    await supabase.from('profiles').update({'role': role}).eq('id', userId);
+  }
+
+  /// Asignar / quitar de grupo (principal, vía RLS). null = sin grupo.
+  static Future<void> setMemberGroup(String userId, String? groupId) async {
+    await supabase.from('profiles').update({'family_group_id': groupId}).eq('id', userId);
+  }
+
+  // ----------------------------------------------------------------
+  // Anuncios
+  // ----------------------------------------------------------------
+  static Future<List<Announcement>> announcements() async {
+    final rows = await supabase
+        .from('announcements')
+        .select('id, title, content, created_at, '
+            'profiles!announcements_author_id_fkey(name), '
+            'announcement_properties(properties(name))')
+        .order('created_at', ascending: false);
+    return (rows as List).map((e) => Announcement.fromMap(e)).toList();
+  }
+
+  static Future<void> createAnnouncement({
+    required String title,
+    required String content,
+    List<String> propertyIds = const [],
+  }) async {
+    final inserted = await supabase
+        .from('announcements')
+        .insert({'title': title, 'content': content, 'author_id': uid})
+        .select('id')
+        .single();
+    final aId = inserted['id'] as String;
+    if (propertyIds.isNotEmpty) {
+      await supabase.from('announcement_properties').insert(
+            propertyIds.map((p) => {'announcement_id': aId, 'property_id': p}).toList(),
+          );
+    }
+  }
+
+  static Future<void> deleteAnnouncement(String id) async {
+    await supabase.from('announcements').delete().eq('id', id);
+  }
+
+  // ----------------------------------------------------------------
+  // Sorteos
+  // ----------------------------------------------------------------
+  static Future<List<Sorteo>> sorteos() async {
+    final rows = await supabase
+        .from('sorteos')
+        .select('id, name, created_at, '
+            'profiles!sorteos_created_by_id_fkey(name), '
+            'sorteo_resultados(premio, family_groups(name))')
+        .order('created_at', ascending: false);
+    return (rows as List).map((e) => Sorteo.fromMap(e)).toList();
+  }
+
+  static Future<void> runSorteo({
+    required String name,
+    required List<String> quincenas,
+    required List<String> groupIds,
+  }) async {
+    await supabase.rpc('run_sorteo', params: {
+      'p_name': name,
+      'p_quincenas': quincenas,
+      'p_group_ids': groupIds,
+    });
+  }
+
+  static Future<void> deleteSorteo(String id) async {
+    await supabase.from('sorteos').delete().eq('id', id);
+  }
+
+  // ----------------------------------------------------------------
+  // Inspecciones (out_reports) — panel para admins
+  // ----------------------------------------------------------------
+  static Future<List<OutReport>> outReports() async {
+    final rows = await supabase
+        .from('out_reports')
+        .select('id, reservation_id, general_status, notes, media_urls, rating, '
+            'check_out, created_at, properties(name)')
+        .order('created_at', ascending: false);
+    return (rows as List).map((e) => OutReport.fromMap(e)).toList();
+  }
+
+  // ----------------------------------------------------------------
+  // Registros / auditoría (quién crea/modifica/elimina)
+  // ----------------------------------------------------------------
+  static Future<List<AuditLog>> auditLogs() async {
+    final rows = await supabase
+        .from('audit_logs')
+        .select('action, entity_type, entity_id, details, created_at, '
+            'profiles!audit_logs_user_id_fkey(name)')
+        .order('created_at', ascending: false)
+        .limit(100);
+    return (rows as List).map((e) => AuditLog.fromMap(e)).toList();
+  }
+
+  // ----------------------------------------------------------------
+  // Configuración del sistema (solo mega admin, vía RLS)
+  // ----------------------------------------------------------------
+  static Future<SystemConfig?> systemConfig() async {
+    final row =
+        await supabase.from('system_config').select().eq('id', 'global').maybeSingle();
+    return row == null ? null : SystemConfig.fromMap(row);
+  }
+
+  static Future<void> updateSystemConfig(Map<String, dynamic> patch) async {
+    await supabase.from('system_config').update(patch).eq('id', 'global');
+  }
+
+  // Plantillas de correo
+  static Future<List<Map<String, dynamic>>> templates() async {
+    final rows = await supabase.from('notification_templates').select();
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  static Future<void> updateTemplate(String type,
+      {required String subject, required String body}) async {
+    await supabase.from('notification_templates').upsert(
+      {'type': type, 'subject': subject, 'body': body},
+      onConflict: 'type',
+    );
+  }
+
+  // Ajustes de notificación propios
+  static Future<List<Map<String, dynamic>>> myNotificationSettings() async {
+    final rows =
+        await supabase.from('notification_settings').select().eq('user_id', uid!);
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  static Future<void> saveNotificationSetting(String type,
+      {required bool isActive, String? customText}) async {
+    await supabase.from('notification_settings').upsert(
+      {'user_id': uid, 'type': type, 'is_active': isActive, 'custom_text': customText},
+      onConflict: 'user_id,type',
+    );
+  }
+}

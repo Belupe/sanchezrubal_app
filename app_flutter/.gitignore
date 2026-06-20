@@ -1,0 +1,18 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+.packages
+*.iml
+.idea/
+# Claves locales (no subir)
+.env
+
+# Generados por Flutter / plataformas (se regeneran al compilar)
+**/Flutter/ephemeral/
+ios/.symlinks/
+android/.gradle/
+# Config de Firebase (la genera flutterfire configure en cada máquina)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
