@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portal Familia — Descargas</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #f3f4f6; color: #111827; padding: 24px;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0b1220; color: #e5e7eb; }
+      .card { background: #111827 !important; }
+      .step { background: #0b1220 !important; }
+    }
+    .card {
+      background: #fff; max-width: 480px; width: 100%; border-radius: 16px;
+      padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,.12);
+    }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    p.sub { margin: 0 0 24px; opacity: .7; }
+    a.btn {
+      display: block; text-align: center; text-decoration: none;
+      background: #2563eb; color: #fff; font-weight: 600; font-size: 1.05rem;
+      padding: 14px 20px; border-radius: 12px; margin-bottom: 12px;
+    }
+    a.btn.win { background: #0f766e; }
+    a.btn:active { transform: translateY(1px); }
+    h2 { font-size: 1rem; margin: 24px 0 8px; }
+    ol { padding-left: 20px; margin: 0; }
+    .step { background: #f9fafb; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+    .note { font-size: .85rem; opacity: .65; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Portal Familia</h1>
+    <p class="sub">Descarga la app para tu dispositivo</p>
+
+    <a class="btn" href="./android/portal-familia.apk" download>📱 Android — Descargar e instalar</a>
+    <a class="btn win" href="./windows/portal-familia-setup.exe" download>🖥️ Windows — Descargar instalador</a>
+
+    <h2>Android</h2>
+    <ol>
+      <li class="step">Pulsa el botón, abre el archivo y permite <b>instalar apps desconocidas</b> (solo esta vez).</li>
+    </ol>
+    <h2>Windows</h2>
+    <ol>
+      <li class="step">Ejecuta el instalador. Windows puede avisar (app sin firma): <b>Más información → Ejecutar de todas formas</b>.</li>
+    </ol>
+
+    <p class="note">Las próximas versiones se actualizan solas desde dentro de la app.
+    En iPhone/iPad la app se instala por invitación de TestFlight, no desde aquí.</p>
+  </main>
+</body>
+</html>

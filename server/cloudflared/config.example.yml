@@ -1,0 +1,34 @@
+# ===============================================================
+# Ingress de cloudflared (corre en el HOST, no como contenedor).
+# Copia esto a la config de tu cloudflared (p.ej. /etc/cloudflared/config.yml)
+# y ajusta <TUNNEL_ID> y el dominio.
+#
+# cloudflared publica dos cosas de tu Docker: MinIO (media) y el servidor de
+# actualizaciones (instaladores de Android/Windows). No hay web.
+#
+# Crea los registros DNS del túnel (una vez por hostname):
+#   cloudflared tunnel route dns <TUNNEL_ID> media.sanchezrubal.net
+#   cloudflared tunnel route dns <TUNNEL_ID> media-console.sanchezrubal.net
+#   cloudflared tunnel route dns <TUNNEL_ID> app.sanchezrubal.net
+# ===============================================================
+
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+# Subidas de vídeo: el plan free de Cloudflare limita el cuerpo a 100 MB.
+# La app sube vídeos por multiparte (trozos < 100 MB) para evitarlo.
+ingress:
+  # --- Media (MinIO, API S3) — subidas/descargas prefirmadas ---
+  - hostname: media.sanchezrubal.net
+    service: http://localhost:9000
+
+  # --- (Opcional) Consola de administración de MinIO ---
+  - hostname: media-console.sanchezrubal.net
+    service: http://localhost:9001
+
+  # --- Descarga + auto-update de las apps (Android/Windows) — servicio `updates` ---
+  - hostname: app.sanchezrubal.net
+    service: http://localhost:8090
+
+  # Catch-all obligatorio
+  - service: http_status:404
