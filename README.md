@@ -7,12 +7,26 @@ sorteos, usuarios). **Una sola base de código Flutter** → **3 apps nativas**:
 |-----------|--------------|-------------|
 | **Android** | APK propio alojado en tu Docker (sin Google Play) | ✅ desde la app |
 | **Windows** | Instalador `.exe` (Inno Setup) alojado en tu Docker | ✅ desde la app |
-| **Apple (iOS)** | TestFlight privado (App Store Connect) | ⛔ vía TestFlight (Apple no permite auto-update propio) |
+| **Apple (iOS)** | **App Store de forma privada (no listado / *unlisted*)** — accesible solo por enlace, NO público y NO por TestFlight | ✅ auto-update de App Store (cada versión nativa pasa revisión, rápida en no listado) |
 
 **Backend:** Supabase Cloud (Postgres + Auth + API + Edge Functions). **Media** (fotos/vídeo):
 **MinIO self-hosted** en tu Docker — los archivos viven en tu servidor, no en Supabase.
 
 > Arquitectura completa: [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
+
+## Novedades
+
+- **Lista de espera (cola) de reservas.** Si unas fechas están ocupadas, te apuntas a la cola; si
+  quien la tiene **cancela**, el siguiente (orden FIFO) hereda la reserva **automáticamente** y
+  recibe **2 avisos** ("X canceló" y "las fechas son tuyas").
+- **Tiempo real (Supabase Realtime).** Calendario, reservas, cola y anuncios se actualizan **solos**
+  en todos los dispositivos abiertos, sin recargar.
+- **Notificaciones push (FCM).** Avisos de dispositivo además de email. Requiere setup de Firebase
+  (ver guía). Push iOS pendiente de la cuenta Apple/APNs.
+- **iOS ahora por App Store privado** (no listado), no por TestFlight: no caduca y auto-actualiza.
+
+> Guía de la cola + push + tiempo real:
+> [docs/COLA-NOTIFICACIONES-TIEMPO-REAL.md](docs/COLA-NOTIFICACIONES-TIEMPO-REAL.md).
 
 ---
 
@@ -23,10 +37,12 @@ README.md          ← este archivo
 .env.example       ← ÚNICA fuente de configuración (credenciales, rutas, URLs)
 compose.yaml       ← Docker: minio + updates  (docker compose up -d)
 app_flutter/       ← la app (android/ · ios/ · windows/ · lib/)
-supabase/          ← migraciones + Edge Functions
+supabase/          ← migraciones (0001–0015) + Edge Functions (media-sign · send-email ·
+                     admin-users · test-smtp · send-push · notify-waitlist)
 server/            ← soporte del servidor:  nginx/ · cloudflared/ · updates/ (plantillas)
 scripts/           ← release.ps1 · build-android.ps1 · build-windows.ps1 · push-supabase-secrets.*
-docs/              ← ANDROID.md · WINDOWS.md · APPLE.md · ARQUITECTURA.md
+docs/              ← ANDROID.md · WINDOWS.md · APPLE.md · ARQUITECTURA.md ·
+                     COLA-NOTIFICACIONES-TIEMPO-REAL.md
 dist/              ← (generado) artefactos finales: APK, setup.exe, version.json
 ```
 
@@ -58,7 +74,7 @@ ejecución, **3 adaptadores** lo reparten (sin filtrar secretos al cliente):
 |-----------|-------------------------------|------|
 | Android | `flutter build apk` en tu PC (Android SDK) → APK firmado; auto-update | [docs/ANDROID.md](docs/ANDROID.md) |
 | Windows | `flutter build windows` (Visual Studio C++) + Inno Setup → `setup.exe`; auto-update | [docs/WINDOWS.md](docs/WINDOWS.md) |
-| Apple | `flutter build ipa` en un **Mac** → App Store Connect → **TestFlight** privado | [docs/APPLE.md](docs/APPLE.md) |
+| Apple | `flutter build ipa` en un **Mac** → App Store Connect → **App Store privado (no listado)** | [docs/APPLE.md](docs/APPLE.md) |
 
 ## Publicar una actualización (un comando)
 
@@ -69,7 +85,7 @@ Sube el número de versión de `app_flutter/pubspec.yaml`, compila Android (+ Wi
 toolchain), deja los artefactos en `dist/` y —si `UPDATES_DATA_DIR` es accesible— los **publica**
 en el servidor. **No** hace falta reconstruir imágenes ni reiniciar contenedores: el servicio
 `updates` sirve la carpeta en vivo y **las apps de Android/Windows se actualizan solas** al
-reabrirse. (iOS se actualiza aparte, por TestFlight — ver su guía.)
+reabrirse. (iOS se actualiza aparte, por el **App Store** — ver su guía.)
 
 > Si el servidor Docker está en otra máquina (Linux), copia el contenido de `dist/` a la carpeta
 > `UPDATES_DATA_DIR` de ese servidor (la primera vez incluye `index.html`).
@@ -78,4 +94,7 @@ reabrirse. (iOS se actualiza aparte, por TestFlight — ver su guía.)
 
 - **Android**: Android Studio o el Android SDK (cmdline-tools). Keystore de firma (ver ANDROID.md).
 - **Windows**: Visual Studio con *Desktop development with C++* + **Inno Setup**.
-- **Apple**: un **Mac** con Xcode + **Apple Developer Program** (99 €/año).
+- **Apple**: un **Mac** con Xcode + **Apple Developer Program** (99 €/año). Distribución en
+  **App Store no listado** (privado por enlace), no TestFlight — ver [docs/APPLE.md](docs/APPLE.md).
+- **Push (FCM)**: proyecto **Firebase** (`flutterfire configure` + service account). Setup completo
+  en [docs/COLA-NOTIFICACIONES-TIEMPO-REAL.md](docs/COLA-NOTIFICACIONES-TIEMPO-REAL.md).
