@@ -2,8 +2,10 @@
 #  push-supabase-secrets.ps1  —  Sube los secrets de las Edge Functions
 # =====================================================================
 #  Adaptador [SUPABASE] del .env único: mapea los valores canónicos del
-#  .env a los nombres que esperan las Edge Functions (media-sign, send-email)
-#  y los sube con la CLI de Supabase. La nube NO lee tu .env local.
+#  .env a los nombres que esperan las Edge Functions (media-sign, send-email,
+#  notify-waitlist, send-push) y los sube con la CLI de Supabase. Los secrets
+#  son a nivel de proyecto (los comparten todas las funciones). La nube NO lee
+#  tu .env local.
 #
 #  Requisitos: CLI de Supabase instalada. Se autentica y apunta al proyecto
 #  con SUPABASE_ACCESS_TOKEN y SUPABASE_PROJECT_REF del .env (si no, usa la
@@ -48,7 +50,15 @@ $secrets = @(
 )
 if ($e['CRON_SECRET']) { $secrets += "CRON_SECRET=$($e['CRON_SECRET'])" }
 
-Write-Host "==> supabase secrets set (media-sign + send-email)" -ForegroundColor Cyan
+# FCM (push): el secret es el CONTENIDO del JSON de la service account (multilínea),
+# referenciado por ruta en FCM_SERVICE_ACCOUNT_FILE. Solo si existe el fichero.
+$fcmFile = $e['FCM_SERVICE_ACCOUNT_FILE']
+if ($fcmFile -and (Test-Path $fcmFile)) {
+  $fcmJson = Get-Content -Raw -Path $fcmFile
+  $secrets += "FCM_SERVICE_ACCOUNT=$fcmJson"
+}
+
+Write-Host "==> supabase secrets set (media-sign + send-email + notify-waitlist + send-push)" -ForegroundColor Cyan
 & supabase secrets set @proj @secrets
 if ($LASTEXITCODE -ne 0) { throw "supabase secrets set falló ($LASTEXITCODE)" }
 Write-Host "OK  secrets subidos." -ForegroundColor Green
