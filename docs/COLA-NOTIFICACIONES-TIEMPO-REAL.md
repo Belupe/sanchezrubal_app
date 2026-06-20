@@ -7,9 +7,17 @@ Guía de puesta en marcha de tres piezas que van juntas:
 3. **Tiempo real** in-app (Supabase Realtime): calendario, reservas, cola y anuncios se
    actualizan solos en todos los dispositivos.
 
-> El código ya está implementado y `flutter analyze` pasa limpio. Lo que queda es **setup
-> manual** (migraciones, Firebase y secrets). Sin el setup, la cola y el tiempo real funcionan,
-> pero el **push** no (el email sí, si el SMTP ya está configurado).
+> El código ya está implementado y `flutter analyze` pasa limpio.
+>
+> **Estado actual (hecho automáticamente):**
+> - ✅ Migraciones `0013`, `0014`, `0015` **aplicadas** a Supabase Cloud.
+> - ✅ Edge Functions `send-push` y `notify-waitlist` **desplegadas** (ACTIVE, `verify_jwt=false`).
+> - ✅ Realtime habilitado; `get_advisors` security sin avisos nuevos.
+>
+> **Lo que falta (solo lo puede hacer el usuario):** crear Firebase, `flutterfire configure`,
+> fijar los valores de los secrets (`CRON_SECRET`, `FCM_SERVICE_ACCOUNT`) y recompilar las apps.
+> Sin esto, la **cola y el tiempo real ya funcionan**; el **email** de la cola funciona en cuanto
+> se fije `CRON_SECRET`; el **push** cuando se complete Firebase + secrets.
 
 ---
 
@@ -32,23 +40,15 @@ promovido **2 avisos** (push + email): «X ha cancelado» y «las fechas son tuy
 
 ---
 
-## Paso 1 — Aplicar las migraciones a Supabase Cloud
+## Paso 1 — Migraciones a Supabase Cloud ✅ HECHO
 
-Aplica en orden `0013`, `0014`, `0015` (proyecto `SanchezRubal`, ref `pjceyplciujtrnxptwbx`).
+Aplicadas `0013_waitlist`, `0014_waitlist_templates`, `0015_realtime` (proyecto `SanchezRubal`,
+ref `pjceyplciujtrnxptwbx`). Verificado: tabla `reservation_waitlist` con RLS y políticas, triggers
+`trg_promote_waitlist` y `trg_enforce_waitlist_rules`, Realtime habilitado, `get_advisors` security
+sin avisos nuevos.
 
-Con el conector MCP de Supabase (o el SQL Editor / CLI), ejecuta el contenido de:
-
-- `supabase/migrations/0013_waitlist.sql`
-- `supabase/migrations/0014_waitlist_templates.sql`
-- `supabase/migrations/0015_realtime.sql`
-
-Comprueba después:
-- La tabla `reservation_waitlist` existe, con RLS activado y políticas.
-- Los triggers `trg_promote_waitlist` (en `reservations`) y `trg_enforce_waitlist_rules` existen.
-- `get_advisors` (security) sin avisos nuevos.
-
-> Nota: `0013` usa `net.http_post` y `vault.decrypted_secrets`, ya disponibles (extensiones
-> `pg_net` y `supabase_vault` se crearon en migraciones previas; el secreto `cron_secret` ya existe).
+> (Si tuvieras que reaplicarlas en otro entorno: ejecuta el contenido de esos ficheros de
+> `supabase/migrations/` en orden, vía MCP / SQL Editor / `supabase db push`.)
 
 ---
 
@@ -88,31 +88,33 @@ Cloud Messaging). Requiere el Apple Developer Program (hoy en pausa). Android y 
 
 1. Firebase Console → **Project settings → Service accounts → Generate new private key**.
    Descarga el JSON (contiene `client_email`, `private_key`, `project_id`).
-2. Ese JSON entero es el secret `FCM_SERVICE_ACCOUNT` de la Edge Function `send-push`.
+2. Guarda ese JSON en una ruta local (está en `.gitignore`: nunca se sube) y apunta a ella con
+   `FCM_SERVICE_ACCOUNT_FILE` en tu `.env`. El adaptador (Paso 4) sube su contenido como el secret
+   `FCM_SERVICE_ACCOUNT` que usa `send-push`. El `project_id` va dentro del propio JSON.
 
 ---
 
-## Paso 4 — Secrets y despliegue de las Edge Functions
+## Paso 4 — Secrets de las Edge Functions
 
-Las funciones comparten `CRON_SECRET` (el mismo `cron_secret` de Vault que ya usa `send-email`).
-Léelo si no lo tienes a mano:
-```sql
-select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret';
-```
+Las funciones (`send-push`, `notify-waitlist`) ya están **desplegadas**. Lo único que falta es
+**fijar los valores de los secrets**, que se hace desde el `.env` único con el adaptador del repo.
 
-Configura los secrets y despliega (CLI de Supabase):
-```powershell
-supabase secrets set CRON_SECRET="<el cron_secret de Vault>"
-supabase secrets set FCM_SERVICE_ACCOUNT="$(Get-Content -Raw .\ruta\service-account.json)"
-
-supabase functions deploy send-push
-supabase functions deploy notify-waitlist
-```
-(`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` los inyecta Supabase solo.)
+1. En tu `.env` (copia de `.env.example`) rellena:
+   - `CRON_SECRET` = el `cron_secret` de Vault (debe COINCIDIR; léelo con
+     `select decrypted_secret from vault.decrypted_secrets where name='cron_secret';`).
+   - `FCM_SERVICE_ACCOUNT_FILE` = ruta al JSON de la service account (el del Paso 3).
+2. Sube los secrets:
+   ```powershell
+   ./scripts/push-supabase-secrets.ps1     # (o .sh en Linux/Mac)
+   ```
+   El script lee el `.env`, toma el CONTENIDO del JSON y lo sube como `FCM_SERVICE_ACCOUNT`, junto
+   con `CRON_SECRET` y los de MinIO. Los secrets de Supabase son a nivel de proyecto → valen para
+   todas las funciones.
 
 > El trigger de BD llama a `notify-waitlist` por HTTPS con `x-cron-secret`; `notify-waitlist` llama
-> a `send-push` con el mismo secreto. Por eso **las dos** funciones necesitan `CRON_SECRET`, y
-> `send-push` además `FCM_SERVICE_ACCOUNT`.
+> a `send-push` con el mismo secreto. Por eso **las dos** necesitan `CRON_SECRET`, y `send-push`
+> además `FCM_SERVICE_ACCOUNT`. Si necesitas re-desplegar el código:
+> `supabase functions deploy send-push notify-waitlist` (ambas con `--no-verify-jwt`).
 
 ---
 
@@ -143,6 +145,12 @@ flutter run        # o build apk / build windows / build ipa con los --dart-defi
    `x-cron-secret` para confirmar la recepción.
 
 ---
+
+## `compose.yaml` — no necesita cambios
+
+Las Edge Functions corren en **Supabase Cloud**, no en Docker. `compose.yaml` solo levanta MinIO y
+el nginx de actualizaciones. Las claves de FCM son **secrets de Supabase** (Paso 4), no variables de
+contenedor, así que no se toca `compose.yaml`.
 
 ## Notas y límites
 

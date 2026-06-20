@@ -10,6 +10,12 @@ key.properties
 *.jks
 *.keystore
 
+# Firebase / FCM (NUNCA subir la service account ni la config nativa)
+*service-account*.json
+fcm-service-account.json
+google-services.json
+GoogleService-Info.plist
+
 # Artefactos finales (se regeneran con scripts/release.ps1)
 dist/
 build/
