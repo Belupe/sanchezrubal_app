@@ -60,9 +60,23 @@ if ($dataDir -and (Test-Path $dataDir)) {
       Copy-Item "$src\*" $dst -Recurse -Force
     }
   }
-  if (-not (Test-Path (Join-Path $dataDir 'index.html'))) {
-    Copy-Item (Join-Path $root 'server\updates\index.html') $dataDir -Force
+  # index.html: se regenera SIEMPRE desde la plantilla, horneando los enlaces de
+  # descarga del .env (así cambiarlos por seguridad es editar .env y republicar).
+  $androidUrl = if ($envv['DOWNLOAD_ANDROID_URL']) { $envv['DOWNLOAD_ANDROID_URL'] } else { './android/portal-familia.apk' }
+  $windowsUrl = if ($envv['DOWNLOAD_WINDOWS_URL']) { $envv['DOWNLOAD_WINDOWS_URL'] } else { './windows/portal-familia-setup.exe' }
+  $iosUrl     = if ($envv['DOWNLOAD_IOS_URL'])     { $envv['DOWNLOAD_IOS_URL'] }     else { '' }
+  $tpl = Get-Content (Join-Path $root 'server\updates\index.html') -Raw
+  if ($iosUrl) {
+    # Hay enlace de App Store: deja el bloque iOS, solo quita los marcadores.
+    $tpl = $tpl -replace '<!--IOS:START-->', '' -replace '<!--IOS:END-->', ''
+  } else {
+    # Sin enlace: elimina por completo cada bloque entre marcadores (botón + ayuda).
+    $tpl = [regex]::Replace($tpl, '(?s)\s*<!--IOS:START-->.*?<!--IOS:END-->', '')
   }
+  $tpl = $tpl.Replace('{{DOWNLOAD_ANDROID_URL}}', $androidUrl).
+              Replace('{{DOWNLOAD_WINDOWS_URL}}', $windowsUrl).
+              Replace('{{DOWNLOAD_IOS_URL}}', $iosUrl)
+  Set-Content (Join-Path $dataDir 'index.html') $tpl -Encoding UTF8
   Write-Host "`nPublicado en UPDATES_DATA_DIR: $dataDir  →  las apps se actualizarán solas." -ForegroundColor Green
 } else {
   Write-Host "`nSiguiente paso: sube el contenido de '$dist' (android/, windows/, e index.html la 1ª vez)" -ForegroundColor Yellow

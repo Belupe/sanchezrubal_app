@@ -40,6 +40,11 @@ familia.
    una vez **aprobada**, solicita el enlace de distribución no listada en App Store Connect
    (*la app → "Request unlisted app distribution"*, formulario de Apple). Reparte ese **enlace**
    a la familia; con él instalan Portal Familia desde el App Store.
+7. **Pega el enlace en `.env`:** pon esa URL (`https://apps.apple.com/...`) en `DOWNLOAD_IOS_URL`
+   del `.env` y ejecuta `./scripts/release.ps1`. La página de descargas (`UPDATES_PUBLIC_URL`)
+   mostrará entonces el botón **🍏 iPhone / iPad**. Mientras `DOWNLOAD_IOS_URL` esté vacío, el botón
+   no aparece. Si algún día hay que cambiarlo por seguridad, editas `.env` y republicas: no se toca
+   código. (Lo mismo aplica a `DOWNLOAD_ANDROID_URL` y `DOWNLOAD_WINDOWS_URL`.)
 
    > La distribución no listada exige una **primera aprobación** y luego el formulario; no es
    > instantánea el día 1. (TestFlight queda como herramienta opcional de pruebas internas antes de
