@@ -29,6 +29,7 @@
       padding: 14px 20px; border-radius: 12px; margin-bottom: 12px;
     }
     a.btn.win { background: #0f766e; }
+    a.btn.ios { background: #000; }
     a.btn:active { transform: translateY(1px); }
     h2 { font-size: 1rem; margin: 24px 0 8px; }
     ol { padding-left: 20px; margin: 0; }
@@ -41,8 +42,11 @@
     <h1>Portal Familia</h1>
     <p class="sub">Descarga la app para tu dispositivo</p>
 
-    <a class="btn" href="./android/portal-familia.apk" download>📱 Android — Descargar e instalar</a>
-    <a class="btn win" href="./windows/portal-familia-setup.exe" download>🖥️ Windows — Descargar instalador</a>
+    <a class="btn" href="{{DOWNLOAD_ANDROID_URL}}" download>📱 Android — Descargar e instalar</a>
+    <a class="btn win" href="{{DOWNLOAD_WINDOWS_URL}}" download>🖥️ Windows — Descargar instalador</a>
+    <!--IOS:START-->
+    <a class="btn ios" href="{{DOWNLOAD_IOS_URL}}">🍏 iPhone / iPad — Abrir en App Store</a>
+    <!--IOS:END-->
 
     <h2>Android</h2>
     <ol>
@@ -52,9 +56,16 @@
     <ol>
       <li class="step">Ejecuta el instalador. Windows puede avisar (app sin firma): <b>Más información → Ejecutar de todas formas</b>.</li>
     </ol>
+    <!--IOS:START-->
+    <h2>iPhone / iPad</h2>
+    <ol>
+      <li class="step">Pulsa el botón: abre el <b>App Store</b> en la ficha de Portal Familia (no aparece en búsquedas) y pulsa <b>Obtener</b>.</li>
+    </ol>
+    <!--IOS:END-->
 
-    <p class="note">Las próximas versiones se actualizan solas desde dentro de la app.
-    En iPhone/iPad la app se instala por invitación de TestFlight, no desde aquí.</p>
+    <p class="note">Las próximas versiones se actualizan solas: Android y Windows desde dentro de la app,
+    y iPhone/iPad automáticamente desde el App Store. La app de iOS es <b>privada (no listada)</b>:
+    solo se instala con el enlace de arriba, no es buscable.</p>
   </main>
 </body>
 </html>
