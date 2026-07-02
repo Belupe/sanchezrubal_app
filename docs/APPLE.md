@@ -44,7 +44,7 @@ familia.
    del `.env` y ejecuta `./scripts/release.ps1`. La página de descargas (`UPDATES_PUBLIC_URL`)
    mostrará entonces el botón **🍏 iPhone / iPad**. Mientras `DOWNLOAD_IOS_URL` esté vacío, el botón
    no aparece. Si algún día hay que cambiarlo por seguridad, editas `.env` y republicas: no se toca
-   código. (Lo mismo aplica a `DOWNLOAD_ANDROID_URL` y `DOWNLOAD_WINDOWS_URL`.)
+   código. (Lo mismo aplica a `DOWNLOAD_ANDROID_PLAY_URL` y `DOWNLOAD_WINDOWS_URL`.)
 
    > La distribución no listada exige una **primera aprobación** y luego el formulario; no es
    > instantánea el día 1. (TestFlight queda como herramienta opcional de pruebas internas antes de
