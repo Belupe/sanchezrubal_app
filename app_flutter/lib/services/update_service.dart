@@ -35,6 +35,9 @@ class UpdateService {
   /// para llamarse una vez tras el login. Silencioso ante errores de red.
   static Future<void> checkForUpdate(BuildContext context,
       {bool force = false}) async {
+    // Build de Google Play: el auto-update por APK va desactivado (política de
+    // Play). Play actualiza a los usuarios por su cuenta. Ver docs/GOOGLE.md.
+    if (!AppConfig.enableSelfUpdate) return;
     final platform = _platform;
     if (platform == null) return;
     if (_checked && !force) return;
