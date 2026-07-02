@@ -46,6 +46,11 @@ casi instantánea) o **cerrada**. Producción = público en la tienda.
 5. **Rellena las fichas obligatorias** que Play exige aunque sea privada: *política de privacidad*,
    *content rating*, *data safety* (declara que usas datos de Supabase/almacenamiento propio y push).
 6. **Publica en la pista.** Los testers invitados instalan y, a partir de ahí, **Play les auto-actualiza**.
+7. **Reparte el enlace de invitación.** En la pista, Play Console te da un **enlace de aceptación/opt-in**
+   (`https://play.google.com/apps/internaltest/...`). Pégalo en `DOWNLOAD_ANDROID_PLAY_URL` del `.env` y
+   ejecuta `./scripts/release.ps1`: la página de descargas mostrará **"Android — Instalar desde Google
+   Play"** y ocultará el botón del APK self-hosted (no se pueden ofrecer los dos a la vez —mismo
+   `applicationId`, conflicto de firma). Si vacías `DOWNLOAD_ANDROID_PLAY_URL`, Android vuelve al APK.
 
 ## Actualizaciones
 
