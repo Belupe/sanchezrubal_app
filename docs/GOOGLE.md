@@ -49,8 +49,8 @@ casi instantánea) o **cerrada**. Producción = público en la tienda.
 7. **Reparte el enlace de invitación.** En la pista, Play Console te da un **enlace de aceptación/opt-in**
    (`https://play.google.com/apps/internaltest/...`). Pégalo en `DOWNLOAD_ANDROID_PLAY_URL` del `.env` y
    ejecuta `./scripts/release.ps1`: la página de descargas mostrará **"Android — Instalar desde Google
-   Play"** y ocultará el botón del APK self-hosted (no se pueden ofrecer los dos a la vez —mismo
-   `applicationId`, conflicto de firma). Si vacías `DOWNLOAD_ANDROID_PLAY_URL`, Android vuelve al APK.
+   Play"**. Google Play es el **único canal de Android** en la página (ya no se ofrece APK de descarga
+   directa). Si dejas `DOWNLOAD_ANDROID_PLAY_URL` vacío, el botón de Android no aparece.
 
 ## Actualizaciones
 
