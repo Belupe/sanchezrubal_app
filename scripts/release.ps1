@@ -62,10 +62,20 @@ if ($dataDir -and (Test-Path $dataDir)) {
   }
   # index.html: se regenera SIEMPRE desde la plantilla, horneando los enlaces de
   # descarga del .env (así cambiarlos por seguridad es editar .env y republicar).
-  $androidUrl = if ($envv['DOWNLOAD_ANDROID_URL']) { $envv['DOWNLOAD_ANDROID_URL'] } else { './android/portal-familia.apk' }
-  $windowsUrl = if ($envv['DOWNLOAD_WINDOWS_URL']) { $envv['DOWNLOAD_WINDOWS_URL'] } else { './windows/portal-familia-setup.exe' }
-  $iosUrl     = if ($envv['DOWNLOAD_IOS_URL'])     { $envv['DOWNLOAD_IOS_URL'] }     else { '' }
+  $androidUrl     = if ($envv['DOWNLOAD_ANDROID_URL'])      { $envv['DOWNLOAD_ANDROID_URL'] }      else { './android/portal-familia.apk' }
+  $windowsUrl     = if ($envv['DOWNLOAD_WINDOWS_URL'])      { $envv['DOWNLOAD_WINDOWS_URL'] }      else { './windows/portal-familia-setup.exe' }
+  $iosUrl         = if ($envv['DOWNLOAD_IOS_URL'])          { $envv['DOWNLOAD_IOS_URL'] }          else { '' }
+  $androidPlayUrl = if ($envv['DOWNLOAD_ANDROID_PLAY_URL']) { $envv['DOWNLOAD_ANDROID_PLAY_URL'] } else { '' }
   $tpl = Get-Content (Join-Path $root 'server\updates\index.html') -Raw
+  # Android: si hay enlace de Google Play, la app se instala por invitación desde
+  # Play (se quita el bloque del APK self-hosted). Si no, se sirve el APK propio.
+  if ($androidPlayUrl) {
+    $tpl = $tpl -replace '<!--ANDROID_PLAY:START-->', '' -replace '<!--ANDROID_PLAY:END-->', ''
+    $tpl = [regex]::Replace($tpl, '(?s)\s*<!--ANDROID_APK:START-->.*?<!--ANDROID_APK:END-->', '')
+  } else {
+    $tpl = [regex]::Replace($tpl, '(?s)\s*<!--ANDROID_PLAY:START-->.*?<!--ANDROID_PLAY:END-->', '')
+    $tpl = $tpl -replace '<!--ANDROID_APK:START-->', '' -replace '<!--ANDROID_APK:END-->', ''
+  }
   if ($iosUrl) {
     # Hay enlace de App Store: deja el bloque iOS, solo quita los marcadores.
     $tpl = $tpl -replace '<!--IOS:START-->', '' -replace '<!--IOS:END-->', ''
@@ -74,6 +84,7 @@ if ($dataDir -and (Test-Path $dataDir)) {
     $tpl = [regex]::Replace($tpl, '(?s)\s*<!--IOS:START-->.*?<!--IOS:END-->', '')
   }
   $tpl = $tpl.Replace('{{DOWNLOAD_ANDROID_URL}}', $androidUrl).
+              Replace('{{DOWNLOAD_ANDROID_PLAY_URL}}', $androidPlayUrl).
               Replace('{{DOWNLOAD_WINDOWS_URL}}', $windowsUrl).
               Replace('{{DOWNLOAD_IOS_URL}}', $iosUrl)
   Set-Content (Join-Path $dataDir 'index.html') $tpl -Encoding UTF8
