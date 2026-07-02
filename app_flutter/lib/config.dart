@@ -26,4 +26,14 @@ class AppConfig {
     'UPDATES_PUBLIC_URL',
     defaultValue: 'https://app.sanchezrubal.net',
   );
+
+  /// Auto-actualización interna (descarga+instala el paquete de tu servidor).
+  /// ACTIVA por defecto para el APK self-hosted y Windows. En la build de
+  /// Google Play DEBE ir DESACTIVADA (--dart-define=ENABLE_SELF_UPDATE=false):
+  /// Play no permite que la app se auto-actualice bajando APKs, y ya gestiona
+  /// las updates por su cuenta. Ver docs/GOOGLE.md.
+  static const enableSelfUpdate = bool.fromEnvironment(
+    'ENABLE_SELF_UPDATE',
+    defaultValue: true,
+  );
 }
