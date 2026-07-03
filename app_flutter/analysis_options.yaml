@@ -1,1 +1,8 @@
 include: package:flutter_lints/flutter.yaml
+
+# El analizador NO debe revisar build/: ahí Swift Package Manager clona repos
+# de terceros (p. ej. los tests de flutterfire), que disparaban ~13.000 errores
+# ajenos a esta app. Excluir build/ los elimina; no es código nuestro.
+analyzer:
+  exclude:
+    - build/**
