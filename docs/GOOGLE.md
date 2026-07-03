@@ -1,8 +1,8 @@
 # Google Play — publicación MANUAL (app privada familiar)
 
-Alternativa/añadido al **APK self-hosted** ([ANDROID.md](ANDROID.md)). Aquí se sube la app a
-**Google Play a mano**: no hay automatización desde GitHub (hacer `push` **no** sube nada a ninguna
-tienda). Compilas un `.aab` y lo subes tú en Play Console.
+Android se distribuye por **Google Play a mano** (el APK self-hosted quedó retirado; el keystore de
+[ANDROID.md](ANDROID.md) se reutiliza como *clave de subida*). No hay automatización desde GitHub
+(hacer `push` **no** sube nada a ninguna tienda): compilas un `.aab` y lo subes tú en Play Console.
 
 Para una app **privada** de familia, Google Play **no tiene "no listado"** como Apple. Lo privado se
 consigue con una **pista de prueba interna** (hasta ~100 testers por email, sin revisión completa,

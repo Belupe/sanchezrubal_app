@@ -1,7 +1,7 @@
 # =====================================================================
 #  build-aab.ps1  —  Compila el App Bundle (.aab) para SUBIR A GOOGLE PLAY
 # =====================================================================
-#  Distinto de build-android.ps1 (que hace el .apk self-hosted):
+#  Es el ÚNICO build de Android (el APK self-hosted quedó retirado):
 #    · genera un .aab (formato que exige Google Play),
 #    · DESACTIVA el auto-updater interno (ENABLE_SELF_UPDATE=false) porque
 #      Play prohíbe que la app se actualice bajando APKs y ya actualiza ella,

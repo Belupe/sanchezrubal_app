@@ -1,16 +1,19 @@
 # =====================================================================
 #  release.ps1  —  Compila y publica una versión nueva (un solo comando)
 # =====================================================================
-#  Compila Android (+ Windows si hay toolchain), deja los artefactos en
-#  dist/ y, si UPDATES_DATA_DIR es una ruta local accesible, los publica
-#  automáticamente para que las apps se auto-actualicen.
+#  Compila el instalador de Windows, deja los artefactos en dist/ y, si
+#  UPDATES_DATA_DIR es una ruta local accesible, los publica y regenera la
+#  página de descargas (con los enlaces de tienda del .env).
+#
+#  Android va por Google Play (scripts/build-aab.ps1) e iOS por App Store: no
+#  se compilan aquí. Windows se auto-actualiza desde su propio instalador.
 #
 #  Uso:
 #    ./scripts/release.ps1            # compila la versión actual de pubspec
 #    ./scripts/release.ps1 -Bump      # sube el build number (+1) y compila
 #    ./scripts/release.ps1 -SkipWindows
 # =====================================================================
-param([switch]$Bump, [switch]$SkipAndroid, [switch]$SkipWindows)
+param([switch]$Bump, [switch]$SkipWindows)
 $ErrorActionPreference = 'Stop'
 $scripts = $PSScriptRoot
 $root    = Split-Path $scripts -Parent
@@ -42,7 +45,6 @@ if ($Bump) {
   Write-Host "Versión: $($v.Trim())  (build number +1)" -ForegroundColor Cyan
 }
 
-if (-not $SkipAndroid) { & (Join-Path $scripts 'build-android.ps1') }
 if (-not $SkipWindows) {
   & (Join-Path $scripts 'build-windows.ps1')
   if ($LASTEXITCODE -eq 2) { Write-Warning "Windows: instalador no generado (falta Inno Setup o Visual Studio)." }
@@ -52,7 +54,7 @@ if (-not $SkipWindows) {
 $dataDir = $envv['UPDATES_DATA_DIR']
 $dist = Join-Path $root 'dist'
 if ($dataDir -and (Test-Path $dataDir)) {
-  foreach ($plat in 'android','windows') {
+  foreach ($plat in @('windows')) {
     $src = Join-Path $dist $plat
     if (Test-Path $src) {
       $dst = Join-Path $dataDir $plat
@@ -86,6 +88,6 @@ if ($dataDir -and (Test-Path $dataDir)) {
   Set-Content (Join-Path $dataDir 'index.html') $tpl -Encoding UTF8
   Write-Host "`nPublicado en UPDATES_DATA_DIR: $dataDir  →  las apps se actualizarán solas." -ForegroundColor Green
 } else {
-  Write-Host "`nSiguiente paso: sube el contenido de '$dist' (android/, windows/, e index.html la 1ª vez)" -ForegroundColor Yellow
+  Write-Host "`nSiguiente paso: sube el contenido de '$dist' (windows/ e index.html la 1ª vez)" -ForegroundColor Yellow
   Write-Host "a la carpeta UPDATES_DATA_DIR de tu servidor Docker." -ForegroundColor Yellow
 }
