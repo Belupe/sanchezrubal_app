@@ -40,10 +40,10 @@ app_flutter/       ← la app (android/ · ios/ · windows/ · lib/)
 supabase/          ← migraciones (0001–0015) + Edge Functions (media-sign · send-email ·
                      admin-users · test-smtp · send-push · notify-waitlist)
 server/            ← soporte del servidor:  nginx/ · cloudflared/ · updates/ (plantillas)
-scripts/           ← release.ps1 · build-android.ps1 · build-windows.ps1 · push-supabase-secrets.*
-docs/              ← ANDROID.md · WINDOWS.md · APPLE.md · ARQUITECTURA.md ·
+scripts/           ← release.ps1 · build-aab.ps1 · build-windows.ps1 · push-supabase-secrets.*
+docs/              ← GOOGLE.md · APPLE.md · WINDOWS.md · ANDROID.md · ARQUITECTURA.md ·
                      COLA-NOTIFICACIONES-TIEMPO-REAL.md
-dist/              ← (generado) artefactos finales: APK, setup.exe, version.json
+dist/              ← (generado) artefactos finales: setup.exe (Windows), .aab (Google Play), version.json
 ```
 
 ## Configuración: un único `.env`
@@ -72,7 +72,7 @@ ejecución, **3 adaptadores** lo reparten (sin filtrar secretos al cliente):
 
 | Plataforma | Cómo se compila y se actualiza | Guía |
 |-----------|-------------------------------|------|
-| Android | `flutter build apk` en tu PC (Android SDK) → APK firmado; auto-update | [docs/ANDROID.md](docs/ANDROID.md) |
+| Android | `flutter build appbundle` (`build-aab.ps1`) → **Google Play** (por invitación) | [docs/GOOGLE.md](docs/GOOGLE.md) |
 | Windows | `flutter build windows` (Visual Studio C++) + Inno Setup → `setup.exe`; auto-update | [docs/WINDOWS.md](docs/WINDOWS.md) |
 | Apple | `flutter build ipa` en un **Mac** → App Store Connect → **App Store privado (no listado)** | [docs/APPLE.md](docs/APPLE.md) |
 
@@ -81,18 +81,18 @@ ejecución, **3 adaptadores** lo reparten (sin filtrar secretos al cliente):
 ```powershell
 ./scripts/release.ps1 -Bump
 ```
-Sube el número de versión de `app_flutter/pubspec.yaml`, compila Android (+ Windows si tienes la
-toolchain), deja los artefactos en `dist/` y —si `UPDATES_DATA_DIR` es accesible— los **publica**
-en el servidor. **No** hace falta reconstruir imágenes ni reiniciar contenedores: el servicio
-`updates` sirve la carpeta en vivo y **las apps de Android/Windows se actualizan solas** al
-reabrirse. (iOS se actualiza aparte, por el **App Store** — ver su guía.)
+Sube el número de versión de `app_flutter/pubspec.yaml`, compila **Windows**, deja los artefactos en
+`dist/` y —si `UPDATES_DATA_DIR` es accesible— los **publica** en el servidor y regenera la página de
+descargas. **No** hace falta reconstruir imágenes ni reiniciar contenedores: el servicio `updates`
+sirve la carpeta en vivo y **Windows se actualiza solo** al reabrirse. (Android va por **Google Play**
+—`build-aab.ps1`— e iOS por el **App Store**; se publican aparte, ver sus guías.)
 
 > Si el servidor Docker está en otra máquina (Linux), copia el contenido de `dist/` a la carpeta
 > `UPDATES_DATA_DIR` de ese servidor (la primera vez incluye `index.html`).
 
 ## Herramientas por plataforma (en tu máquina de desarrollo)
 
-- **Android**: Android Studio o el Android SDK (cmdline-tools). Keystore de firma (ver ANDROID.md).
+- **Android**: Android Studio o el Android SDK (cmdline-tools). Keystore de subida (ver ANDROID.md); el `.aab` se compila con `build-aab.ps1` (ver GOOGLE.md).
 - **Windows**: Visual Studio con *Desktop development with C++* + **Inno Setup**.
 - **Apple**: un **Mac** con Xcode + **Apple Developer Program** (99 €/año). Distribución en
   **App Store no listado** (privado por enlace), no TestFlight — ver [docs/APPLE.md](docs/APPLE.md).

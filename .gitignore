@@ -5,6 +5,9 @@ node_modules/
 # Config local de Claude Code (no compartir)
 .claude/settings.local.json
 
+# IDE — IntelliJ/Android Studio (config local, no compartir)
+.idea/
+
 # Firma de Android (NUNCA subir el keystore ni sus contraseñas)
 key.properties
 *.jks
