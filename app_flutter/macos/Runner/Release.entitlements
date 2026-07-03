@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Red saliente: imprescindible para Supabase (Auth/DB/Realtime/Functions)
+	     y para subir/descargar media a MinIO. Sin esto la app no conecta. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Adjuntar imágenes/vídeos (image_picker) y abrir archivos (open_filex). -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>
