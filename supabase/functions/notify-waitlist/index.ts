@@ -10,7 +10,8 @@
 // Auth: cabecera x-cron-secret == CRON_SECRET (la pone el trigger desde
 // Vault). El push se delega en la Edge Function send-push.
 //
-// Secrets: CRON_SECRET. SMTP se lee de system_config (service role).
+// Secrets: CRON_SECRET (auth propia, la pone el trigger) y PUSH_SECRET (para
+// invocar send-push). SMTP se lee de system_config (service role).
 // SUPABASE_URL/SERVICE_ROLE inyectados por Supabase.
 // ===============================================================
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -20,6 +21,21 @@ import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
+const PUSH_SECRET = Deno.env.get("PUSH_SECRET") ?? "";
+
+// [B-05] Comparación en tiempo constante del secreto de cron (ver send-email).
+async function cronSecretMatches(provided: string | null): Promise<boolean> {
+  if (!CRON_SECRET) return false;
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(provided ?? "")),
+    crypto.subtle.digest("SHA-256", enc.encode(CRON_SECRET)),
+  ]);
+  const x = new Uint8Array(ha), y = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -107,7 +123,7 @@ async function sendPush(userId: string, title: string, body: string, data: Recor
   try {
     await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-cron-secret": CRON_SECRET },
+      headers: { "Content-Type": "application/json", "x-push-secret": PUSH_SECRET },
       body: JSON.stringify({ userIds: [userId], title, body, data }),
     });
   } catch (_) { /* el email ya cubre el aviso */ }
@@ -116,7 +132,7 @@ async function sendPush(userId: string, title: string, body: string, data: Recor
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
+    if (!(await cronSecretMatches(req.headers.get("x-cron-secret")))) {
       return json({ error: "No autorizado" }, 401);
     }
     const b = await req.json().catch(() => ({}));
@@ -169,6 +185,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, emailsSent });
   } catch (e) {
-    return json({ error: String((e as Error)?.message ?? e) }, 500);
+    console.error("notify-waitlist error:", e);
+    return json({ error: "Error interno al notificar la lista de espera" }, 500);
   }
 });

@@ -2,14 +2,15 @@
 // send-push — Envía notificaciones push a los dispositivos de uno o varios
 // usuarios vía FCM HTTP v1. Reutilizable por cualquier otra función.
 //
-// Auth: cabecera x-cron-secret == CRON_SECRET (uso interno: lo llama
-// notify-waitlist y, en su día, otros disparadores del backend).
+// Auth: cabecera x-push-secret == PUSH_SECRET (secreto DEDICADO de push,
+// DISTINTO del CRON_SECRET: filtrar el CRON_SECRET ya no basta para spamear
+// push). Uso interno: lo llama notify-waitlist y otros disparadores del backend.
 //
 // Input JSON: { userIds: string[], title: string, body: string,
 //               data?: Record<string,string> }
 //
 // Secrets necesarios:
-//   CRON_SECRET          — mismo secreto compartido del backend.
+//   PUSH_SECRET          — secreto DEDICADO solo para invocar send-push.
 //   FCM_SERVICE_ACCOUNT  — JSON (string) de la service account de Firebase
 //                          con permiso de FCM (Cloud Messaging).
 // SUPABASE_URL/SERVICE_ROLE los inyecta Supabase en runtime.
@@ -19,14 +20,30 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
+const PUSH_SECRET = Deno.env.get("PUSH_SECRET") ?? "";
 const FCM_SERVICE_ACCOUNT = Deno.env.get("FCM_SERVICE_ACCOUNT") ?? "";
+
+// [B-05] Comparación en tiempo constante del secreto de push (ver send-email).
+// Hasheamos ambos valores a 32 bytes fijos y comparamos con XOR acumulado: ni
+// el tiempo ni la longitud del secreto se filtran.
+async function pushSecretMatches(provided: string | null): Promise<boolean> {
+  if (!PUSH_SECRET) return false;
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(provided ?? "")),
+    crypto.subtle.digest("SHA-256", enc.encode(PUSH_SECRET)),
+  ]);
+  const x = new Uint8Array(ha), y = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-push-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (o: unknown, s = 200) =>
@@ -87,7 +104,11 @@ async function getAccessToken(sa: { client_email: string; private_key: string; t
     }),
   });
   const tok = await res.json();
-  if (!res.ok || !tok.access_token) throw new Error(`OAuth FCM falló: ${JSON.stringify(tok)}`);
+  if (!res.ok || !tok.access_token) {
+    // [B-04] No filtrar el JSON crudo de OAuth/FCM al cliente; solo al log.
+    console.error("send-push OAuth FCM error:", res.status, tok);
+    throw new Error("OAuth FCM falló");
+  }
   cachedToken = { token: tok.access_token, exp: now + (tok.expires_in ?? 3600) };
   return tok.access_token;
 }
@@ -95,7 +116,7 @@ async function getAccessToken(sa: { client_email: string; private_key: string; t
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
+    if (!(await pushSecretMatches(req.headers.get("x-push-secret")))) {
       return json({ error: "No autorizado" }, 401);
     }
     if (!FCM_SERVICE_ACCOUNT) return json({ error: "FCM_SERVICE_ACCOUNT no configurado" }, 500);
@@ -138,6 +159,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, sent, cleaned: stale.length });
   } catch (e) {
-    return json({ error: String((e as Error)?.message ?? e) }, 500);
+    console.error("send-push error:", e);
+    return json({ error: "Error interno al enviar la notificación push" }, 500);
   }
 });

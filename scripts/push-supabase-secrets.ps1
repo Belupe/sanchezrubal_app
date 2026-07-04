@@ -40,26 +40,47 @@ $e = Read-DotEnv $envFile
 if ($e['SUPABASE_ACCESS_TOKEN']) { $env:SUPABASE_ACCESS_TOKEN = $e['SUPABASE_ACCESS_TOKEN'] }
 $proj = if ($e['SUPABASE_PROJECT_REF']) { @('--project-ref', $e['SUPABASE_PROJECT_REF']) } else { @() }
 
-# Mapeo .env canónico  ->  nombre del secret en Supabase
-$secrets = @(
-  "MINIO_ENDPOINT=$($e['MEDIA_PUBLIC_URL'])",
-  "MINIO_BUCKET=$($e['MEDIA_BUCKET'])",
-  "MEDIA_SIGN_ACCESS_KEY=$($e['MEDIA_SIGN_ACCESS_KEY'])",
-  "MEDIA_SIGN_SECRET_KEY=$($e['MEDIA_SIGN_SECRET_KEY'])",
-  "MINIO_REGION=$($e['MINIO_REGION'])",
-  "MEDIA_MAX_UPLOAD_BYTES=$(if ([string]::IsNullOrEmpty($e['MEDIA_MAX_UPLOAD_BYTES'])) { '104857600' } else { $e['MEDIA_MAX_UPLOAD_BYTES'] })"
-)
-if ($e['CRON_SECRET']) { $secrets += "CRON_SECRET=$($e['CRON_SECRET'])" }
+# --- Fichero temporal restringido con los secrets [B-07] ---
+# NO se pasan por argv: los argumentos de un proceso son visibles con
+# Get-CimInstance Win32_Process para otros usuarios. 'supabase secrets set
+# --env-file' los lee de un fichero que solo el usuario actual puede leer.
+$tmp = [System.IO.Path]::GetTempFileName()
+# Rompe herencia y concede solo al usuario actual (equivalente a chmod 600)
+icacls $tmp /inheritance:r /grant:r "$($env:USERNAME):(F)" | Out-Null
+try {
+  $lines = New-Object System.Collections.Generic.List[string]
+  # comillas simples => valor literal en el dotenv (sin expansión). Asume que el valor no contiene '
+  function Add-Secret([string]$k, [string]$v) { $lines.Add("$k='$v'") }
 
-# FCM (push): el secret es el CONTENIDO del JSON de la service account (multilínea),
-# referenciado por ruta en FCM_SERVICE_ACCOUNT_FILE. Solo si existe el fichero.
-$fcmFile = $e['FCM_SERVICE_ACCOUNT_FILE']
-if ($fcmFile -and (Test-Path $fcmFile)) {
-  $fcmJson = Get-Content -Raw -Path $fcmFile
-  $secrets += "FCM_SERVICE_ACCOUNT=$fcmJson"
+  Add-Secret 'MINIO_ENDPOINT'         $e['MEDIA_PUBLIC_URL']
+  Add-Secret 'MINIO_BUCKET'           $e['MEDIA_BUCKET']
+  Add-Secret 'MEDIA_SIGN_ACCESS_KEY'  $e['MEDIA_SIGN_ACCESS_KEY']
+  Add-Secret 'MEDIA_SIGN_SECRET_KEY'  $e['MEDIA_SIGN_SECRET_KEY']
+  Add-Secret 'MINIO_REGION'           $e['MINIO_REGION']
+  $mmb = if ([string]::IsNullOrEmpty($e['MEDIA_MAX_UPLOAD_BYTES'])) { '104857600' } else { $e['MEDIA_MAX_UPLOAD_BYTES'] }
+  Add-Secret 'MEDIA_MAX_UPLOAD_BYTES'  $mmb
+  if ($e['CRON_SECRET']) { Add-Secret 'CRON_SECRET' $e['CRON_SECRET'] }
+  if ($e['PUSH_SECRET']) { Add-Secret 'PUSH_SECRET' $e['PUSH_SECRET'] }   # [B-06] secreto dedicado de send-push
+
+  # FCM (push): el secret es el CONTENIDO del JSON de la service account (multilínea),
+  # referenciado por ruta en FCM_SERVICE_ACCOUNT_FILE. Solo si existe el fichero.
+  $fcmFile = $e['FCM_SERVICE_ACCOUNT_FILE']
+  if ($fcmFile -and (Test-Path $fcmFile)) {
+    # JSON a UNA línea: quita CR/LF reales; conserva los \n literales de private_key
+    $fcmJson = (Get-Content -Raw -Path $fcmFile) -replace '\r?\n', ''
+    if ($fcmJson.Contains("'")) { throw "FCM JSON contiene comilla simple; no soportado." }
+    Add-Secret 'FCM_SERVICE_ACCOUNT' $fcmJson
+  }
+
+  # UTF-8 SIN BOM (el BOM rompe el parseo del dotenv)
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($tmp, (($lines -join "`n") + "`n"), $utf8NoBom)
+
+  Write-Host "==> supabase secrets set (media-sign + send-email + notify-waitlist + send-push)" -ForegroundColor Cyan
+  & supabase secrets set @proj --env-file $tmp
+  if ($LASTEXITCODE -ne 0) { throw "supabase secrets set falló ($LASTEXITCODE)" }
+  Write-Host "OK  secrets subidos." -ForegroundColor Green
 }
-
-Write-Host "==> supabase secrets set (media-sign + send-email + notify-waitlist + send-push)" -ForegroundColor Cyan
-& supabase secrets set @proj @secrets
-if ($LASTEXITCODE -ne 0) { throw "supabase secrets set falló ($LASTEXITCODE)" }
-Write-Host "OK  secrets subidos." -ForegroundColor Green
+finally {
+  Remove-Item -Force -ErrorAction SilentlyContinue $tmp
+}

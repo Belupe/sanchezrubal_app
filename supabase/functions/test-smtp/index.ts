@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, to });
   } catch (e) {
-    return json({ error: String((e as Error)?.message ?? e) }, 500);
+    console.error("test-smtp error:", e);
+    return json({ error: "Error interno al probar el SMTP" }, 500);
   }
 });

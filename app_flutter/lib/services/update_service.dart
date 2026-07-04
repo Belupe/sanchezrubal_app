@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -166,12 +167,21 @@ class UpdateService {
     final String filePath;
     try {
       final dir = await getTemporaryDirectory();
+      // [B-11] Descarga en un SUBDIRECTORIO ALEATORIO (nombre impredecible,
+      // 16 bytes CSPRNG) creado en exclusiva para esta actualización. Cierra el
+      // TOCTOU de una ruta fija/predecible: ningún otro proceso puede pre-crear
+      // ni sustituir el fichero en una ruta que no puede adivinar. El nombre del
+      // instalador dentro puede ser fijo porque el propio directorio ya es único.
+      final rnd = Random.secure();
+      final token = List<int>.generate(16, (_) => rnd.nextInt(256))
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
+      final downloadDir = Directory('${dir.path}/update-$token');
+      await downloadDir.create(recursive: true);
       final fileName = platform == 'windows'
           ? 'portal-familia-setup.exe'
           : 'portal-familia-update.apk';
-      filePath = '${dir.path}/$fileName';
-      final existing = File(filePath);
-      if (await existing.exists()) await existing.delete();
+      filePath = '${downloadDir.path}/$fileName';
 
       await Dio().download(
         url,

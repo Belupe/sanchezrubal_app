@@ -23,6 +23,25 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
+// [B-05] Comparación en tiempo constante del secreto de cron.
+// crypto.subtle.digest (Web Crypto) está disponible en el edge-runtime de
+// Deno de Supabase (no requiere import). Hasheamos AMBOS valores a 32 bytes
+// de longitud fija y comparamos con XOR acumulado: ni el tiempo de ejecución
+// ni la longitud del secreto se filtran. No usamos node:crypto.timingSafeEqual
+// porque lanza con longitudes distintas y filtraría la longitud del secreto.
+async function cronSecretMatches(provided: string | null): Promise<boolean> {
+  if (!CRON_SECRET) return false;            // guard de secreto vacío (conservado)
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(provided ?? "")),
+    crypto.subtle.digest("SHA-256", enc.encode(CRON_SECRET)),
+  ]);
+  const x = new Uint8Array(ha), y = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
+
 // Esquema propio para que los enlaces de los correos ABRAN la app nativa
 // (ya no hay web). Registrado en Android/Windows/iOS.
 const APP_SCHEME = "portalfamilia://";
@@ -181,7 +200,7 @@ Deno.serve(async (req) => {
 
     // --- Camino cron (recordatorios) ---
     if (type === "inspection_reminders") {
-      if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
+      if (!(await cronSecretMatches(req.headers.get("x-cron-secret")))) {
         return json({ error: "No autorizado (cron)" }, 401);
       }
       const sent = await handleInspectionReminders();
@@ -223,6 +242,7 @@ Deno.serve(async (req) => {
     }
     return json({ error: "type no soportado" }, 400);
   } catch (e) {
-    return json({ error: String((e as Error)?.message ?? e) }, 500);
+    console.error("send-email error:", e);
+    return json({ error: "Error interno al enviar el correo" }, 500);
   }
 });

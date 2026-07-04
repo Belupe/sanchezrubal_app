@@ -14,6 +14,11 @@ class DeepLinkService {
   static bool _inited = false;
   static Uri? _pending; // enlace recibido antes de tener sesión
 
+  // [B-12] UUID canónico (8-4-4-4-12), hex, sin distinguir mayús/minús.
+  static final RegExp _uuidRe = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
   static Future<void> init() async {
     if (_inited) return;
     _inited = true;
@@ -53,6 +58,8 @@ class DeepLinkService {
     final parts = [uri.host, ...uri.pathSegments].where((s) => s.isNotEmpty).toList();
     if (parts.length >= 2 && parts.first == 'inspeccion') {
       final id = parts[1];
+      // [B-12] Ignorar el deep link si el id no es un UUID válido.
+      if (!_uuidRe.hasMatch(id)) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         navigatorKey.currentState?.push(
           MaterialPageRoute(

@@ -197,6 +197,7 @@ Deno.serve(async (req) => {
 
     return json({ error: "op debe ser 'put' o 'get'" }, 400);
   } catch (e) {
-    return json({ error: String((e as Error)?.message ?? e) }, 500);
+    console.error("media-sign error:", e);
+    return json({ error: "Error interno al firmar la URL de media" }, 500);
   }
 });

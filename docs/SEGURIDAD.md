@@ -192,6 +192,72 @@ filtradas en internet); la app solo avisa antes para ahorrarte el viaje.
 
 ---
 
+## Fase 4 — Fallos bajos (últimos retoques)
+
+Son mejoras de "cinturón y tirantes": cosas que ya eran difíciles de aprovechar,
+pero que ahora quedan cerradas del todo. **Nada cambia en cómo usas la app.**
+
+### Doble cerrojo en las tablas de datos `[B-01]`
+Las reglas que deciden quién ve qué (RLS) ya estaban activas para todos los
+usuarios. Ahora, en las tablas donde es seguro hacerlo, también se le aplican al
+"dueño técnico" de la base de datos, por si algún día una función interna tuviera
+un fallo. Se hizo con cuidado: en las tablas donde ese cerrojo extra rompería el
+calendario compartido, los sorteos o la auditoría, se ha dejado a propósito como
+estaba (si no, la app dejaría de funcionar).
+
+### Nadie puede "robar" el correo de otra persona `[B-02]`
+El correo es lo que identifica a cada uno. Antes, en teoría, alguien podría haber
+intentado poner en su ficha el correo de otra persona. Ahora **tu ficha solo
+copia tu correo cuando tú lo confirmas de verdad** (pulsando el enlace que te
+llega); nadie puede escribir ahí a mano.
+
+### Avisar antes de mover a alguien de grupo `[B-03]`
+Al invitar por correo a alguien que **ya existe**, si esa acción fuese a cambiarle
+el grupo o el rol, la app ahora **te pregunta primero** ("esta cuenta ya existe,
+¿seguro que quieres re-vincularla?") en vez de hacerlo en silencio.
+
+### Los mensajes de error ya no cuentan de más `[B-04]`
+Si algo falla en el servidor, la app te muestra un aviso claro y genérico
+("no se pudo enviar el correo"), y el detalle técnico queda **solo en el registro
+del servidor**, no a la vista de nadie.
+
+### Comprobación de contraseñas "a ciegas" `[B-05]`
+Los avisos internos entre partes del sistema comparan su contraseña secreta de una
+forma que **no deja medir el tiempo** para adivinarla poco a poco.
+
+### Las notificaciones push tienen su propia llave `[B-06]`
+El envío de notificaciones al móvil usa ahora una **llave dedicada, distinta** de
+la del resto de avisos internos. Si una se filtrara, no serviría para lo otro.
+
+### Los secretos no se ven al arrancar los scripts `[B-07]`
+Al subir las contraseñas del servidor, ahora van por un **fichero temporal
+privado** en vez de escribirse "a la vista" en la lista de procesos del ordenador.
+
+### La app de Android solo se firma con la llave buena `[B-09]`
+Al preparar la versión final de Android, si falta la llave de firma oficial, el
+proceso **se detiene con un aviso** en lugar de firmar con una llave de pruebas
+(que sería falsificable).
+
+### El `.env` avisa si dejas contraseñas de ejemplo `[B-10]`
+Al arrancar el servidor, una comprobación previa **para el arranque** si alguna
+contraseña sigue con su valor de ejemplo, para que nunca se levante "abierto".
+
+### La actualización se descarga en una carpeta impredecible `[B-11]`
+El instalador nuevo se guarda en una carpeta con **nombre aleatorio**, así ningún
+otro programa puede colar un fichero falso en su lugar. Justo antes de instalar se
+vuelve a comprobar su huella (SHA-256), como ya se hacía.
+
+### Los enlaces de la app se validan `[B-12]`
+Cuando abres la app desde un enlace de una inspección, ahora se comprueba que el
+identificador **tiene el formato correcto** antes de abrir nada.
+
+### Los contenedores del servidor, más "encerrados" `[B-14]`
+Los servicios del servidor (fotos y actualizaciones) corren con **menos permisos**,
+sin poder escribir donde no deben, con límites de memoria y con las versiones de
+sus imágenes fijadas para que sean siempre las mismas.
+
+---
+
 ## Apéndice operativo — crear la llave limitada de MinIO `[A-02]`
 
 Solo hace falta hacerlo **una vez**, en el servidor donde corre MinIO, con la

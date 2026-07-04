@@ -64,8 +64,9 @@ function fail(status: number, publicMsg: string, detail?: unknown) {
 }
 
 async function profileByEmail(email: string) {
-  const { data } = await admin.from("profiles").select("id, role").eq("email", email).maybeSingle();
-  return data as { id: string; role: string } | null;
+  const { data } = await admin.from("profiles")
+    .select("id, role, family_group_id").eq("email", email).maybeSingle();
+  return data as { id: string; role: string; family_group_id: string | null } | null;
 }
 
 Deno.serve(async (req) => {
@@ -100,16 +101,42 @@ Deno.serve(async (req) => {
         return fail(403, "No tienes permiso para asignar ese rol");
       }
 
+      const confirmRelink = body.confirmRelink === true;
       const existing = await profileByEmail(email);
       if (existing) {
-        // Ya existe: vincular. NO degradar a un mega/principal.
+        // [B-03] Ya existe una cuenta con ese email. Re-vincular puede
+        // trasladar de grupo y/o cambiar el rol de una cuenta REAL: exigir
+        // confirmación explícita (confirmRelink) antes de tocar nada.
+        // NO degradar a un mega/principal (su rol se conserva).
         const keepRole = PRINCIPAL.includes(existing.role);
+        const nextRole = keepRole ? existing.role : role;
+        const roleChanges = nextRole !== existing.role;
+        const groupChanges =
+          familyGroupId != null && familyGroupId !== existing.family_group_id;
+
+        if ((roleChanges || groupChanges) && !confirmRelink) {
+          // Aviso interactivo, NO error: estado 200 para que invoke() del
+          // cliente (functions_client lanza en no-2xx) devuelva data.
+          return json({
+            requiresConfirm: true,
+            code: "relink_required",
+            userId: existing.id,
+            currentRole: existing.role,
+            currentGroupId: existing.family_group_id,
+            targetRole: nextRole,
+            targetGroupId: familyGroupId,
+            message:
+              "Ya existe una cuenta con ese email. Al continuar se reasignará " +
+              "su grupo y/o rol. Confirma para vincularla.",
+          });
+        }
+
         const { error } = await admin.from("profiles").update({
           ...(keepRole ? {} : { role }),
           ...(familyGroupId ? { family_group_id: familyGroupId } : {}),
         }).eq("id", existing.id);
         if (error) return fail(400, "No se pudo vincular el usuario", error);
-        return json({ ok: true, userId: existing.id });
+        return json({ ok: true, userId: existing.id, relinked: true });
       }
 
       // Nuevo: el trigger handle_new_user lo crea como MEMBER; fijamos aquí el
