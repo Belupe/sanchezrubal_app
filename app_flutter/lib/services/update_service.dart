@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,16 @@ class UpdateService {
     if (defaultTargetPlatform == TargetPlatform.android) return 'android';
     if (defaultTargetPlatform == TargetPlatform.windows) return 'windows';
     return null;
+  }
+
+  /// [C-02] Solo se confía en URLs `https` del MISMO host que
+  /// `AppConfig.updateBaseUrl`. Rechaza http, otros dominios o URLs malformadas
+  /// → cierra el vector de RCE de redirigir la actualización a un binario ajeno.
+  static bool _isTrustedUrl(String url) {
+    final u = Uri.tryParse(url);
+    final base = Uri.tryParse(AppConfig.updateBaseUrl);
+    if (u == null || base == null) return false;
+    return u.scheme == 'https' && u.host.isNotEmpty && u.host == base.host;
   }
 
   /// Comprueba si hay versión nueva y, si la hay, ofrece instalarla. Pensado
@@ -68,9 +79,16 @@ class UpdateService {
 
     final versionName = remote['versionName']?.toString() ?? '';
     final url = remote['url']?.toString();
+    final sha256Hex = remote['sha256']?.toString().trim();
     final notes = remote['notes']?.toString() ?? '';
     final mandatory = remote['mandatory'] == true;
     if (url == null || url.isEmpty || !context.mounted) return;
+    // [C-02] Solo se acepta una descarga HTTPS del propio dominio de updates y
+    // con hash SHA-256 declarado. Cualquier otra cosa se descarta en silencio.
+    if (!_isTrustedUrl(url) || sha256Hex == null || sha256Hex.isEmpty) {
+      debugPrint('Actualización rechazada: URL no confiable o sin hash.');
+      return;
+    }
 
     final accepted = await showDialog<bool>(
       context: context,
@@ -104,11 +122,11 @@ class UpdateService {
     );
 
     if (accepted != true || !context.mounted) return;
-    await _downloadAndInstall(context, url, platform);
+    await _downloadAndInstall(context, url, sha256Hex, platform);
   }
 
   static Future<void> _downloadAndInstall(
-      BuildContext context, String url, String platform) async {
+      BuildContext context, String url, String expectedSha256, String platform) async {
     // Android exige permiso explícito para que una app instale paquetes.
     if (platform == 'android') {
       final status = await Permission.requestInstallPackages.request();
@@ -169,6 +187,30 @@ class UpdateService {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('No se pudo descargar la actualización: $e')),
         );
+      }
+      progress.dispose();
+      return;
+    }
+
+    // [C-02] Verifica el hash SHA-256 del binario descargado ANTES de ejecutarlo.
+    bool hashOk;
+    try {
+      final bytes = await File(filePath).readAsBytes();
+      hashOk = sha256.convert(bytes).toString().toLowerCase() ==
+          expectedSha256.toLowerCase();
+    } catch (_) {
+      hashOk = false;
+    }
+    if (!hashOk) {
+      try {
+        await File(filePath).delete();
+      } catch (_) {}
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // cierra el progreso
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Actualización descartada: la verificación de seguridad falló.'),
+        ));
       }
       progress.dispose();
       return;

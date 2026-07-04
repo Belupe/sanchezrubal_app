@@ -2,6 +2,7 @@
   "versionCode": 1,
   "versionName": "1.0.0",
   "url": "https://app.sanchezrubal.net/windows/portal-familia-setup.exe",
+  "sha256": "PON_AQUI_EL_SHA256_DEL_INSTALADOR (lo calcula scripts/release.ps1 al publicar)",
   "mandatory": false,
   "notes": "Primera versión."
 }
