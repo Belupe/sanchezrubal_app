@@ -39,17 +39,21 @@ Deno.serve(async (req) => {
     const to = String(body.to ?? u.user.email ?? "").trim();
     if (!to) return json({ error: "Falta el correo de destino" }, 400);
 
-    const { data: cfg } = await admin.from("system_config").select("*").eq("id", "global").single();
+    const { data: cfg } = await admin.from("system_config")
+      .select("smtp_host, smtp_port, smtp_user, smtp_secure").eq("id", "global").single();
     if (!cfg?.smtp_host || !cfg?.smtp_user) {
       return json({ error: "SMTP no configurado. Rellena los datos y guarda primero." }, 400);
     }
+    // [M-07] Contraseña desde Vault (service role); TLS forzado por puerto.
+    const { data: pass } = await admin.rpc("get_smtp_password");
+    const port = cfg.smtp_port ?? 587;
 
     const client = new SMTPClient({
       connection: {
         hostname: cfg.smtp_host,
-        port: cfg.smtp_port ?? 587,
-        tls: cfg.smtp_secure ?? false,
-        auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
+        port,
+        tls: cfg.smtp_secure || port === 465,
+        auth: { username: cfg.smtp_user, password: (pass as string | null) ?? "" },
       },
     });
     await client.send({

@@ -61,6 +61,27 @@ function fill(tpl: string, vars: Record<string, string>) {
   return out;
 }
 
+// [M-08] Escapa los 5 caracteres peligrosos de HTML. Evita que un valor editable
+// por el usuario (profiles.name -> UserName, PropertyName…) inyecte etiquetas o
+// enlaces de phishing en el cuerpo del correo que se envía a OTRAS personas.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Igual que fill() pero escapando CADA valor. Solo para el cuerpo HTML: la
+// plantilla (con su <div>, href='{{FormLink}}'…) queda intacta y solo se escapan
+// los valores (el &#39; impide romper el atributo entrecomillado).
+function fillHtml(tpl: string, vars: Record<string, string>) {
+  let out = tpl;
+  for (const k of Object.keys(vars)) out = out.split("{{" + k + "}}").join(escapeHtml(vars[k] ?? ""));
+  return out;
+}
+
 async function getTemplate(type: string) {
   const { data } = await admin.from("notification_templates")
     .select("subject, body").eq("type", type).maybeSingle();
@@ -68,18 +89,24 @@ async function getTemplate(type: string) {
 }
 
 async function getSmtp() {
-  const { data } = await admin.from("system_config").select("*").eq("id", "global").single();
+  const { data } = await admin.from("system_config")
+    .select("smtp_host, smtp_port, smtp_user, smtp_secure").eq("id", "global").single();
   if (!data?.smtp_host || !data?.smtp_user) throw new Error("SMTP no configurado en system_config");
-  return data;
+  // [M-07] La contraseña ya no vive en la tabla: se lee de Vault (service role).
+  const { data: pass } = await admin.rpc("get_smtp_password");
+  return { ...data, smtp_pass: (pass as string | null) ?? "" };
 }
 
 async function sendMail(to: string[], subject: string, html: string) {
   const cfg = await getSmtp();
+  const port = cfg.smtp_port ?? 587;
   const client = new SMTPClient({
     connection: {
       hostname: cfg.smtp_host,
-      port: cfg.smtp_port ?? 587,
-      tls: cfg.smtp_secure ?? false,
+      port,
+      // [M-07] TLS implícito (465) o STARTTLS (587/25). denomailer aborta antes de
+      // mandar credenciales si no logra cifrar → la contraseña no viaja en claro.
+      tls: cfg.smtp_secure || port === 465,
       auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
     },
   });
@@ -116,7 +143,7 @@ async function handleReservation(reservationId: string, type: "RESERVATION_CONFI
     for (const a of admins ?? []) if (a.email) recipients.push(a.email);
   }
   const uniq = [...new Set(recipients)];
-  if (uniq.length) await sendMail(uniq, fill(tpl.subject, vars), fill(tpl.body, vars));
+  if (uniq.length) await sendMail(uniq, fill(tpl.subject, vars), fillHtml(tpl.body, vars));
   return uniq.length;
 }
 
@@ -140,7 +167,7 @@ async function handleInspectionReminders() {
       StartDate: fmt(r.start_date), EndDate: fmt(r.end_date),
       FormLink: `${APP_SCHEME}inspeccion/${r.id}`,
     };
-    await sendMail([creator.email], fill(tpl.subject, vars), fill(tpl.body, vars));
+    await sendMail([creator.email], fill(tpl.subject, vars), fillHtml(tpl.body, vars));
     sent++;
   }
   return sent;

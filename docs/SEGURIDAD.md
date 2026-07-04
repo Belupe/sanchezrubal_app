@@ -133,6 +133,38 @@ historial (quién, cuándo y qué salió). Para ti funciona igual: se pulsa
 
 ---
 
+## Fase 3 — Fallos medios (correos y fotos)
+
+### Cada foto solo se abre desde su propia reserva `[M-01]`
+Al pedir una foto de una inspección, la app manda el "nombre" del archivo. Antes,
+con un nombre tramposo (con `../`) se podía pedir la foto de **otra reserva**.
+Ahora se comprueba que el nombre corresponda **exactamente** a un archivo de esa
+reserva y nada más; cualquier truco se rechaza. Subir y ver tus fotos funciona igual.
+
+### Solo se suben fotos y vídeos, con límite de tamaño `[M-02]`
+Antes, el "pase" para subir un archivo no comprobaba **qué** se subía: se podía
+colar una página web con código (peligroso) o un archivo enorme. Ahora solo se
+aceptan **imágenes y vídeos** (el tipo lo fija el servidor, no el móvil) y con un
+**tope de tamaño** configurable. Tus fotos y vídeos normales suben igual.
+
+### La contraseña del correo: cifrada y con conexión segura `[M-07]`
+La app envía correos (avisos de reserva, lista de espera). Su **contraseña de
+correo** se guardaba en texto plano y hasta se descargaba al panel del
+administrador. Ahora vive en una **caja fuerte cifrada** (Vault): nunca se
+descarga al dispositivo, y solo el servidor la usa para enviar. Además, la
+conexión con el servidor de correo va **siempre cifrada** (si no puede cifrar, no
+manda la contraseña). En el panel, el campo de contraseña aparece en blanco:
+déjalo así para conservar la actual, o escribe una nueva para cambiarla.
+
+### Los nombres no pueden colar enlaces falsos en los correos `[M-08]`
+Los correos se arman metiendo datos como el **nombre** de una persona. Como el
+nombre lo elige cada uno, antes se podía poner un nombre con **código o un enlace
+de phishing** que llegaba en el correo a otras personas. Ahora esos datos se
+"neutralizan" antes de meterlos en el correo, así que un nombre solo se ve como
+texto, nunca como un enlace o botón falso.
+
+---
+
 ## Apéndice operativo — crear la llave limitada de MinIO `[A-02]`
 
 Solo hace falta hacerlo **una vez**, en el servidor donde corre MinIO, con la

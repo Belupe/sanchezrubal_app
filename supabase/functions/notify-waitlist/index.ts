@@ -47,6 +47,23 @@ function fill(tpl: string, vars: Record<string, string>) {
   for (const k of Object.keys(vars)) out = out.split("{{" + k + "}}").join(vars[k] ?? "");
   return out;
 }
+
+// [M-08] Escapa HTML. Evita que UserName (nombre del promovido) o CancelledBy
+// (nombre de quien canceló) inyecten HTML/phishing en el correo de la cola.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function fillHtml(tpl: string, vars: Record<string, string>) {
+  let out = tpl;
+  for (const k of Object.keys(vars)) out = out.split("{{" + k + "}}").join(escapeHtml(vars[k] ?? ""));
+  return out;
+}
 function fmt(d: string) {
   return new Date(d).toLocaleDateString("es-ES");
 }
@@ -58,18 +75,24 @@ async function getTemplate(type: string) {
 }
 
 async function getSmtp() {
-  const { data } = await admin.from("system_config").select("*").eq("id", "global").single();
+  const { data } = await admin.from("system_config")
+    .select("smtp_host, smtp_port, smtp_user, smtp_secure").eq("id", "global").single();
   if (!data?.smtp_host || !data?.smtp_user) throw new Error("SMTP no configurado en system_config");
-  return data;
+  // [M-07] La contraseña ya no vive en la tabla: se lee de Vault (service role).
+  const { data: pass } = await admin.rpc("get_smtp_password");
+  return { ...data, smtp_pass: (pass as string | null) ?? "" };
 }
 
 async function sendMails(to: string, mails: { subject: string; html: string }[]) {
   const cfg = await getSmtp();
+  const port = cfg.smtp_port ?? 587;
   const client = new SMTPClient({
     connection: {
       hostname: cfg.smtp_host,
-      port: cfg.smtp_port ?? 587,
-      tls: cfg.smtp_secure ?? false,
+      port,
+      // [M-07] TLS implícito (465) o STARTTLS (587/25). denomailer aborta antes de
+      // mandar credenciales si no logra cifrar → la contraseña no viaja en claro.
+      tls: cfg.smtp_secure || port === 465,
       auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
     },
   });
@@ -127,8 +150,8 @@ Deno.serve(async (req) => {
     const email = (promoted as any)?.email;
     if (email) {
       await sendMails(email, [
-        { subject: fill(tCancel.subject, vars), html: fill(tCancel.body, vars) },
-        { subject: fill(tPromo.subject, vars), html: fill(tPromo.body, vars) },
+        { subject: fill(tCancel.subject, vars), html: fillHtml(tCancel.body, vars) },
+        { subject: fill(tPromo.subject, vars), html: fillHtml(tPromo.body, vars) },
       ]);
       emailsSent = 2;
     }

@@ -46,7 +46,8 @@ $secrets = @(
   "MINIO_BUCKET=$($e['MEDIA_BUCKET'])",
   "MEDIA_SIGN_ACCESS_KEY=$($e['MEDIA_SIGN_ACCESS_KEY'])",
   "MEDIA_SIGN_SECRET_KEY=$($e['MEDIA_SIGN_SECRET_KEY'])",
-  "MINIO_REGION=$($e['MINIO_REGION'])"
+  "MINIO_REGION=$($e['MINIO_REGION'])",
+  "MEDIA_MAX_UPLOAD_BYTES=$(if ([string]::IsNullOrEmpty($e['MEDIA_MAX_UPLOAD_BYTES'])) { '104857600' } else { $e['MEDIA_MAX_UPLOAD_BYTES'] })"
 )
 if ($e['CRON_SECRET']) { $secrets += "CRON_SECRET=$($e['CRON_SECRET'])" }
 

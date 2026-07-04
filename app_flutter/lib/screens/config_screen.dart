@@ -160,7 +160,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpHost.text = cfg?.smtpHost ?? '';
     _smtpPort.text = cfg?.smtpPort?.toString() ?? '';
     _smtpUser.text = cfg?.smtpUser ?? '';
-    _smtpPass.text = cfg?.smtpPass ?? '';
+    _smtpPass.text = ''; // [M-07] no se descarga; en blanco = conservar la guardada.
     _smtpSecure = cfg?.smtpSecure ?? false;
     _maxDays.text = cfg?.maxReservationDays.toString() ?? '';
     _maxDaysCap.text = cfg?.maxReservationDaysCap.toString() ?? '';
@@ -226,11 +226,15 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         'smtp_host': _smtpHost.text.trim(),
         'smtp_port': port,
         'smtp_user': _smtpUser.text.trim(),
-        'smtp_pass': _smtpPass.text,
         'smtp_secure': _smtpSecure,
         'max_reservation_days': days,
         'max_reservation_days_cap': daysCap,
       });
+      // [M-07] La contraseña SMTP va a Vault por separado; solo se cambia si el
+      // mega escribió algo (campo en blanco = conservar la actual).
+      if (_smtpPass.text.isNotEmpty) {
+        await DataService.setSmtpPassword(_smtpPass.text);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Configuración guardada')),

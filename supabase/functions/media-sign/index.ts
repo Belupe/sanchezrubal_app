@@ -32,6 +32,33 @@ const PRINCIPAL = ["MEGA_ADMIN", "PRINCIPAL_ADMIN"];
 const FAMILY_ADMIN = ["FAMILY_ADMIN", "FAMILY_SECOND_ADMIN"];
 const EXPIRES = "3600"; // 1 h
 
+// [M-02] Allowlist de tipos permitidos (invariante de seguridad → en código, no
+// en .env). Bloquea HTML/SVG y otros que permitirían XSS almacenado servido desde
+// el dominio de media. Clave = extensión (minúsculas); valor = Content-Type que se
+// FIRMA y con el que queda almacenado el objeto.
+const ALLOWED_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
+
+// [M-02] Tope de tamaño por subida (límite de despliegue → configurable en .env).
+const MAX_UPLOAD_BYTES = Number(
+  Deno.env.get("MEDIA_MAX_UPLOAD_BYTES") ?? "104857600", // 100 MiB
+);
+
+function extOf(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -92,20 +119,73 @@ Deno.serve(async (req) => {
 
     if (op === "put") {
       if (!canWrite) return json({ error: "Sin permiso para subir" }, 403);
-      const safe = String(body.filename ?? "file").replace(/[^a-zA-Z0-9._-]/g, "_");
+
+      // 1) Validar extensión y derivar el Content-Type canónico. Object.hasOwn
+      //    evita consultar la cadena de prototipos (ext "__proto__"/"constructor"
+      //    colarían un valor heredado y saltarían el allowlist). [M-02]
+      const rawName = String(body.filename ?? "");
+      const ext = extOf(rawName);
+      const contentType = Object.hasOwn(ALLOWED_TYPES, ext)
+        ? ALLOWED_TYPES[ext]
+        : undefined;
+      if (typeof contentType !== "string") {
+        return json({ error: "Tipo de archivo no permitido" }, 415);
+      }
+
+      // 2) Validar el tamaño declarado contra el máximo.
+      const size = Number(body.size);
+      if (!Number.isFinite(size) || size <= 0) {
+        return json({ error: "Falta el tamaño del archivo (size)" }, 400);
+      }
+      if (size > MAX_UPLOAD_BYTES) {
+        return json({ error: "Archivo demasiado grande", maxBytes: MAX_UPLOAD_BYTES }, 413);
+      }
+
+      const safe = rawName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const key = `${reservationId}/${crypto.randomUUID()}-${safe}`;
       const url = `${MINIO_ENDPOINT}/${MINIO_BUCKET}/${key}?X-Amz-Expires=${EXPIRES}`;
-      const signed = await aws.sign(new Request(url, { method: "PUT" }), {
-        aws: { signQuery: true },
+
+      // 3) Firmar el PUT incluyendo Content-Type en las SignedHeaders
+      //    (allHeaders:true): el objeto SOLO puede subirse con este Content-Type.
+      //    El cliente DEBE reenviar exactamente esta cabecera. [M-02]
+      const signed = await aws.sign(
+        new Request(url, { method: "PUT", headers: { "Content-Type": contentType } }),
+        { aws: { signQuery: true, allHeaders: true } },
+      );
+
+      return json({
+        url: signed.url,
+        key,
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        maxBytes: MAX_UPLOAD_BYTES,
       });
-      return json({ url: signed.url, key, method: "PUT" });
     }
 
     if (op === "get") {
       if (!canRead) return json({ error: "Sin permiso para ver" }, 403);
-      const key = String(body.key ?? "");
-      // La clave debe pertenecer a esta reserva (evita leer media ajena).
-      if (!key || !key.startsWith(`${reservationId}/`)) {
+      const rawKey = String(body.key ?? "");
+      // [M-01] Decodifica una vez para detectar traversal percent-encoded. Las
+      // keys legítimas que emite 'put' nunca llevan percent-encoding (su sanitizado
+      // reemplaza '%' y '/' por '_'); si al decodificar cambia, venía manipulada.
+      let key: string;
+      try {
+        key = decodeURIComponent(rawKey);
+      } catch {
+        return json({ error: "Clave inválida" }, 400);
+      }
+      const prefix = `${reservationId}/`;
+      // 'put' genera "<reservationId>/<uuid>-<archivo>": un único '/'. Exigir un
+      // único segmento tras el prefijo bloquea todo traversal ('..', '//', subrutas,
+      // barra absoluta, backslash) sin rechazar nombres con '..' dentro del fichero.
+      const object = key.startsWith(prefix) ? key.slice(prefix.length) : "";
+      const invalid =
+        !key ||
+        key !== rawKey ||
+        !object ||
+        object.includes("/") ||
+        key.includes("\\");
+      if (invalid) {
         return json({ error: "Clave inválida" }, 400);
       }
       const url = `${MINIO_ENDPOINT}/${MINIO_BUCKET}/${key}?X-Amz-Expires=${EXPIRES}`;

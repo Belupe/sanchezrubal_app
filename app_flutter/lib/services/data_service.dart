@@ -386,9 +386,19 @@ class DataService {
   // Configuración del sistema (solo mega admin, vía RLS)
   // ----------------------------------------------------------------
   static Future<SystemConfig?> systemConfig() async {
-    final row =
-        await supabase.from('system_config').select().eq('id', 'global').maybeSingle();
+    // [M-07] Sin smtp_pass: la contraseña vive en Vault y nunca se descarga al cliente.
+    final row = await supabase
+        .from('system_config')
+        .select(
+            'smtp_host, smtp_port, smtp_user, smtp_secure, max_reservation_days, max_reservation_days_cap')
+        .eq('id', 'global')
+        .maybeSingle();
     return row == null ? null : SystemConfig.fromMap(row);
+  }
+
+  /// [M-07] Guarda la contraseña SMTP en Vault (solo mega, vía RPC SECURITY DEFINER).
+  static Future<void> setSmtpPassword(String pass) async {
+    await supabase.rpc('set_smtp_password', params: {'p_pass': pass});
   }
 
   static Future<void> updateSystemConfig(Map<String, dynamic> patch) async {
