@@ -14,6 +14,7 @@ sorteos, usuarios). **Una sola base de código Flutter** → **3 apps nativas**:
 
 > Arquitectura completa: [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
 > Seguridad (explicada para todos): [docs/SEGURIDAD.md](docs/SEGURIDAD.md).
+> **Despliegue paso a paso** (de dónde sale cada valor del `.env` + comandos): [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
 
 ## Novedades
 
@@ -38,12 +39,12 @@ README.md          ← este archivo
 .env.example       ← ÚNICA fuente de configuración (credenciales, rutas, URLs)
 compose.yaml       ← Docker: minio + updates  (docker compose up -d)
 app_flutter/       ← la app (android/ · ios/ · windows/ · lib/)
-supabase/          ← migraciones (0001–0015) + Edge Functions (media-sign · send-email ·
+supabase/          ← migraciones (0001–0021) + Edge Functions (media-sign · send-email ·
                      admin-users · test-smtp · send-push · notify-waitlist)
 server/            ← soporte del servidor:  nginx/ · cloudflared/ · updates/ (plantillas)
 scripts/           ← release.ps1 · build-aab.ps1 · build-windows.ps1 · push-supabase-secrets.*
-docs/              ← GOOGLE.md · APPLE.md · WINDOWS.md · ANDROID.md · ARQUITECTURA.md ·
-                     SEGURIDAD.md · COLA-NOTIFICACIONES-TIEMPO-REAL.md
+docs/              ← DESPLIEGUE.md · GOOGLE.md · APPLE.md · WINDOWS.md · ANDROID.md ·
+                     ARQUITECTURA.md · SEGURIDAD.md · COLA-NOTIFICACIONES-TIEMPO-REAL.md
 dist/              ← (generado) artefactos finales: setup.exe (Windows), .aab (Google Play), version.json
 ```
 
