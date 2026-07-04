@@ -9,6 +9,7 @@ import 'anuncios_screen.dart';
 import 'casas_screen.dart';
 import 'config_screen.dart';
 import 'inspecciones_screen.dart';
+import 'mfa_screen.dart';
 import 'registros_screen.dart';
 import 'sorteos_screen.dart';
 import 'usuarios_screen.dart';
@@ -288,6 +289,13 @@ class _ProfileTabState extends State<ProfileTab> {
               leading: const Icon(Icons.lock_outline),
               title: const Text('Cambiar contraseña'),
               onTap: _changePassword,
+            ),
+            ListTile(
+              leading: const Icon(Icons.verified_user_outlined),
+              title: const Text('Verificación en dos pasos (2FA)'),
+              subtitle: const Text('Opcional: un código extra al entrar'),
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MfaScreen())),
             ),
             const Divider(),
             Padding(

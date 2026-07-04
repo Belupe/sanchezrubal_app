@@ -186,9 +186,8 @@ El mínimo pasa de 6 a **10 caracteres**, y no se permiten contraseñas de **sol
 números**. El servidor es quien manda de verdad (rechaza también contraseñas
 filtradas en internet); la app solo avisa antes para ahorrarte el viaje.
 
-> **Verificación en 2 pasos (2FA):** ya está **habilitada en el servidor** para
-> quien quiera usarla; la pantalla dentro de la app para activarla queda como
-> siguiente paso (`[M-11]`).
+> **Verificación en 2 pasos (2FA):** disponible y explicada en su propia sección
+> más abajo (`[M-11]`).
 
 ---
 
@@ -300,6 +299,29 @@ protege los datos son las reglas de permisos (RLS) del servidor. Ver la nota en
 Las funciones del servidor usan **versiones concretas** de sus componentes para que
 el resultado sea siempre el mismo (reproducible). El "candado de versiones"
 (`deno.lock`) se genera al desplegar (ver apéndice).
+
+---
+
+## Verificación en dos pasos (2FA) `[M-11]`
+
+Es una protección **opcional**: cada persona decide si la activa. Si no la activas,
+entras como siempre (solo con tu contraseña) y **no cambia nada**.
+
+**Para activarla:** entra en *Perfil → Verificación en dos pasos (2FA) → Activar*.
+La app te muestra una **clave**; ábrela en una app de autenticación gratuita
+(Google Authenticator, Authy, Microsoft Authenticator…), añade la cuenta con esa
+clave y escribe el código de 6 dígitos que te aparece para confirmar.
+
+**A partir de entonces:** cuando inicies sesión, después de la contraseña la app te
+pedirá el **código de 6 dígitos** de tu app de autenticación. Así, aunque alguien
+supiera tu contraseña, no podría entrar sin tu teléfono.
+
+**Para quitarla:** en la misma pantalla, *Desactivar*. Volverás a entrar solo con la
+contraseña.
+
+> Nota técnica: usa el estándar **TOTP** (el mismo de la mayoría de bancos y webs).
+> El servidor ya tenía habilitada esta opción (Fase 0); esto añade la pantalla para
+> usarla dentro de la app.
 
 ---
 
