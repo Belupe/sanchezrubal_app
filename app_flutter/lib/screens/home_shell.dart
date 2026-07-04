@@ -4,6 +4,7 @@ import '../main.dart';
 import '../services/data_service.dart';
 import '../services/push_service.dart';
 import '../services/update_service.dart';
+import '../utils/password_policy.dart';
 import 'anuncios_screen.dart';
 import 'casas_screen.dart';
 import 'config_screen.dart';
@@ -208,28 +209,43 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _changeEmail() async {
+    // [M-12] Confirma identidad con la contraseña actual antes de cambiar.
+    final current = await _prompt('Confirma tu identidad', 'Contraseña actual',
+        obscure: true, helper: 'Por seguridad, confirma tu contraseña actual.');
+    if (current == null || current.isEmpty) return;
     final v = await _prompt('Cambiar correo', 'Nuevo correo',
         helper: 'Se enviará un enlace de confirmación al nuevo correo.');
     if (v == null || v.isEmpty) return;
     try {
-      await DataService.changeEmail(v);
+      await DataService.changeEmail(current, v);
       _reload();
       _snack('Te enviamos un correo de confirmación a $v.');
+    } on InvalidCurrentPasswordException {
+      _snack('La contraseña actual no es correcta.');
     } catch (e) {
       _snack('Error: $e');
     }
   }
 
   Future<void> _changePassword() async {
+    // [M-12] Confirma identidad con la contraseña actual antes de cambiar.
+    final current = await _prompt('Confirma tu identidad', 'Contraseña actual',
+        obscure: true, helper: 'Por seguridad, confirma tu contraseña actual.');
+    if (current == null || current.isEmpty) return;
     final v = await _prompt('Cambiar contraseña', 'Nueva contraseña',
-        obscure: true, helper: 'Mínimo 6 caracteres.');
-    if (v == null || v.length < 6) {
-      if (v != null) _snack('La contraseña debe tener al menos 6 caracteres.');
+        obscure: true, helper: PasswordPolicy.helpText);
+    if (v == null) return;
+    // [M-13] Espejo de la política del servidor (mínimo 10, no solo dígitos).
+    final err = PasswordPolicy.validate(v);
+    if (err != null) {
+      _snack(err);
       return;
     }
     try {
-      await DataService.changePassword(v);
+      await DataService.changePassword(current, v);
       _snack('Contraseña actualizada.');
+    } on InvalidCurrentPasswordException {
+      _snack('La contraseña actual no es correcta.');
     } catch (e) {
       _snack('Error: $e');
     }

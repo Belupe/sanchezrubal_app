@@ -165,6 +165,33 @@ texto, nunca como un enlace o botón falso.
 
 ---
 
+## Fase 3 — Fallos medios (sesión y contraseñas)
+
+### Tu sesión se guarda cifrada en el dispositivo `[M-09]`
+Cuando inicias sesión, el móvil guarda un "pase" (token) para no pedirte la
+contraseña cada vez. Antes ese pase se guardaba **en claro**; en un móvil
+comprometido o con copia de seguridad, alguien podría robarlo. Ahora se guarda en
+la **caja fuerte del sistema** (Llavero en iPhone/Mac, almacén cifrado por
+hardware en Android). Si por lo que sea no se puede leer, simplemente te pedirá
+iniciar sesión otra vez (nunca deja el pase en claro). No notas ningún cambio.
+
+### Cambiar tu contraseña o correo pide confirmar tu contraseña `[M-12]`
+Antes, con una sesión abierta (un móvil olvidado, por ejemplo), cualquiera podía
+**cambiar tu contraseña o tu correo** y quedarse con la cuenta. Ahora, para
+cambiar cualquiera de las dos, la app te pide primero tu **contraseña actual**.
+Así, tener el móvil abierto un momento ya no basta para robar la cuenta.
+
+### Contraseñas más fuertes `[M-13]`
+El mínimo pasa de 6 a **10 caracteres**, y no se permiten contraseñas de **solo
+números**. El servidor es quien manda de verdad (rechaza también contraseñas
+filtradas en internet); la app solo avisa antes para ahorrarte el viaje.
+
+> **Verificación en 2 pasos (2FA):** ya está **habilitada en el servidor** para
+> quien quiera usarla; la pantalla dentro de la app para activarla queda como
+> siguiente paso (`[M-11]`).
+
+---
+
 ## Apéndice operativo — crear la llave limitada de MinIO `[A-02]`
 
 Solo hace falta hacerlo **una vez**, en el servidor donde corre MinIO, con la
