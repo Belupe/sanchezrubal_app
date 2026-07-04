@@ -46,6 +46,7 @@ emit MINIO_REGION           "${MINIO_REGION}"
 emit MEDIA_MAX_UPLOAD_BYTES "${MEDIA_MAX_UPLOAD_BYTES:-104857600}"
 [ -n "${CRON_SECRET:-}" ] && emit CRON_SECRET "${CRON_SECRET}"
 [ -n "${PUSH_SECRET:-}" ] && emit PUSH_SECRET "${PUSH_SECRET}"   # [B-06] secreto dedicado de send-push
+[ -n "${FUNCTIONS_ALLOWED_ORIGIN:-}" ] && emit FUNCTIONS_ALLOWED_ORIGIN "${FUNCTIONS_ALLOWED_ORIGIN}"   # [I-07] CORS de las funciones
 
 # FCM (push): el secret es el CONTENIDO del JSON de la service account
 # (multilínea), referenciado por ruta en FCM_SERVICE_ACCOUNT_FILE. Solo si existe.

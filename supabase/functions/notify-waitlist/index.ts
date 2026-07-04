@@ -39,8 +39,10 @@ async function cronSecretMatches(provided: string | null): Promise<boolean> {
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+// [I-07] Origen permitido configurable (default "*" = igual que antes).
+const ALLOWED_ORIGIN = Deno.env.get("FUNCTIONS_ALLOWED_ORIGIN") ?? "*";
 const cors = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };

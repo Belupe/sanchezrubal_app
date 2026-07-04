@@ -125,7 +125,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
   bool _smtpSecure = false;
   final _maxDays = TextEditingController();
   final _maxDaysCap = TextEditingController();
-  final _testEmail = TextEditingController();
   bool _testing = false;
   String? _testResult;
 
@@ -167,19 +166,17 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
   }
 
   Future<void> _test() async {
-    final to = _testEmail.text.trim();
-    if (to.isEmpty) {
-      setState(() => _testResult = 'Indica un correo de destino.');
-      return;
-    }
+    // [I-06] El correo de prueba va SIEMPRE al propio correo del mega (el
+    // servidor ignora cualquier destino), así que no se pide uno.
     setState(() {
       _testing = true;
       _testResult = null;
     });
     try {
-      final err = await DataService.testSmtp(to);
-      setState(() => _testResult =
-          err == null ? '✅ Correo de prueba enviado a $to.' : '❌ $err');
+      final err = await DataService.testSmtp();
+      setState(() => _testResult = err == null
+          ? '✅ Correo de prueba enviado a tu correo.'
+          : '❌ $err');
     } catch (e) {
       setState(() => _testResult = '❌ $e');
     } finally {
@@ -195,7 +192,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpPass.dispose();
     _maxDays.dispose();
     _maxDaysCap.dispose();
-    _testEmail.dispose();
     super.dispose();
   }
 
@@ -329,14 +325,9 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
                 Text('Probar envío',
                     style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _testEmail,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo de destino para la prueba',
-                    helperText: 'Usa la configuración ya GUARDADA. Guarda antes de probar.',
-                    border: OutlineInputBorder(),
-                  ),
+                const Text(
+                  'Se enviará un correo de prueba a TU propio correo, usando la '
+                  'configuración ya GUARDADA. Guarda antes de probar.',
                 ),
                 if (_testResult != null) ...[
                   const SizedBox(height: 8),

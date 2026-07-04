@@ -61,6 +61,7 @@ try {
   Add-Secret 'MEDIA_MAX_UPLOAD_BYTES'  $mmb
   if ($e['CRON_SECRET']) { Add-Secret 'CRON_SECRET' $e['CRON_SECRET'] }
   if ($e['PUSH_SECRET']) { Add-Secret 'PUSH_SECRET' $e['PUSH_SECRET'] }   # [B-06] secreto dedicado de send-push
+  if ($e['FUNCTIONS_ALLOWED_ORIGIN']) { Add-Secret 'FUNCTIONS_ALLOWED_ORIGIN' $e['FUNCTIONS_ALLOWED_ORIGIN'] }   # [I-07] CORS de las funciones
 
   # FCM (push): el secret es el CONTENIDO del JSON de la service account (multilínea),
   # referenciado por ruta en FCM_SERVICE_ACCOUNT_FILE. Solo si existe el fichero.
