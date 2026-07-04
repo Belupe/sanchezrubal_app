@@ -17,6 +17,15 @@ Future<void> showReservationDetail(
       ((role == 'FAMILY_ADMIN' || role == 'FAMILY_SECOND_ADMIN') &&
           profile?['family_group_id'] == r.familyGroupId);
   final isCreator = r.createdById == uid;
+
+  // [A-04] El calendario lee de la vista de ocupación (sin `notes`). Si el
+  // usuario puede editar, recupera la fila completa de la tabla para conservar
+  // los comentarios; el RLS la devuelve solo al creador/grupo/admin.
+  Reservation full = r;
+  if (isCreator || isGroupAdmin) {
+    final fetched = await DataService.reservationById(r.id);
+    if (fetched != null) full = fetched;
+  }
   if (!context.mounted) return;
 
   await showModalBottomSheet<void>(
@@ -27,7 +36,7 @@ Future<void> showReservationDetail(
       padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _ReservationDetailSheet(
-        r: r,
+        r: full,
         canEditDates: isGroupAdmin,
         canEditDetails: isCreator || isGroupAdmin,
         canDelete: isCreator || isGroupAdmin,

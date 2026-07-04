@@ -96,12 +96,25 @@ class DataService {
 
   /// Reservas de un domicilio concreto (para su calendario individual).
   static Future<List<Reservation>> reservationsForProperty(String propertyId) async {
+    // [A-04] Lee de la VISTA de ocupación (sin guests_list/notes): el calendario
+    // compartido sigue mostrando fechas + domicilio de todas las familias.
     final rows = await supabase
-        .from('reservations')
+        .from('calendar_occupancy')
         .select('*, properties(name), family_groups(name, color)')
         .eq('property_id', propertyId)
         .order('start_date');
     return (rows as List).map((e) => Reservation.fromMap(e)).toList();
+  }
+
+  /// Fila COMPLETA de una reserva (incluye notes) desde la tabla. El RLS solo la
+  /// devuelve al creador, a su grupo o a un admin; si no, null. [A-04]
+  static Future<Reservation?> reservationById(String id) async {
+    final row = await supabase
+        .from('reservations')
+        .select('*, properties(name), family_groups(name, color)')
+        .eq('id', id)
+        .maybeSingle();
+    return row == null ? null : Reservation.fromMap(row);
   }
 
   static Future<Reservation> createReservation({
@@ -212,9 +225,11 @@ class DataService {
   /// Cola activa (en espera) de un domicilio, en orden FIFO. Incluye el
   /// nombre del solicitante para mostrar la lista y calcular la posición.
   static Future<List<WaitlistEntry>> waitlistForProperty(String propertyId) async {
+    // [A-04] Lee de la VISTA de ocupación (sin notes): la cola compartida sigue
+    // mostrando las posiciones de todas las familias, sin las notas privadas.
     final rows = await supabase
-        .from('reservation_waitlist')
-        .select('*, profiles!reservation_waitlist_requested_by_id_fkey(name)')
+        .from('waitlist_occupancy')
+        .select('*, profiles!requested_by_id(name)')
         .eq('property_id', propertyId)
         .eq('status', 'waiting')
         .order('created_at');
