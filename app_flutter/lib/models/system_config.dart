@@ -5,6 +5,7 @@ class SystemConfig {
   final String? smtpPass;
   final bool smtpSecure;
   final int maxReservationDays;
+  final int maxReservationDaysCap;
 
   SystemConfig({
     this.smtpHost,
@@ -13,6 +14,7 @@ class SystemConfig {
     this.smtpPass,
     this.smtpSecure = false,
     this.maxReservationDays = 30,
+    this.maxReservationDaysCap = 31,
   });
 
   factory SystemConfig.fromMap(Map<String, dynamic> m) => SystemConfig(
@@ -22,5 +24,6 @@ class SystemConfig {
         smtpPass: m['smtp_pass'] as String?,
         smtpSecure: (m['smtp_secure'] as bool?) ?? false,
         maxReservationDays: (m['max_reservation_days'] as int?) ?? 30,
+        maxReservationDaysCap: (m['max_reservation_days_cap'] as int?) ?? 31,
       );
 }

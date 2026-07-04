@@ -95,6 +95,44 @@ haya creado él mismo). Para los demás no cambia nada.
 
 ---
 
+## Fase 3 — Fallos medios (base de datos)
+
+### Imposible reservar dos veces las mismas fechas `[M-03]`
+Antes, si dos personas confirmaban una reserva del mismo domicilio para las mismas
+fechas **en el mismo instante**, las dos podían colarse y quedaba una **doble
+reserva**. Ahora es la propia base de datos la que lo impide de forma **atómica**:
+es físicamente imposible que existan dos reservas solapadas del mismo domicilio.
+Para ti nada cambia; solo desaparece ese choque en el peor momento.
+
+### Límite de duración de las reservas `[M-04]`
+Hay dos valores que el administrador principal ajusta en *Configuración →
+General*: **días mínimos** y **días máximos** por reserva (por defecto, 31). El
+tope **máximo** se había perdido en una actualización anterior (solo se
+comprobaba el mínimo), así que se podían crear reservas de duración ilimitada y
+monopolizar una casa. Ya vuelve a existir. Ambos valores viven en la base de
+datos (no en la configuración técnica), porque son reglas que el administrador
+cambia cuando quiere. El mantenimiento sigue sin límite, y no se puede poner un
+máximo menor que el mínimo.
+
+### Cada reserva queda ligada a su familia automáticamente `[M-05]`
+Al crear una reserva o apuntarse a la lista de espera, se guarda a qué familia
+pertenece. Antes ese dato lo enviaba el dispositivo, así que **se podía manipular
+para ponerle el nombre de OTRA familia**. Ahora lo rellena el **servidor** mirando
+el perfil de quien la crea, ignorando lo que llegue del móvil. Nadie puede hacer
+pasar su reserva por la de otra familia. (Las de mantenimiento no se asignan a
+ninguna familia, porque son del edificio.) Se ve todo igual.
+
+### Sorteos justos y a prueba de trampas `[M-06]`
+El sorteo de quincenas ahora es **imposible de amañar, incluso por un
+administrador principal**. El barajado usa azar de **calidad criptográfica**
+(nadie puede adivinar ni forzar el resultado); los resultados quedan **"en
+piedra"** (no se pueden editar a mano: la única forma de crearlos es pulsar el
+botón de sortear); y **cada sorteo y cada borrado queda registrado** en el
+historial (quién, cuándo y qué salió). Para ti funciona igual: se pulsa
+"sortear" una vez y todas las familias ven el resultado.
+
+---
+
 ## Apéndice operativo — crear la llave limitada de MinIO `[A-02]`
 
 Solo hace falta hacerlo **una vez**, en el servidor donde corre MinIO, con la

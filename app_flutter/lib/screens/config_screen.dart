@@ -124,6 +124,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
   final _smtpPass = TextEditingController();
   bool _smtpSecure = false;
   final _maxDays = TextEditingController();
+  final _maxDaysCap = TextEditingController();
   final _testEmail = TextEditingController();
   bool _testing = false;
   String? _testResult;
@@ -162,6 +163,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpPass.text = cfg?.smtpPass ?? '';
     _smtpSecure = cfg?.smtpSecure ?? false;
     _maxDays.text = cfg?.maxReservationDays.toString() ?? '';
+    _maxDaysCap.text = cfg?.maxReservationDaysCap.toString() ?? '';
   }
 
   Future<void> _test() async {
@@ -192,6 +194,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpUser.dispose();
     _smtpPass.dispose();
     _maxDays.dispose();
+    _maxDaysCap.dispose();
     _testEmail.dispose();
     super.dispose();
   }
@@ -199,6 +202,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
   Future<void> _save() async {
     final port = int.tryParse(_smtpPort.text.trim());
     final days = int.tryParse(_maxDays.text.trim());
+    final daysCap = int.tryParse(_maxDaysCap.text.trim());
     if (_smtpPort.text.trim().isNotEmpty && port == null) {
       setState(() => _error = 'El puerto SMTP debe ser un número.');
       return;
@@ -206,6 +210,11 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     if (days == null || days < 1) {
       setState(() =>
           _error = 'Los días mínimos de reserva deben ser un número mayor o igual a 1.');
+      return;
+    }
+    if (daysCap == null || daysCap < days) {
+      setState(() => _error =
+          'Los días máximos de reserva deben ser un número mayor o igual al mínimo.');
       return;
     }
     setState(() {
@@ -220,6 +229,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         'smtp_pass': _smtpPass.text,
         'smtp_secure': _smtpSecure,
         'max_reservation_days': days,
+        'max_reservation_days_cap': daysCap,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -255,6 +265,14 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                       labelText: 'Días mínimos de reserva',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _maxDaysCap,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      labelText: 'Días máximos de reserva',
                       border: OutlineInputBorder()),
                 ),
               ],
