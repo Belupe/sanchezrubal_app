@@ -258,6 +258,90 @@ sus imágenes fijadas para que sean siempre las mismas.
 
 ---
 
+## Fase 5 — Higiene (buenas prácticas)
+
+Últimos detalles de "orden y limpieza". No cambian nada de lo que ves en la app;
+dejan el proyecto listo para publicarse con las puertas bien cerradas.
+
+### Las funciones internas solo las usa el sistema `[I-04]`
+Las pequeñas funciones internas que deciden "quién es admin" ahora **solo pueden
+llamarlas las partes del sistema que las necesitan**, no cualquiera. (Con cuidado
+de que las que sí usa el control de permisos sigan estando disponibles para no
+romper nada.)
+
+### Se guarda un registro más completo de acciones importantes `[I-05]`
+El "libro de registro" (auditoría) ahora anota también los **cambios de rol**, los
+**cambios de configuración** y los **movimientos de la lista de espera**, y marca
+cuándo una acción la hizo el propio sistema (no una persona). Además, ese registro
+**se conserva 12 meses** (antes 2). Es un registro interno, invisible para el uso
+normal; solo sirve para poder mirar atrás si hace falta.
+
+### El botón de "probar correo" solo se envía a ti mismo `[I-06]`
+Al probar la configuración del correo, la prueba **se envía siempre a tu propio
+correo** de administrador. Antes se podía escribir cualquier destino; ahora no, para
+que nadie pueda usar ese botón para mandar correos a terceros.
+
+### Las funciones del servidor aceptan solo el origen que tú digas `[I-07]`
+Se puede indicar (opcional) **desde qué web** se permite llamar a las funciones del
+servidor. Por defecto sigue igual que hoy (la app es una app nativa, no una web, así
+que esto no le afecta); es una tuerca extra por si algún día hay una web propia.
+
+### Copias de seguridad y cambio de contraseñas `[I-01]`
+Se documenta cómo hacer **copias de seguridad** (de la base de datos y de las fotos)
+y cómo **cambiar las contraseñas** del sistema de vez en cuando (ver apéndices).
+
+### La "llave pública" de la app es pública a propósito `[I-03]`
+La app lleva dentro una dirección y una "llave pública" (*anon key*) de Supabase.
+**Es normal y seguro que sean públicas**: no dan acceso a nada por sí solas; lo que
+protege los datos son las reglas de permisos (RLS) del servidor. Ver la nota en
+`.env.example`.
+
+### Versiones fijas de las piezas del servidor `[I-09]`
+Las funciones del servidor usan **versiones concretas** de sus componentes para que
+el resultado sea siempre el mismo (reproducible). El "candado de versiones"
+(`deno.lock`) se genera al desplegar (ver apéndice).
+
+---
+
+## Apéndice operativo — copias de seguridad y rotación de secretos `[I-01]`
+
+**Copias de seguridad (haz ambas con regularidad, p. ej. semanal):**
+1. **Base de datos (Supabase):** el plan de Supabase incluye backups automáticos
+   diarios (Dashboard → *Database → Backups*). Para una copia manual puntual:
+   `supabase db dump -f backup.sql` (o *Backups → Download*). Guárdala fuera del
+   servidor.
+2. **Fotos y vídeos (MinIO):** es una carpeta del disco (`MEDIA_DATA_DIR` del
+   `.env`). Cópiala con tu herramienta habitual, p. ej.
+   `rsync -a "$MEDIA_DATA_DIR"/ /ruta/backup/media/` (o `mc mirror`). Incluye
+   también `UPDATES_DATA_DIR` si quieres conservar los instaladores publicados.
+
+**Rotación de secretos (cada cierto tiempo o si sospechas una fuga):**
+- Genera nuevos valores (`openssl rand -base64 24`) para `MINIO_ROOT_PASSWORD`,
+  `MEDIA_SIGN_SECRET_KEY`, `CRON_SECRET`, `PUSH_SECRET` en el `.env`.
+- Re-súbelos: `./scripts/push-supabase-secrets.sh` (o `.ps1`) y reinicia el stack
+  (`docker compose up -d`). El `cron_secret` del Vault debe seguir coincidiendo con
+  `CRON_SECRET` (ver `.env.example`, sección 5).
+- El *token* de la CLI de Supabase y la *service role key* se rotan desde el
+  Dashboard de Supabase.
+
+## Apéndice operativo — congelar versiones de las funciones `[I-09]`
+
+En la máquina que despliega (donde está el CLI de `supabase`/`deno`), genera el
+"candado de versiones" para que cada despliegue use exactamente las mismas piezas:
+
+```bash
+cd supabase/functions
+deno cache --lock=deno.lock --lock-write */index.ts
+```
+
+Súbelo al repo (`git add supabase/functions/deno.lock`). A partir de ahí, los
+despliegues (`supabase functions deploy`) reproducen las mismas versiones. Las
+dependencias que ya van fijas: `denomailer@1.6.0` y `aws4fetch@1.0.20`;
+`@supabase/supabase-js@2` sigue la recomendación oficial de Supabase (estable por
+versionado semántico) y queda "congelada" por el `deno.lock`.
+
+---
+
 ## Apéndice operativo — crear la llave limitada de MinIO `[A-02]`
 
 Solo hace falta hacerlo **una vez**, en el servidor donde corre MinIO, con la

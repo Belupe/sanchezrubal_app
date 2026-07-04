@@ -217,10 +217,11 @@ class DataService {
     } catch (_) {/* no bloquea la creación */}
   }
 
-  /// Envía un correo de prueba con la config SMTP (solo mega). Devuelve null
-  /// si fue bien, o el mensaje de error.
-  static Future<String?> testSmtp(String to) async {
-    final res = await supabase.functions.invoke('test-smtp', body: {'to': to});
+  /// Envía un correo de prueba con la config SMTP (solo mega). Se envía SIEMPRE
+  /// al propio correo del mega (el servidor ignora cualquier destino) [I-06].
+  /// Devuelve null si fue bien, o el mensaje de error.
+  static Future<String?> testSmtp() async {
+    final res = await supabase.functions.invoke('test-smtp', body: {});
     final data = res.data;
     if (data is Map && data['error'] != null) return data['error'].toString();
     return null;
