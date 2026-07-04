@@ -44,8 +44,8 @@ $proj = if ($e['SUPABASE_PROJECT_REF']) { @('--project-ref', $e['SUPABASE_PROJEC
 $secrets = @(
   "MINIO_ENDPOINT=$($e['MEDIA_PUBLIC_URL'])",
   "MINIO_BUCKET=$($e['MEDIA_BUCKET'])",
-  "MINIO_ACCESS_KEY=$($e['MINIO_ROOT_USER'])",
-  "MINIO_SECRET_KEY=$($e['MINIO_ROOT_PASSWORD'])",
+  "MEDIA_SIGN_ACCESS_KEY=$($e['MEDIA_SIGN_ACCESS_KEY'])",
+  "MEDIA_SIGN_SECRET_KEY=$($e['MEDIA_SIGN_SECRET_KEY'])",
   "MINIO_REGION=$($e['MINIO_REGION'])"
 )
 if ($e['CRON_SECRET']) { $secrets += "CRON_SECRET=$($e['CRON_SECRET'])" }

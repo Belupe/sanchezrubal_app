@@ -8,8 +8,8 @@
 // Secrets necesarios (supabase secrets set ...):
 //   MINIO_ENDPOINT     p.ej. https://media.sanchezrubal.net
 //   MINIO_BUCKET       inspections
-//   MINIO_ACCESS_KEY   (root user de MinIO o una access key dedicada)
-//   MINIO_SECRET_KEY
+//   MEDIA_SIGN_ACCESS_KEY  access key DEDICADA de MinIO (Get/Put sobre el bucket; NO la root)
+//   MEDIA_SIGN_SECRET_KEY
 //   MINIO_REGION       us-east-1   (opcional)
 // SUPABASE_URL y SUPABASE_ANON_KEY los inyecta Supabase automáticamente.
 // La config de Supabase se gestiona en /.env.example; no introduzcas
@@ -24,8 +24,8 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const MINIO_ENDPOINT = Deno.env.get("MINIO_ENDPOINT")!;
 const MINIO_BUCKET = Deno.env.get("MINIO_BUCKET") ?? "inspections";
-const MINIO_ACCESS_KEY = Deno.env.get("MINIO_ACCESS_KEY")!;
-const MINIO_SECRET_KEY = Deno.env.get("MINIO_SECRET_KEY")!;
+const MINIO_ACCESS_KEY = Deno.env.get("MEDIA_SIGN_ACCESS_KEY")!;
+const MINIO_SECRET_KEY = Deno.env.get("MEDIA_SIGN_SECRET_KEY")!;
 const MINIO_REGION = Deno.env.get("MINIO_REGION") ?? "us-east-1";
 
 const PRINCIPAL = ["MEGA_ADMIN", "PRINCIPAL_ADMIN"];

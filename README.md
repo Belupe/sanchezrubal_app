@@ -13,6 +13,7 @@ sorteos, usuarios). **Una sola base de código Flutter** → **3 apps nativas**:
 **MinIO self-hosted** en tu Docker — los archivos viven en tu servidor, no en Supabase.
 
 > Arquitectura completa: [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
+> Seguridad (explicada para todos): [docs/SEGURIDAD.md](docs/SEGURIDAD.md).
 
 ## Novedades
 
@@ -42,7 +43,7 @@ supabase/          ← migraciones (0001–0015) + Edge Functions (media-sign ·
 server/            ← soporte del servidor:  nginx/ · cloudflared/ · updates/ (plantillas)
 scripts/           ← release.ps1 · build-aab.ps1 · build-windows.ps1 · push-supabase-secrets.*
 docs/              ← GOOGLE.md · APPLE.md · WINDOWS.md · ANDROID.md · ARQUITECTURA.md ·
-                     COLA-NOTIFICACIONES-TIEMPO-REAL.md
+                     SEGURIDAD.md · COLA-NOTIFICACIONES-TIEMPO-REAL.md
 dist/              ← (generado) artefactos finales: setup.exe (Windows), .aab (Google Play), version.json
 ```
 
