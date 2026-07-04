@@ -1,0 +1,45 @@
+# ===============================================================
+# supabase/config.toml — Configuración de Auth versionada (seguridad)
+#
+# NOTA IMPORTANTE: este proyecto se gestiona desde el Dashboard de Supabase
+# (no hay Supabase CLI en la máquina). Este fichero deja la configuración de
+# seguridad DOCUMENTADA y versionada. Para aplicarla hay DOS vías:
+#   (a) Con CLI:  supabase link --project-ref pjceyplciujtrnxptwbx
+#                 supabase config push
+#   (b) Manual en el Dashboard (ver el checklist de abajo) — hazlo YA aunque
+#       no uses la CLI, porque es donde de verdad se aplica hoy.
+#
+# CHECKLIST en Dashboard → Authentication:
+#   [C-01] Providers → Email → "Allow new users to sign up" = OFF (invite-only).
+#   [M-11] Multi-Factor Auth → TOTP (App Authenticator) = ENABLED (opcional, no forzado).
+#   [M-13] Policies → Minimum password length = 10;  Password requirements = fuerte;
+#          "Prevent use of leaked passwords" (HaveIBeenPwned) = ON.
+#   [M-12] "Secure password change" / "Secure email change" = ON (exige reautenticación).
+# ===============================================================
+project_id = "pjceyplciujtrnxptwbx"
+
+[auth]
+# [C-01] Alta SOLO por invitación (admin-users). No hay pantalla de registro en la app.
+enable_signup = false
+enable_anonymous_sign_ins = false
+# [M-13] Política de contraseñas (el cliente valida en espejo; la autoridad es el servidor).
+minimum_password_length = 10
+password_requirements = "lower_upper_letters_digits_symbols"
+
+[auth.email]
+enable_signup = false
+# [M-12] Reautenticación al cambiar credenciales sensibles.
+secure_password_change = true
+secure_email_change = true
+
+# [M-11] MFA TOTP disponible para quien quiera activarlo (opcional, no forzado).
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+# NOTA: "Prevent use of leaked passwords" (HaveIBeenPwned) [M-13] es un ajuste del
+# Dashboard (Authentication → Policies); actívalo allí — no siempre está expuesto en
+# config.toml según la versión de la CLI.
