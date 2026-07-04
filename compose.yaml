@@ -5,6 +5,8 @@
 #      cp .env.example .env   &&   edítalo   &&   docker compose up -d
 #
 #  Servicios:
+#   - preflight:     valida el .env ANTES de arrancar nada (aborta si hay
+#                    credenciales con placeholder). [B-10]
 #   - minio:         almacén S3 self-hosted de fotos/vídeo (en MEDIA_DATA_DIR).
 #   - createbuckets: crea el bucket privado al arrancar.
 #   - updates:       nginx que sirve los instaladores + version.json para que
@@ -12,16 +14,60 @@
 #
 #  La BD/Auth/API están en Supabase Cloud (no aquí). El túnel cloudflared
 #  corre en el HOST: ver server/cloudflared/config.example.yml.
+#
+#  Endurecimiento [B-14]: los servicios corren no-root donde se puede, con
+#  cap_drop:[ALL], read_only + tmpfs, no-new-privileges, límites de memoria/CPU
+#  e imágenes fijables por digest (MINIO_IMAGE/MC_IMAGE/NGINX_IMAGE en .env).
 # =====================================================================
 
 name: portal-familia
 
 services:
+  # Valida el .env ANTES de arrancar nada: si alguna credencial sigue con su
+  # placeholder o está vacía, ABORTA el `docker compose up` entero. [B-10]
+  # (busybox no persiste nada; solo comprueba variables y sale.)
+  preflight:
+    image: busybox:latest
+    container_name: pf_preflight
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      CRON_SECRET: ${CRON_SECRET:-}
+      MEDIA_SIGN_SECRET_KEY: ${MEDIA_SIGN_SECRET_KEY:-}
+    entrypoint: >
+      /bin/sh -c "
+      fail() { echo \"[.env] ERROR: $$1\" >&2; exit 1; };
+      [ -z \"$$MINIO_ROOT_USER\" ] && fail 'MINIO_ROOT_USER vacío en .env';
+      [ \"$$MINIO_ROOT_USER\" = 'portalfamilia' ] && fail 'MINIO_ROOT_USER es el default adivinable: cámbialo en .env';
+      [ \"$$MINIO_ROOT_USER\" = 'pon_aqui_un_usuario_admin_no_obvio' ] && fail 'MINIO_ROOT_USER sigue con el placeholder: cámbialo en .env';
+      [ -z \"$$MINIO_ROOT_PASSWORD\" ] && fail 'MINIO_ROOT_PASSWORD vacío en .env';
+      [ \"$$MINIO_ROOT_PASSWORD\" = 'pon_aqui_una_contrasena_larga_y_aleatoria' ] && fail 'MINIO_ROOT_PASSWORD sigue con el placeholder: cámbialo en .env';
+      [ \"$$CRON_SECRET\" = 'pon_aqui_un_token_aleatorio' ] && fail 'CRON_SECRET sigue con el placeholder: cámbialo en .env';
+      [ \"$$MEDIA_SIGN_SECRET_KEY\" = 'pon_aqui_un_secret_largo_y_aleatorio' ] && fail 'MEDIA_SIGN_SECRET_KEY sigue con el placeholder: cámbialo en .env';
+      echo '[.env] Validación OK: sin placeholders.';
+      "
+    restart: "no"
+
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:latest}     # fijar por digest en .env
     container_name: pf_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
+    # No-root: MinIO escucha en 9000/9001 (>1024, sin caps) y solo escribe en /data.
+    # UID/GID configurables (por defecto 1000). En Linux: chown -R 1000:1000 al
+    # MEDIA_DATA_DIR del host. En Windows/Docker Desktop el bind mount ignora el
+    # uid, así que funciona sin chown.
+    user: "${MINIO_UID:-1000}:${MINIO_GID:-1000}"
+    read_only: true            # rootfs inmutable; el VOLUMEN /data sigue writable
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL                    # MinIO no necesita ninguna capability
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -36,14 +82,35 @@ services:
     ports:
       - "${BIND_HOST:-127.0.0.1}:${MINIO_PORT:-9000}:9000"          # API S3
       - "${BIND_HOST:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"  # consola web
+    deploy:
+      resources:
+        limits:
+          memory: ${MINIO_MEM_LIMIT:-1g}
+          cpus: "${MINIO_CPU_LIMIT:-1.0}"
+        reservations:
+          memory: 256m
+    # Alternativa Compose v1: sustituir el bloque deploy: por
+    #   mem_limit: ${MINIO_MEM_LIMIT:-1g}
+    #   cpus: ${MINIO_CPU_LIMIT:-1.0}
 
   createbuckets:
-    image: minio/mc:latest
+    image: ${MC_IMAGE:-minio/mc:latest}          # fijar por digest en .env
     depends_on:
       - minio
+    user: "${MINIO_UID:-1000}:${MINIO_GID:-1000}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # mc escribe su config en $HOME/.mc; como corre no-root con rootfs read_only,
+      # redirigimos la config al tmpfs para que 'mc alias set' funcione.
+      MC_CONFIG_DIR: /tmp/.mc
     entrypoint: >
       /bin/sh -c "
       until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
@@ -54,17 +121,55 @@ services:
       echo 'Bucket ${MEDIA_BUCKET:-inspections} listo (privado).';
       "
     restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: ${MC_MEM_LIMIT:-128m}
+          cpus: "0.5"
 
   # Sirve los instaladores + version.json de cada plataforma. La familia
   # descarga desde UPDATES_PUBLIC_URL (tras cloudflared) y las apps de Android
   # y Windows se auto-actualizan. El contenido vive en UPDATES_DATA_DIR (host)
   # y lo genera scripts/release.ps1.
   updates:
-    image: nginx:alpine
+    image: ${NGINX_IMAGE:-nginx:alpine}          # fijar por digest en .env
     container_name: pf_updates
     restart: unless-stopped
+    # nginx:alpine mantiene el master como root (updates.conf hace `listen 80`,
+    # puerto privilegiado). Con cap_drop:[ALL] el root PIERDE NET_BIND_SERVICE, así
+    # que hay que devolver SOLO las caps mínimas: NET_BIND_SERVICE (bind :80),
+    # SETUID/SETGID (spawnear workers como usuario 'nginx'), CHOWN (cache dirs).
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /run                   # nginx.pid (en alpine /var/run -> /run)
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+      - CHOWN
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
     volumes:
       - ${UPDATES_DATA_DIR}:/usr/share/nginx/html:ro
       - ./server/nginx/updates.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "${BIND_HOST:-127.0.0.1}:${UPDATES_PORT:-8090}:80"
+    deploy:
+      resources:
+        limits:
+          memory: ${UPDATES_MEM_LIMIT:-128m}
+          cpus: "${UPDATES_CPU_LIMIT:-0.5}"
+
+    # ENDURECIMIENTO OPCIONAL (más fuerte, requiere tocar server/nginx/updates.conf):
+    #   usar la imagen no-root oficial  nginxinc/nginx-unprivileged:alpine ,
+    #   cambiar en updates.conf `listen 80;` -> `listen 8080;`, mapear
+    #   "${UPDATES_PORT:-8090}:8080", añadir  user: "101:101"  y quitar el bloque
+    #   cap_add entero (ya no bindea puerto privilegiado ni cambia de uid). Como eso
+    #   modifica updates.conf y el mapeo de puerto interno, queda como paso 2 aparte.

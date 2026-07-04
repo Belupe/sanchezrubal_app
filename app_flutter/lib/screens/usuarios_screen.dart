@@ -169,12 +169,41 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     );
     if (ok != true) return;
     try {
-      await AdminService.inviteUser(
+      final res = await AdminService.inviteUser(
         name: name.text.trim(),
         email: email.text.trim(),
         role: role,
         familyGroupId: groupId,
       );
+      // [B-03] La cuenta ya existe y reasignaría grupo/rol: confirmar y reintentar.
+      if (res['requiresConfirm'] == true) {
+        if (!mounted) return;
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('La cuenta ya existe'),
+            content: Text(res['message']?.toString() ??
+                'Ya existe una cuenta con ese email. Al continuar se '
+                    'reasignará su grupo y/o rol.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancelar')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Vincular de todos modos')),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+        await AdminService.inviteUser(
+          name: name.text.trim(),
+          email: email.text.trim(),
+          role: role,
+          familyGroupId: groupId,
+          confirmRelink: true,
+        );
+      }
       _snack('Invitación enviada por correo.');
       _load();
     } catch (e) {

@@ -70,13 +70,15 @@ class DataService {
     await supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
 
-  /// Cambia el correo (Supabase envía confirmación al nuevo email) y lo refleja
-  /// en el perfil. [M-12] exige la contraseña actual antes.
+  /// Cambia el correo. Supabase envía confirmación al nuevo email; profiles.email
+  /// lo sincroniza el trigger on_auth_user_email_changed (0020) cuando GoTrue
+  /// confirma el cambio en auth.users. No se escribe profiles.email desde el
+  /// cliente: como 'authenticated' lo revierte profiles_guard [B-02]. [M-12]
+  /// exige la contraseña actual antes.
   static Future<void> changeEmail(
       String currentPassword, String newEmail) async {
     await _reauthenticate(currentPassword);
     await supabase.auth.updateUser(UserAttributes(email: newEmail));
-    await supabase.from('profiles').update({'email': newEmail}).eq('id', uid!);
   }
 
   /// Guarda la preferencia de tema ('system' | 'light' | 'dark').

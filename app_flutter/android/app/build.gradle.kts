@@ -9,8 +9,9 @@ plugins {
 
 // Carga la configuración de firma release desde android/key.properties
 // (gitignored, fuera del control de versiones). Si el archivo no existe,
-// el build release cae a la firma debug para que `flutter run --release`
-// y los builds de desarrollo sigan funcionando sin el keystore.
+// no se carga nada aquí: los builds de debug siguen funcionando, pero
+// cualquier tarea de RELEASE fallará explícitamente (ver taskGraph.whenReady
+// más abajo) en vez de firmar con la clave debug (que sería falsificable). [B-09]
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
@@ -50,13 +51,37 @@ android {
 
     buildTypes {
         release {
-            // Firma con la clave release si existe key.properties; si no,
-            // usa la debug para no romper builds de desarrollo.
-            signingConfig = if (keystorePropertiesFile.exists())
-                signingConfigs.getByName("release")
-            else
-                signingConfigs.getByName("debug")
+            // Firma SIEMPRE con la clave release. Nunca cae a debug:
+            // un AAB/APK de release firmado con la clave debug sería
+            // reproducible y falsificable. Si falta el keystore, el build
+            // de release falla en tiempo de ejecución (ver más abajo). [B-09]
+            signingConfig = signingConfigs.getByName("release")
         }
+    }
+}
+
+// [B-09] Falla el build de RELEASE (nunca el de debug) si falta el keystore, en
+// vez de firmar con la clave debug. El chequeo se difiere a tiempo de ejecución:
+// si se pusiera dentro de buildTypes.release {} se evaluaría en la fase de
+// configuración para CUALQUIER invocación de Gradle (incluido `flutter run` en
+// debug) y rompería también el build de debug.
+// IMPORTANTE: whenReady recibe un Action<TaskExecutionGraph>; en Kotlin DSL el
+// grafo llega como PARÁMETRO del lambda (no como receptor `this`), por eso se
+// declara `graph ->` y se usa `graph.allTasks` (NO `allTasks` a secas, que sería
+// una referencia no resuelta y rompería la compilación del build script).
+gradle.taskGraph.whenReady { graph ->
+    val buildingRelease = graph.allTasks.any { task ->
+        val n = task.name
+        n.contains("Release") &&
+            (n.startsWith("assemble") || n.startsWith("bundle") || n.startsWith("package"))
+    }
+    if (buildingRelease && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "Falta android/key.properties: no se puede firmar el build de RELEASE.\n" +
+            "Crea android/key.properties (gitignored) con keyAlias, keyPassword, " +
+            "storeFile y storePassword apuntando al keystore de release.\n" +
+            "El build de release NO cae a la firma debug por seguridad."
+        )
     }
 }
 
