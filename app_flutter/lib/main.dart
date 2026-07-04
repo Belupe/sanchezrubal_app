@@ -7,6 +7,7 @@ import 'config.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home_shell.dart';
 import 'services/deep_link_service.dart';
+import 'services/secure_session_storage.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +15,11 @@ Future<void> main() async {
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     publishableKey: AppConfig.supabaseAnonKey,
+    // [M-09] Sesión (JWT + refresh) y code_verifier PKCE cifrados en reposo.
+    authOptions: FlutterAuthClientOptions(
+      localStorage: SecureSessionStorage(supabaseUrl: AppConfig.supabaseUrl),
+      pkceAsyncStorage: const SecurePkceAsyncStorage(),
+    ),
   );
   runApp(const PortalFamiliaApp());
 }

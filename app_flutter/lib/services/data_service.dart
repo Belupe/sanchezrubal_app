@@ -11,6 +11,13 @@ import '../models/reservation.dart';
 import '../models/sorteo.dart';
 import '../models/system_config.dart';
 import '../models/waitlist_entry.dart';
+import '../utils/password_policy.dart';
+
+/// [M-12] La contraseña ACTUAL de la reautenticación no es correcta. Se distingue
+/// de AuthException genérica para que la UI muestre el mensaje adecuado.
+class InvalidCurrentPasswordException implements Exception {
+  const InvalidCurrentPasswordException();
+}
 
 /// Acceso a datos vía Supabase. El RLS decide qué puede ver/hacer cada rol.
 class DataService {
@@ -40,13 +47,34 @@ class DataService {
     await supabase.from('profiles').update(patch).eq('id', uid!);
   }
 
-  static Future<void> changePassword(String newPassword) async {
+  /// [M-12] Reautentica con la contraseña ACTUAL. Lanza
+  /// InvalidCurrentPasswordException si no coincide.
+  static Future<void> _reauthenticate(String currentPassword) async {
+    final email = supabase.auth.currentUser?.email;
+    if (email == null) throw const InvalidCurrentPasswordException();
+    try {
+      await supabase.auth
+          .signInWithPassword(email: email, password: currentPassword);
+    } on AuthException {
+      throw const InvalidCurrentPasswordException();
+    }
+  }
+
+  /// Cambia la contraseña. [M-12] exige la contraseña actual; [M-13] criba local
+  /// (la autoridad real es Supabase Auth).
+  static Future<void> changePassword(
+      String currentPassword, String newPassword) async {
+    final err = PasswordPolicy.validate(newPassword);
+    if (err != null) throw ArgumentError(err);
+    await _reauthenticate(currentPassword);
     await supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
 
-  /// Cambia el correo (Supabase envía confirmación al nuevo email) y lo
-  /// refleja en el perfil.
-  static Future<void> changeEmail(String newEmail) async {
+  /// Cambia el correo (Supabase envía confirmación al nuevo email) y lo refleja
+  /// en el perfil. [M-12] exige la contraseña actual antes.
+  static Future<void> changeEmail(
+      String currentPassword, String newEmail) async {
+    await _reauthenticate(currentPassword);
     await supabase.auth.updateUser(UserAttributes(email: newEmail));
     await supabase.from('profiles').update({'email': newEmail}).eq('id', uid!);
   }
