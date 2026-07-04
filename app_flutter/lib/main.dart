@@ -5,8 +5,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/mfa_challenge_screen.dart';
 import 'screens/home_shell.dart';
 import 'services/deep_link_service.dart';
+import 'services/mfa_service.dart';
 import 'services/secure_session_storage.dart';
 
 Future<void> main() async {
@@ -115,6 +117,9 @@ class AuthGate extends StatelessWidget {
       builder: (context, _) {
         final session = supabase.auth.currentSession;
         if (session == null) return const LoginScreen();
+        // [M-11] Si la cuenta tiene 2FA (TOTP verificado) y la sesión sigue en
+        // AAL1, pedimos el código antes de entrar. Quien no use 2FA no lo ve.
+        if (MfaService.needsChallenge()) return const MfaChallengeScreen();
         return const HomeShell();
       },
     );
