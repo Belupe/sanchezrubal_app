@@ -50,6 +50,24 @@ if (-not $SkipWindows) {
   if ($LASTEXITCODE -eq 2) { Write-Warning "Windows: instalador no generado (falta Inno Setup o Visual Studio)." }
 }
 
+# [C-02] Calcula el SHA-256 del instalador y lo escribe en dist/windows/version.json.
+# La app rechaza cualquier binario cuyo hash no coincida con este valor, así que
+# un version.json manipulado ya no puede forzar la ejecución de un .exe ajeno.
+$distDir = Join-Path $root 'dist'
+$winExe  = Join-Path $distDir 'windows\portal-familia-setup.exe'
+$winVer  = Join-Path $distDir 'windows\version.json'
+if (Test-Path $winExe) {
+  $sha = (Get-FileHash -Algorithm SHA256 -Path $winExe).Hash.ToLower()
+  if (Test-Path $winVer) {
+    $vj = Get-Content $winVer -Raw | ConvertFrom-Json
+    $vj | Add-Member -NotePropertyName sha256 -NotePropertyValue $sha -Force
+    ($vj | ConvertTo-Json -Depth 8) | Set-Content $winVer -Encoding UTF8
+    Write-Host "SHA-256 del instalador escrito en version.json: $sha" -ForegroundColor Cyan
+  } else {
+    Write-Warning "No hay dist/windows/version.json; SHA-256 del instalador: $sha (anadelo como campo 'sha256')."
+  }
+}
+
 # Publicar: si UPDATES_DATA_DIR existe localmente, copia dist/* allí.
 $dataDir = $envv['UPDATES_DATA_DIR']
 $dist = Join-Path $root 'dist'
