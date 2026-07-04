@@ -22,14 +22,22 @@ class MediaService {
       'op': 'put',
       'reservationId': reservationId,
       'filename': filename,
+      'size': bytes.length, // el servidor valida contra MEDIA_MAX_UPLOAD_BYTES
     });
     final data = (res.data as Map);
     final url = data['url'] as String;
     final key = data['key'] as String;
 
+    // [M-02] El Content-Type va FIRMADO por media-sign: hay que reenviar
+    // EXACTAMENTE las cabeceras que devuelve o MinIO rechaza el PUT (403).
+    final signedHeaders = <String, String>{};
+    (data['headers'] as Map?)?.forEach((k, v) =>
+        signedHeaders[k.toString()] = v.toString());
+    signedHeaders.putIfAbsent('Content-Type', () => contentType);
+
     final put = await http.put(
       Uri.parse(url),
-      headers: {'Content-Type': contentType},
+      headers: signedHeaders,
       body: bytes,
     );
     if (put.statusCode >= 300) {
