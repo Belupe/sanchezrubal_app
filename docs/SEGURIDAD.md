@@ -302,6 +302,51 @@ el resultado sea siempre el mismo (reproducible). El "candado de versiones"
 
 ---
 
+## Segunda auditoría — repaso independiente
+
+Se encargó una **segunda auditoría desde cero**, buscando fallos en sitios que la
+primera no miró. Buena noticia: **no encontró nada grave** (0 críticos, 0 altos), solo
+detalles finos de endurecimiento. Esto es lo que se arregló (nada cambia en tu día a día):
+
+### Al recuperar la contraseña, ahora te obliga a crear una nueva `[2M-04]`
+Antes, el enlace de "he olvidado mi contraseña" te dejaba entrar directamente. Ahora, al
+abrirlo, la app **te obliga a escribir una contraseña nueva** antes de dejarte pasar (como
+debe ser). El enlace, además, **abre la app** en vez de una web `[2L-10]`.
+
+### La app se actualiza sola en Windows con una pantalla clara `[pedido]`
+En Windows, cuando hay una versión nueva, aparece una **pantalla de actualización** que la
+descarga, **comprueba su firma** y la instala sola, y reabre la app. (Android se actualiza
+por Google Play e iPhone por el App Store.)
+
+### Los avatares y notas no pueden ser gigantes `[2M-02][2L-09]`
+Se pone un **límite de tamaño** a las imágenes de perfil y a los textos, para que nadie
+pueda inflar la base de datos con datos enormes. Además, la foto de perfil ya no se
+descarga en las listas donde no se muestra (ahorra datos).
+
+### El registro de cambios no guarda datos de más `[2M-03][2L-15]`
+El historial de reservas deja de guardar copias de la **lista de invitados y las notas**
+(datos personales), y apunta correctamente **quién** hizo cada cambio.
+
+### Aviso "tu estancia se acerca" `[PRE_STAY]`
+Se completó el correo de **pre-estancia**: unos días antes de tu reserva recibes un aviso.
+Puedes personalizar su texto desde *Configuración → Plantillas* (como los demás correos).
+
+### Los vídeos de inspección se limpian de datos de ubicación `[2L-12]`
+Los vídeos pueden llevar escondida la **ubicación GPS** de dónde se grabaron. El servidor
+ahora se los quita automáticamente al subirlos. (Las fotos ya lo hacían.)
+
+### Más retoques `[2L-05..2L-17, 2I-02..2I-11]`
+Mensajes de error que no revelan detalles internos; el correo de prueba solo se envía a ti;
+tope de dispositivos y de solicitudes por persona; las inspecciones quedan atadas a su
+domicilio correcto; y varias piezas del servidor un poco más cerradas.
+
+> **Se dejan para más adelante (a propósito):** firmar el instalador de Windows con un
+> certificado de pago (Authenticode) `[2M-01]` y la ofuscación del código Android `[2L-03]`.
+> Ninguno es un agujero: son mejoras que requieren coste o pruebas extra. La app de Windows ya
+> comprueba su firma por huella (SHA-256).
+
+---
+
 ## Verificación en dos pasos (2FA) `[M-11]`
 
 Es una protección **opcional**: cada persona decide si la activa. Si no la activas,
