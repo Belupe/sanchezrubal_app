@@ -127,6 +127,37 @@ services:
           memory: ${MC_MEM_LIMIT:-128m}
           cpus: "0.5"
 
+  # [2L-12] Quita metadatos (EXIF/GPS) de los VÍDEOS subidos a MinIO: vigila el
+  # bucket y re-muxa cada vídeo con ffmpeg (-map_metadata -1 -c copy, sin
+  # recodificar). Worker interno; el flujo de subida de la app no cambia (el
+  # limpiado ocurre justo después, de forma asíncrona).
+  media-scrub:
+    build: ./server/media-scrub
+    image: ${MEDIA_SCRUB_IMAGE:-portal-familia/media-scrub:local}
+    container_name: pf_media_scrub
+    restart: unless-stopped
+    depends_on:
+      - minio
+      - createbuckets
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MEDIA_BUCKET: ${MEDIA_BUCKET:-inspections}
+      MC_CONFIG_DIR: /tmp/.mc            # config de mc en tmpfs (rootfs read_only)
+    deploy:
+      resources:
+        limits:
+          memory: ${MEDIA_SCRUB_MEM_LIMIT:-512m}
+          cpus: "${MEDIA_SCRUB_CPU_LIMIT:-1.0}"
+
   # Sirve los instaladores + version.json de cada plataforma. La familia
   # descarga desde UPDATES_PUBLIC_URL (tras cloudflared) y las apps de Android
   # y Windows se auto-actualizan. El contenido vive en UPDATES_DATA_DIR (host)
