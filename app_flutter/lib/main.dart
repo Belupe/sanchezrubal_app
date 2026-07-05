@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/mfa_challenge_screen.dart';
+import 'screens/auth/set_new_password_screen.dart';
 import 'screens/home_shell.dart';
 import 'services/deep_link_service.dart';
 import 'services/mfa_service.dart';
@@ -23,11 +25,53 @@ Future<void> main() async {
       pkceAsyncStorage: const SecurePkceAsyncStorage(),
     ),
   );
+  // [2M-04] Estado de "recuperación de contraseña pendiente". Debe sobrevivir a
+  // un reinicio en frío: la sesión de recuperación se PERSISTE en disco, y al
+  // reabrir la app supabase emite `initialSession` (no `passwordRecovery`), así
+  // que además del evento en caliente se guarda un flag persistente cifrado.
+  //  1) Al arrancar: si el flag está puesto y hay sesión, seguimos bloqueando;
+  //     si el flag está puesto pero ya no hay sesión, se limpia (obsoleto).
+  final pending = await _recoveryStore.read(key: _kPendingRecovery);
+  if (pending == '1') {
+    if (supabase.auth.currentSession != null) {
+      passwordRecoveryNotifier.value = true;
+    } else {
+      await _recoveryStore.delete(key: _kPendingRecovery);
+    }
+  }
+  //  2) En caliente: el enlace de recuperación puede abrir la app antes de que
+  //     el AuthGate se suscriba; este listener global lo captura siempre.
+  supabase.auth.onAuthStateChange.listen((state) async {
+    if (state.event == AuthChangeEvent.passwordRecovery) {
+      await _recoveryStore.write(key: _kPendingRecovery, value: '1');
+      passwordRecoveryNotifier.value = true;
+    } else if (state.event == AuthChangeEvent.signedOut) {
+      await _recoveryStore.delete(key: _kPendingRecovery);
+      passwordRecoveryNotifier.value = false;
+    }
+  });
+
   runApp(const PortalFamiliaApp());
 }
 
 /// Acceso global al cliente de Supabase.
 final supabase = Supabase.instance.client;
+
+/// [2M-04] Activo mientras haya una sesión de recuperación pendiente de fijar
+/// una contraseña nueva. Lo consume el AuthGate para bloquear la app en
+/// SetNewPasswordScreen. Se respalda en un flag persistente (ver abajo) para
+/// que sobreviva a reinicios en frío.
+final passwordRecoveryNotifier = ValueNotifier<bool>(false);
+
+const _recoveryStore = FlutterSecureStorage();
+const _kPendingRecovery = 'pending_pw_recovery';
+
+/// [2M-04] Marca la recuperación como resuelta: borra el flag persistente y
+/// desactiva el bloqueo. La llama SetNewPasswordScreen al fijar la contraseña.
+Future<void> clearPasswordRecovery() async {
+  await _recoveryStore.delete(key: _kPendingRecovery);
+  passwordRecoveryNotifier.value = false;
+}
 
 /// Clave global del Navigator: permite abrir pantallas desde los deep links
 /// (fuera del árbol de widgets).
@@ -116,11 +160,27 @@ class AuthGate extends StatelessWidget {
       stream: supabase.auth.onAuthStateChange,
       builder: (context, _) {
         final session = supabase.auth.currentSession;
-        if (session == null) return const LoginScreen();
-        // [M-11] Si la cuenta tiene 2FA (TOTP verificado) y la sesión sigue en
-        // AAL1, pedimos el código antes de entrar. Quien no use 2FA no lo ve.
-        if (MfaService.needsChallenge()) return const MfaChallengeScreen();
-        return const HomeShell();
+        if (session == null) {
+          // Sin sesión: no hay recuperación pendiente.
+          passwordRecoveryNotifier.value = false;
+          return const LoginScreen();
+        }
+        // [2M-04] La sesión de recuperación NO da acceso pleno: hasta fijar una
+        // contraseña nueva, se muestra SetNewPasswordScreen (bloquea el resto).
+        return ValueListenableBuilder<bool>(
+          valueListenable: passwordRecoveryNotifier,
+          builder: (context, recovering, __) {
+            if (recovering) {
+              // onDone (al fijar la contraseña) borra el flag persistente y
+              // desbloquea la app. [2M-04]
+              return const SetNewPasswordScreen(onDone: clearPasswordRecovery);
+            }
+            // [M-11] Si la cuenta tiene 2FA (TOTP verificado) y la sesión sigue
+            // en AAL1, pedimos el código antes de entrar. Sin 2FA no se ve.
+            if (MfaService.needsChallenge()) return const MfaChallengeScreen();
+            return const HomeShell();
+          },
+        );
       },
     );
   }

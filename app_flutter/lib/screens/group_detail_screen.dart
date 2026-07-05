@@ -5,6 +5,7 @@ import '../models/profile.dart';
 import '../services/admin_service.dart';
 import '../services/data_service.dart';
 import '../utils/colors.dart';
+import '../utils/errors.dart';
 
 /// Ventana de detalle de un grupo: gestor de usuarios en tarjetas, con
 /// cambio de permisos y expulsión del grupo.
@@ -48,7 +49,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       await action();
       await _reload();
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e));
     }
   }
 
@@ -103,7 +104,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       await DataService.deleteFamilyGroup(_group.id);
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e, fallback: 'No se pudo eliminar el grupo.'));
     }
   }
 
@@ -199,7 +200,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       _snack('Invitación enviada por correo.');
       await _reload();
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e, fallback: 'No se pudo enviar la invitación.'));
     }
   }
 

@@ -8,7 +8,7 @@
 	     y para subir/descargar media a MinIO. Sin esto la app no conecta. -->
 	<key>com.apple.security.network.client</key>
 	<true/>
-	<!-- Adjuntar imágenes/vídeos (image_picker) y abrir archivos (open_filex). -->
+	<!-- Adjuntar imágenes/vídeos (image_picker). -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 </dict>

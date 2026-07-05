@@ -4,6 +4,7 @@ import '../models/family_group.dart';
 import '../services/admin_service.dart';
 import '../services/data_service.dart';
 import '../utils/colors.dart';
+import '../utils/errors.dart';
 import 'group_detail_screen.dart';
 
 class UsuariosScreen extends StatefulWidget {
@@ -93,7 +94,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       _snack('Grupo creado. Añade sus miembros desde el grupo.');
       _load();
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e, fallback: 'No se pudo crear el grupo.'));
     }
   }
 
@@ -207,7 +208,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       _snack('Invitación enviada por correo.');
       _load();
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e, fallback: 'No se pudo enviar la invitación.'));
     }
   }
 

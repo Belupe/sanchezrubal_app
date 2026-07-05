@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/property.dart';
 import '../services/data_service.dart';
+import '../utils/errors.dart';
 
 class ReservationForm extends StatefulWidget {
   final DateTime? initialDay;
@@ -116,7 +117,8 @@ class _ReservationFormState extends State<ReservationForm> {
       if (e.toString().contains('Ya existe una reserva')) {
         if (mounted) await _offerWaitlist();
       } else {
-        setState(() => _error = 'No se pudo crear la reserva: $e');
+        setState(() => _error =
+            friendlyError(e, fallback: 'No se pudo crear la reserva.'));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -159,8 +161,8 @@ class _ReservationFormState extends State<ReservationForm> {
       );
       Navigator.of(context).pop(true);
     } catch (e) {
-      setState(() => _error =
-          'No se pudo apuntar a la lista de espera: ${e.toString().replaceFirst('Exception: ', '')}');
+      setState(() => _error = friendlyError(e,
+          fallback: 'No se pudo apuntar a la lista de espera.'));
     }
   }
 

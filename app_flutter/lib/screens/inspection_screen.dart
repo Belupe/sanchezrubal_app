@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../main.dart';
 import '../services/media_service.dart';
+import '../utils/errors.dart';
 
 /// Formulario de inspección de salida: sube fotos/vídeo a MinIO y guarda
 /// el reporte (out_reports) con las referencias de los archivos.
@@ -76,7 +77,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
             'name': x.name,
           }));
     } catch (e) {
-      setState(() => _msg = 'Error al subir: $e');
+      setState(() => _msg = friendlyError(e, fallback: 'No se pudo subir el archivo.'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -106,7 +107,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
         Navigator.of(context).pop(true);
       }
     } catch (e) {
-      setState(() => _msg = 'No se pudo guardar: $e');
+      setState(() => _msg = friendlyError(e, fallback: 'No se pudo guardar.'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

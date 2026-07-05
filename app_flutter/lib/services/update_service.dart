@@ -5,33 +5,41 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../config.dart';
+import '../screens/update_screen.dart';
 
-/// Auto-actualización de las apps de escritorio/móvil self-hosted.
+/// Datos de una actualización disponible (Windows self-hosted).
+class UpdateInfo {
+  final String versionName;
+  final String url;
+  final String sha256;
+  final String notes;
+  final bool mandatory;
+  const UpdateInfo({
+    required this.versionName,
+    required this.url,
+    required this.sha256,
+    required this.notes,
+    required this.mandatory,
+  });
+}
+
+/// Auto-actualización de la app de **Windows** (único canal self-hosted).
 ///
-/// Consulta `${AppConfig.updateBaseUrl}/<plataforma>/version.json`. Si el
-/// `versionCode` remoto es mayor que el instalado, ofrece descargar e instalar
-/// el nuevo paquete que sirve tu servidor Docker (servicio `updates`):
-///   - **Android** → descarga el `.apk` y lanza el instalador del sistema.
-///   - **Windows** → descarga el `setup.exe`, lo lanza y cierra la app para que
-///     el instalador reemplace los archivos y la relance.
-/// En **iOS/macOS/web no hace nada** (iOS se actualiza por TestFlight/App Store).
+/// Consulta `${AppConfig.updateBaseUrl}/windows/version.json`. Si el
+/// `versionCode` remoto es mayor que el instalado, abre la [UpdateScreen], que
+/// descarga el `setup.exe`, **verifica su SHA-256** [C-02] y lo instala sola.
+///
+/// Android se actualiza por **Google Play** e iOS por el **App Store**: no usan
+/// este mecanismo (en esas plataformas no hace nada).
 class UpdateService {
   static bool _checked = false;
 
-  /// Carpeta de plataforma en el servidor de updates, o null si la plataforma
-  /// no usa este mecanismo.
-  static String? get _platform {
-    if (kIsWeb) return null;
-    if (defaultTargetPlatform == TargetPlatform.android) return 'android';
-    if (defaultTargetPlatform == TargetPlatform.windows) return 'windows';
-    return null;
-  }
+  static bool get _isWindows =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
   /// [C-02] Solo se confía en URLs `https` del MISMO host que
   /// `AppConfig.updateBaseUrl`. Rechaza http, otros dominios o URLs malformadas
@@ -43,15 +51,13 @@ class UpdateService {
     return u.scheme == 'https' && u.host.isNotEmpty && u.host == base.host;
   }
 
-  /// Comprueba si hay versión nueva y, si la hay, ofrece instalarla. Pensado
-  /// para llamarse una vez tras el login. Silencioso ante errores de red.
+  /// Comprueba si hay versión nueva y, si la hay, abre la pantalla de
+  /// actualización. Pensado para llamarse una vez tras el login. Silencioso
+  /// ante errores de red.
   static Future<void> checkForUpdate(BuildContext context,
       {bool force = false}) async {
-    // Build de Google Play: el auto-update por APK va desactivado (política de
-    // Play). Play actualiza a los usuarios por su cuenta. Ver docs/GOOGLE.md.
-    if (!AppConfig.enableSelfUpdate) return;
-    final platform = _platform;
-    if (platform == null) return;
+    // Solo Windows tiene auto-update self-hosted (Android=Play, iOS=App Store).
+    if (!AppConfig.enableSelfUpdate || !_isWindows) return;
     if (_checked && !force) return;
     _checked = true;
 
@@ -62,7 +68,7 @@ class UpdateService {
       currentCode = int.tryParse(info.buildNumber) ?? 0;
 
       final res = await Dio().get<Map<String, dynamic>>(
-        '${AppConfig.updateBaseUrl}/$platform/version.json',
+        '${AppConfig.updateBaseUrl}/windows/version.json',
         options: Options(
           responseType: ResponseType.json,
           headers: {'Cache-Control': 'no-cache'},
@@ -78,128 +84,61 @@ class UpdateService {
     final remoteCode = (remote['versionCode'] as num?)?.toInt() ?? 0;
     if (remoteCode <= currentCode) return;
 
-    final versionName = remote['versionName']?.toString() ?? '';
     final url = remote['url']?.toString();
     final sha256Hex = remote['sha256']?.toString().trim();
-    final notes = remote['notes']?.toString() ?? '';
-    final mandatory = remote['mandatory'] == true;
     if (url == null || url.isEmpty || !context.mounted) return;
-    // [C-02] Solo se acepta una descarga HTTPS del propio dominio de updates y
-    // con hash SHA-256 declarado. Cualquier otra cosa se descarta en silencio.
+    // [C-02] Solo una descarga HTTPS del propio dominio de updates y con hash
+    // SHA-256 declarado. Cualquier otra cosa se descarta en silencio.
     if (!_isTrustedUrl(url) || sha256Hex == null || sha256Hex.isEmpty) {
       debugPrint('Actualización rechazada: URL no confiable o sin hash.');
       return;
     }
 
-    final accepted = await showDialog<bool>(
-      context: context,
-      barrierDismissible: !mandatory,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-            'Nueva versión${versionName.isNotEmpty ? ' $versionName' : ''}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Hay una versión nueva de Portal Familia disponible.'),
-            if (notes.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(notes),
-            ],
-          ],
-        ),
-        actions: [
-          if (!mandatory)
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Ahora no'),
-            ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Actualizar'),
-          ),
-        ],
-      ),
+    final info = UpdateInfo(
+      versionName: remote['versionName']?.toString() ?? '',
+      url: url,
+      sha256: sha256Hex,
+      notes: remote['notes']?.toString() ?? '',
+      mandatory: remote['mandatory'] == true,
     );
 
-    if (accepted != true || !context.mounted) return;
-    await _downloadAndInstall(context, url, sha256Hex, platform);
+    if (!context.mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => UpdateScreen(info: info),
+      fullscreenDialog: true,
+    ));
   }
 
-  static Future<void> _downloadAndInstall(
-      BuildContext context, String url, String expectedSha256, String platform) async {
-    // Android exige permiso explícito para que una app instale paquetes.
-    if (platform == 'android') {
-      final status = await Permission.requestInstallPackages.request();
-      if (!status.isGranted) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'Para actualizar, permite "Instalar apps desconocidas" para Portal Familia.'),
-          ));
-        }
-        return;
-      }
-    }
-
-    final progress = ValueNotifier<double>(0);
-    if (context.mounted) {
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('Descargando actualización'),
-          content: ValueListenableBuilder<double>(
-            valueListenable: progress,
-            builder: (_, p, __) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: p > 0 ? p : null),
-                const SizedBox(height: 12),
-                Text(p > 0 ? '${(p * 100).toStringAsFixed(0)} %' : 'Iniciando…'),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
+  /// Descarga el instalador en un directorio aleatorio, **verifica el SHA-256**
+  /// [C-02] y lo lanza (Windows), cerrando la app para que el instalador
+  /// reemplace los archivos y la relance. Reporta progreso por [onProgress].
+  /// Devuelve un mensaje de error, o null si va a instalar (la app se cierra).
+  static Future<String?> downloadVerifyInstall(
+      UpdateInfo info, void Function(double) onProgress) async {
     final String filePath;
     try {
       final dir = await getTemporaryDirectory();
       // [B-11] Descarga en un SUBDIRECTORIO ALEATORIO (nombre impredecible,
-      // 16 bytes CSPRNG) creado en exclusiva para esta actualización. Cierra el
-      // TOCTOU de una ruta fija/predecible: ningún otro proceso puede pre-crear
-      // ni sustituir el fichero en una ruta que no puede adivinar. El nombre del
-      // instalador dentro puede ser fijo porque el propio directorio ya es único.
+      // 16 bytes CSPRNG) creado en exclusiva para esta actualización: cierra el
+      // TOCTOU de una ruta fija/predecible.
       final rnd = Random.secure();
       final token = List<int>.generate(16, (_) => rnd.nextInt(256))
           .map((b) => b.toRadixString(16).padLeft(2, '0'))
           .join();
       final downloadDir = Directory('${dir.path}/update-$token');
       await downloadDir.create(recursive: true);
-      final fileName = platform == 'windows'
-          ? 'portal-familia-setup.exe'
-          : 'portal-familia-update.apk';
-      filePath = '${downloadDir.path}/$fileName';
+      filePath = '${downloadDir.path}/portal-familia-setup.exe';
 
       await Dio().download(
-        url,
+        info.url,
         filePath,
         onReceiveProgress: (received, total) {
-          if (total > 0) progress.value = received / total;
+          if (total > 0) onProgress(received / total);
         },
         options: Options(receiveTimeout: const Duration(minutes: 5)),
       );
     } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // cierra el progreso
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo descargar la actualización: $e')),
-        );
-      }
-      progress.dispose();
-      return;
+      return 'No se pudo descargar la actualización: $e';
     }
 
     // [C-02] Verifica el hash SHA-256 del binario descargado ANTES de ejecutarlo.
@@ -207,7 +146,7 @@ class UpdateService {
     try {
       final bytes = await File(filePath).readAsBytes();
       hashOk = sha256.convert(bytes).toString().toLowerCase() ==
-          expectedSha256.toLowerCase();
+          info.sha256.toLowerCase();
     } catch (_) {
       hashOk = false;
     }
@@ -215,41 +154,13 @@ class UpdateService {
       try {
         await File(filePath).delete();
       } catch (_) {}
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // cierra el progreso
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Actualización descartada: la verificación de seguridad falló.'),
-        ));
-      }
-      progress.dispose();
-      return;
+      return 'Actualización descartada: la verificación de seguridad falló.';
     }
 
-    if (context.mounted) {
-      Navigator.of(context, rootNavigator: true).pop(); // cierra el progreso
-    }
-    progress.dispose();
-
-    if (platform == 'windows') {
-      // Lanza el instalador (que cierra/reemplaza/relanza) y sale para liberar
-      // los archivos de la app.
-      await Process.start(filePath, const [],
-          mode: ProcessStartMode.detached);
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      exit(0);
-    }
-
-    // Android: lanza el instalador del sistema con el APK descargado.
-    final result = await OpenFilex.open(
-      filePath,
-      type: 'application/vnd.android.package-archive',
-    );
-    if (result.type != ResultType.done && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('No se pudo abrir el instalador: ${result.message}')),
-      );
-    }
+    // Lanza el instalador (que cierra/reemplaza/relanza) y sale para liberar
+    // los archivos de la app.
+    await Process.start(filePath, const [], mode: ProcessStartMode.detached);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    exit(0);
   }
 }

@@ -4,7 +4,8 @@ publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  # [2I-08] Alineado con lo que exige el pubspec.lock (Dart >=3.12).
+  sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -20,8 +21,8 @@ dependencies:
   http: ^1.2.2
   package_info_plus: ^10.1.0
   dio: ^5.9.2
-  open_filex: ^4.7.0
-  permission_handler: ^12.0.3
+  # [2L-04] open_filex/permission_handler se usaban SOLO para instalar el APK de
+  # auto-update en Android; ahora Android va por Google Play → eliminadas.
   path_provider: ^2.1.6
   app_links: ^7.1.2
   crypto: ^3.0.6
