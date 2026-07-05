@@ -100,9 +100,15 @@ if ($dataDir -and (Test-Path $dataDir)) {
     # Sin enlace: elimina por completo cada bloque entre marcadores (botón + ayuda).
     $tpl = [regex]::Replace($tpl, '(?s)\s*<!--IOS:START-->.*?<!--IOS:END-->', '')
   }
-  $tpl = $tpl.Replace('{{DOWNLOAD_ANDROID_PLAY_URL}}', $androidPlayUrl).
-              Replace('{{DOWNLOAD_WINDOWS_URL}}', $windowsUrl).
-              Replace('{{DOWNLOAD_IOS_URL}}', $iosUrl)
+  # [2I-02] Escapa los valores del .env antes de hornearlos en atributos href
+  # (un valor con comillas o < > no puede romper el HTML de la página pública).
+  function Html-Attr([string]$v) {
+    if ([string]::IsNullOrEmpty($v)) { return $v }
+    return $v.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;').Replace('"', '&quot;')
+  }
+  $tpl = $tpl.Replace('{{DOWNLOAD_ANDROID_PLAY_URL}}', (Html-Attr $androidPlayUrl)).
+              Replace('{{DOWNLOAD_WINDOWS_URL}}', (Html-Attr $windowsUrl)).
+              Replace('{{DOWNLOAD_IOS_URL}}', (Html-Attr $iosUrl))
   Set-Content (Join-Path $dataDir 'index.html') $tpl -Encoding UTF8
   Write-Host "`nPublicado en UPDATES_DATA_DIR: $dataDir  →  las apps se actualizarán solas." -ForegroundColor Green
 } else {
