@@ -76,6 +76,7 @@ function json(obj: unknown, status = 200) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -105,8 +106,11 @@ Deno.serve(async (req) => {
     if (!reservation) return json({ error: "Reserva no encontrada" }, 404);
 
     const isPrincipal = PRINCIPAL.includes(profile.role);
+    // [2L-14] Un family-admin SIN grupo (family_group_id NULL) no es admin de una
+    // reserva de grupo NULL: exigir grupo no nulo (espeja is_group_admin(NULL)).
     const isGroupAdmin = isPrincipal ||
       (FAMILY_ADMIN.includes(profile.role) &&
+        profile.family_group_id != null &&
         profile.family_group_id === reservation.family_group_id);
     const isCreator = reservation.created_by_id === uid;
     const canWrite = isCreator || isGroupAdmin;

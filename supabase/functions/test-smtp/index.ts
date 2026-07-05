@@ -26,6 +26,7 @@ const json = (o: unknown, s = 200) =>
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ error: "No autorizado" }, 401);
@@ -60,13 +61,17 @@ Deno.serve(async (req) => {
         auth: { username: cfg.smtp_user, password: (pass as string | null) ?? "" },
       },
     });
-    await client.send({
-      from: `Portal Familia <${cfg.smtp_user}>`,
-      to,
-      subject: "Prueba de SMTP — Portal Familia",
-      html: "<div style='font-family:sans-serif'><h2>✅ SMTP funcionando</h2><p>Si recibes este correo, la configuración SMTP es correcta.</p></div>",
-    });
-    await client.close();
+    // [2L-13] Cierra la conexión SMTP SIEMPRE, aunque send() lance.
+    try {
+      await client.send({
+        from: `Portal Familia <${cfg.smtp_user}>`,
+        to,
+        subject: "Prueba de SMTP — Portal Familia",
+        html: "<div style='font-family:sans-serif'><h2>✅ SMTP funcionando</h2><p>Si recibes este correo, la configuración SMTP es correcta.</p></div>",
+      });
+    } finally {
+      await client.close();
+    }
 
     return json({ ok: true, to });
   } catch (e) {

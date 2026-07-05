@@ -73,6 +73,7 @@ async function profileByEmail(email: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return fail(401, "No autorizado");

@@ -115,8 +115,15 @@ async function getAccessToken(sa: { client_email: string; private_key: string; t
   return tok.access_token;
 }
 
+// [2L-07] Tope de destinatarios y concurrencia acotada del fan-out a FCM.
+const MAX_TOKENS = 500;
+const FAN_OUT_CONCURRENCY = 10;
+// [2I-10] Claves que FCM reserva en `data` (no pueden reenviarse).
+const RESERVED_DATA_KEYS = new Set(["from", "notification", "message_type"]);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   try {
     if (!(await pushSecretMatches(req.headers.get("x-push-secret")))) {
       return json({ error: "No autorizado" }, 401);
@@ -127,7 +134,14 @@ Deno.serve(async (req) => {
     const userIds: string[] = Array.isArray(body.userIds) ? body.userIds : [];
     const title = String(body.title ?? "");
     const text = String(body.body ?? "");
-    const data: Record<string, string> = body.data ?? {};
+    // [2I-10] FCM exige `data` string→string y rechaza claves reservadas/google*/gcm*.
+    // Coacciona valores a string y descarta lo no permitido en vez de reenviar crudo.
+    const rawData = (body.data ?? {}) as Record<string, unknown>;
+    const data: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rawData)) {
+      if (v == null || RESERVED_DATA_KEYS.has(k) || /^(google|gcm)/i.test(k)) continue;
+      data[k] = typeof v === "string" ? v : String(v);
+    }
     if (!userIds.length || (!title && !text)) return json({ error: "Faltan userIds o contenido" }, 400);
 
     const sa = JSON.parse(FCM_SERVICE_ACCOUNT);
@@ -135,12 +149,12 @@ Deno.serve(async (req) => {
     const accessToken = await getAccessToken(sa);
 
     const { data: tokens } = await admin.from("device_tokens")
-      .select("token").in("user_id", userIds);
+      .select("token").in("user_id", userIds).limit(MAX_TOKENS);
     if (!tokens?.length) return json({ ok: true, sent: 0, note: "Sin dispositivos registrados" });
 
     let sent = 0;
     const stale: string[] = [];
-    for (const { token } of tokens) {
+    const sendOne = async (token: string) => {
       const r = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -156,6 +170,12 @@ Deno.serve(async (req) => {
         // Token caducado/desinstalado → lo limpiamos.
         if (r.status === 404 || code === "UNREGISTERED" || code === "NOT_FOUND") stale.push(token);
       }
+    };
+    // Concurrencia acotada: lotes de FAN_OUT_CONCURRENCY en vez de N en serie.
+    for (let i = 0; i < tokens.length; i += FAN_OUT_CONCURRENCY) {
+      await Promise.all(
+        tokens.slice(i, i + FAN_OUT_CONCURRENCY).map(({ token }) => sendOne(token)),
+      );
     }
     if (stale.length) await admin.from("device_tokens").delete().in("token", stale);
 

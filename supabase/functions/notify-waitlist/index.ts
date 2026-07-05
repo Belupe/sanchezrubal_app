@@ -114,10 +114,14 @@ async function sendMails(to: string, mails: { subject: string; html: string }[])
       auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
     },
   });
-  for (const m of mails) {
-    await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to, subject: m.subject, html: m.html });
+  // [2L-13] Cierra la conexión SMTP SIEMPRE, aunque send() lance.
+  try {
+    for (const m of mails) {
+      await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to, subject: m.subject, html: m.html });
+    }
+  } finally {
+    await client.close();
   }
-  await client.close();
 }
 
 // Push best-effort vía send-push (no bloquea si falla).
@@ -133,6 +137,7 @@ async function sendPush(userId: string, title: string, body: string, data: Recor
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   try {
     if (!(await cronSecretMatches(req.headers.get("x-cron-secret")))) {
       return json({ error: "No autorizado" }, 401);

@@ -74,7 +74,16 @@ const FALLBACK: Record<string, { subject: string; body: string }> = {
     subject: "Formulario de salida — {{PropertyName}}",
     body: "<div style='font-family:sans-serif'><h2>Formulario de salida</h2><p>Hola {{UserName}}, por favor completa el formulario de salida de <b>{{PropertyName}}</b> desde la app.</p><p><a href='{{FormLink}}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600'>Abrir Portal Familia</a></p></div>",
   },
+  PRE_STAY: {
+    subject: "Tu estancia se acerca — {{PropertyName}}",
+    body: "<div style='font-family:sans-serif'><h2>Tu estancia se acerca</h2><p>Hola {{UserName}}, tu reserva en <b>{{PropertyName}}</b> empieza el {{StartDate}}.</p><p>{{CustomText}}</p></div>",
+  },
 };
+
+// [2L-11] Anti-doble-envío del correo de confirmación (best-effort por isolate):
+// evita que un doble toque re-dispare el correo al propio creador en segundos.
+const recentConfirmations = new Map<string, number>();
+const CONFIRMATION_TTL_MS = 60_000;
 
 function fill(tpl: string, vars: Record<string, string>) {
   let out = tpl;
@@ -131,10 +140,15 @@ async function sendMail(to: string[], subject: string, html: string) {
       auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
     },
   });
-  for (const addr of to) {
-    await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to: addr, subject, html });
+  // [2L-13] Cierra la conexión SMTP SIEMPRE, aunque send() lance (evita fuga
+  // de conexión en isolates reutilizados).
+  try {
+    for (const addr of to) {
+      await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to: addr, subject, html });
+    }
+  } finally {
+    await client.close();
   }
-  await client.close();
 }
 
 function fmt(d: string) {
@@ -194,8 +208,43 @@ async function handleInspectionReminders() {
   return sent;
 }
 
+// [PRE_STAY] Aviso "tu estancia se acerca": reservas que empiezan dentro de
+// PRE_STAY_DAYS días. Respeta la preferencia del usuario (notification_settings
+// PRE_STAY: si is_active=false, se omite) y añade su custom_text opcional.
+const PRE_STAY_DAYS = 3;
+async function handlePreStayReminders() {
+  const from = new Date(); from.setHours(0, 0, 0, 0);
+  from.setDate(from.getDate() + PRE_STAY_DAYS);
+  const to = new Date(from); to.setDate(to.getDate() + 1);
+  const { data: rows } = await admin.from("reservations")
+    .select("id, start_date, end_date, created_by_id, is_maintenance, properties(name), profiles!reservations_created_by_id_fkey(name, email)")
+    .gte("start_date", from.toISOString()).lt("start_date", to.toISOString())
+    .eq("is_maintenance", false);
+  const tpl = await getTemplate("PRE_STAY");
+  let sent = 0;
+  for (const r of rows ?? []) {
+    const creator = (r as any).profiles;
+    if (!creator?.email) continue;
+    const { data: ns } = await admin.from("notification_settings")
+      .select("is_active, custom_text")
+      .eq("user_id", (r as any).created_by_id).eq("type", "PRE_STAY").maybeSingle();
+    if (ns && ns.is_active === false) continue; // el usuario lo desactivó
+    const vars = {
+      PropertyName: (r as any).properties?.name ?? "la casa",
+      UserName: creator.name ?? "",
+      StartDate: fmt(r.start_date), EndDate: fmt(r.end_date),
+      CustomText: (ns?.custom_text as string | null) ?? "",
+    };
+    await sendMail([creator.email], fill(tpl.subject, vars), fillHtml(tpl.body, vars));
+    sent++;
+  }
+  return sent;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  // [2I-11] Solo POST (la lógica asume cuerpo JSON POST).
+  if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   try {
     const body = await req.json().catch(() => ({}));
     const type = String(body.type ?? "");
@@ -206,6 +255,15 @@ Deno.serve(async (req) => {
         return json({ error: "No autorizado (cron)" }, 401);
       }
       const sent = await handleInspectionReminders();
+      return json({ ok: true, sent });
+    }
+
+    // --- Camino cron (pre-estancia) ---
+    if (type === "pre_stay_reminders") {
+      if (!(await cronSecretMatches(req.headers.get("x-cron-secret")))) {
+        return json({ error: "No autorizado (cron)" }, 401);
+      }
+      const sent = await handlePreStayReminders();
       return json({ ok: true, sent });
     }
 
@@ -228,12 +286,23 @@ Deno.serve(async (req) => {
     if (!prof || !resv) return json({ error: "Sin acceso" }, 403);
 
     const isPrincipal = PRINCIPAL.includes(prof.role);
+    // [2L-14] Un family-admin SIN grupo (family_group_id NULL) no es admin de
+    // reservas de grupo NULL: exigir grupo no nulo (espeja is_group_admin(NULL)).
     const isGroupAdmin = isPrincipal ||
-      (FAMILY_ADMIN.includes(prof.role) && prof.family_group_id === resv.family_group_id);
+      (FAMILY_ADMIN.includes(prof.role) &&
+        prof.family_group_id != null &&
+        prof.family_group_id === resv.family_group_id);
     const isCreator = resv.created_by_id === u.user.id;
 
     if (type === "reservation_confirmation") {
       if (!(isCreator || isGroupAdmin)) return json({ error: "Sin permiso" }, 403);
+      // [2L-11] Anti-doble-envío best-effort (evita re-disparo por doble toque).
+      const now = Date.now();
+      const last = recentConfirmations.get(reservationId);
+      if (last && now - last < CONFIRMATION_TTL_MS) {
+        return json({ ok: true, sent: 0, deduped: true });
+      }
+      recentConfirmations.set(reservationId, now);
       const n = await handleReservation(reservationId, "RESERVATION_CONFIRMATION");
       return json({ ok: true, sent: n });
     }
