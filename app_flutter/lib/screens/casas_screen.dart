@@ -5,6 +5,7 @@ import '../main.dart';
 import '../models/property.dart';
 import '../services/data_service.dart';
 import '../services/realtime_service.dart';
+import '../utils/errors.dart';
 import 'property_calendar_screen.dart';
 
 class CasasScreen extends StatefulWidget {
@@ -112,8 +113,9 @@ class _CasasScreenState extends State<CasasScreen> {
       _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                friendlyError(e, fallback: 'No se pudo guardar el domicilio.'))));
       }
     }
   }
@@ -140,8 +142,9 @@ class _CasasScreenState extends State<CasasScreen> {
       _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(friendlyError(e,
+                fallback: 'No se pudo eliminar el domicilio.'))));
       }
     }
   }

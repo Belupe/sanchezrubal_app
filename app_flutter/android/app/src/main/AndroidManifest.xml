@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Conexión a Supabase y a la media (MinIO) por HTTPS. -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Permite que la app instale el APK descargado al auto-actualizarse. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- [2L-04] Android se distribuye SOLO por Google Play (se actualiza por la
+         tienda); no hay auto-instalación de APK, así que no se declara
+         REQUEST_INSTALL_PACKAGES (permiso sensible que Play penaliza). -->
     <application
         android:label="Portal Familia"
         android:name="${applicationName}"

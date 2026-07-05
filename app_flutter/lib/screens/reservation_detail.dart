@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/reservation.dart';
 import '../services/data_service.dart';
+import '../utils/errors.dart';
 import 'inspection_screen.dart';
 
 /// Abre el detalle de una reserva con opciones de edición/borrado según el rol.
@@ -90,18 +91,13 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${_clean(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(friendlyError(e,
+                fallback: 'No se pudo completar la operación.'))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  String _clean(Object e) {
-    final s = e.toString();
-    return s.replaceFirst('Exception: ', '').replaceFirst(
-        'PostgrestException(message: ', '').split(',').first;
   }
 
   Future<void> _pick(bool start) async {

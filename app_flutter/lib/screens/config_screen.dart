@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/system_config.dart';
 import '../services/data_service.dart';
+import '../utils/errors.dart';
 
 class ConfigScreen extends StatefulWidget {
   const ConfigScreen({super.key});
@@ -36,7 +37,8 @@ class _ConfigScreenState extends State<ConfigScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'No se pudo cargar la configuración: $e';
+        _error =
+            friendlyError(e, fallback: 'No se pudo cargar la configuración.');
         _loading = false;
       });
     }
@@ -149,7 +151,8 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
       setState(() => _loading = false);
     } catch (e) {
       setState(() {
-        _error = 'No se pudo cargar la configuración: $e';
+        _error =
+            friendlyError(e, fallback: 'No se pudo cargar la configuración.');
         _loading = false;
       });
     }
@@ -176,9 +179,11 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
       final err = await DataService.testSmtp();
       setState(() => _testResult = err == null
           ? '✅ Correo de prueba enviado a tu correo.'
-          : '❌ $err');
+          : friendlyError(err,
+              fallback: '❌ No se pudo enviar el correo de prueba.'));
     } catch (e) {
-      setState(() => _testResult = '❌ $e');
+      setState(() => _testResult = friendlyError(e,
+          fallback: '❌ No se pudo enviar el correo de prueba.'));
     } finally {
       if (mounted) setState(() => _testing = false);
     }
@@ -237,7 +242,8 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         );
       }
     } catch (e) {
-      setState(() => _error = 'No se pudo guardar: $e');
+      setState(() =>
+          _error = friendlyError(e, fallback: 'No se pudo guardar.'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -407,7 +413,8 @@ class _TemplatesTabState extends State<_TemplatesTab> {
       });
     } catch (e) {
       setState(() {
-        _error = 'No se pudieron cargar las plantillas: $e';
+        _error =
+            friendlyError(e, fallback: 'No se pudieron cargar las plantillas.');
         _loading = false;
       });
     }
@@ -493,6 +500,8 @@ class _TemplateCardState extends State<_TemplateCard> {
         return 'Mantenimiento';
       case 'INSPECTION_REMINDER':
         return 'Recordatorio de inspección';
+      case 'PRE_STAY':
+        return 'Antes de la estancia';
       default:
         return type;
     }
@@ -515,7 +524,8 @@ class _TemplateCardState extends State<_TemplateCard> {
         );
       }
     } catch (e) {
-      setState(() => _error = 'No se pudo guardar: $e');
+      setState(() =>
+          _error = friendlyError(e, fallback: 'No se pudo guardar.'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -621,7 +631,8 @@ class _NotificationsTabState extends State<_NotificationsTab> {
       });
     } catch (e) {
       setState(() {
-        _error = 'No se pudieron cargar tus notificaciones: $e';
+        _error = friendlyError(e,
+            fallback: 'No se pudieron cargar tus notificaciones.');
         _loading = false;
       });
     }
@@ -652,7 +663,8 @@ class _NotificationsTabState extends State<_NotificationsTab> {
         );
       }
     } catch (e) {
-      setState(() => _error = 'No se pudo guardar: $e');
+      setState(() =>
+          _error = friendlyError(e, fallback: 'No se pudo guardar.'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

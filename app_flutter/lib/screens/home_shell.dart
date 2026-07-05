@@ -4,6 +4,7 @@ import '../main.dart';
 import '../services/data_service.dart';
 import '../services/push_service.dart';
 import '../services/update_service.dart';
+import '../utils/errors.dart';
 import '../utils/password_policy.dart';
 import 'anuncios_screen.dart';
 import 'casas_screen.dart';
@@ -205,7 +206,7 @@ class _ProfileTabState extends State<ProfileTab> {
       _reload();
       _snack('Nombre actualizado.');
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e));
     }
   }
 
@@ -224,7 +225,7 @@ class _ProfileTabState extends State<ProfileTab> {
     } on InvalidCurrentPasswordException {
       _snack('La contraseña actual no es correcta.');
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e));
     }
   }
 
@@ -248,7 +249,7 @@ class _ProfileTabState extends State<ProfileTab> {
     } on InvalidCurrentPasswordException {
       _snack('La contraseña actual no es correcta.');
     } catch (e) {
-      _snack('Error: $e');
+      _snack(friendlyError(e));
     }
   }
 

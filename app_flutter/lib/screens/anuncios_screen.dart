@@ -6,6 +6,7 @@ import '../main.dart';
 import '../models/announcement.dart';
 import '../models/property.dart';
 import '../services/data_service.dart';
+import '../utils/errors.dart';
 import '../services/realtime_service.dart';
 
 class AnunciosScreen extends StatefulWidget {
@@ -239,7 +240,8 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      setState(() => _error = 'No se pudo publicar el anuncio: $e');
+      setState(() => _error =
+          friendlyError(e, fallback: 'No se pudo publicar el anuncio.'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

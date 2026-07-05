@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/family_group.dart';
 import '../models/sorteo.dart';
 import '../services/data_service.dart';
+import '../utils/errors.dart';
 
 class SorteosScreen extends StatefulWidget {
   const SorteosScreen({super.key});
@@ -125,7 +126,7 @@ class _SorteosScreenState extends State<SorteosScreen> {
       });
       _snack('Sorteo realizado.');
     } catch (e) {
-      _snack('No se pudo realizar el sorteo: $e');
+      _snack(friendlyError(e, fallback: 'No se pudo realizar el sorteo.'));
     } finally {
       if (mounted) setState(() => _running = false);
     }
@@ -156,7 +157,7 @@ class _SorteosScreenState extends State<SorteosScreen> {
       if (!mounted) return;
       setState(() => _sorteos = sorteos);
     } catch (e) {
-      _snack('No se pudo borrar el sorteo: $e');
+      _snack(friendlyError(e, fallback: 'No se pudo borrar el sorteo.'));
     }
   }
 

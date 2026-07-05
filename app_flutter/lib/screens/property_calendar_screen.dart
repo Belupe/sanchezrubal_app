@@ -10,6 +10,7 @@ import '../models/waitlist_entry.dart';
 import '../services/data_service.dart';
 import '../services/realtime_service.dart';
 import '../utils/colors.dart';
+import '../utils/errors.dart';
 import 'registros_screen.dart';
 import 'reservation_detail.dart';
 import 'reservation_form.dart';
@@ -86,7 +87,7 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }

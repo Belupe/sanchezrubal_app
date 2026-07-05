@@ -42,7 +42,14 @@ class DataService {
   static Future<void> updateMyProfile({String? name, String? image}) async {
     final patch = <String, dynamic>{};
     if (name != null) patch['name'] = name;
-    if (image != null) patch['image'] = image;
+    if (image != null) {
+      // [2M-02] Acota el tamaño del avatar en cliente (el servidor también lo
+      // limita con un CHECK). Evita blobs base64 enormes que inflan la BD.
+      if (image.length > 700000) {
+        throw Exception('La imagen es demasiado grande (máx. ~500 KB).');
+      }
+      patch['image'] = image;
+    }
     if (patch.isEmpty) return;
     await supabase.from('profiles').update(patch).eq('id', uid!);
   }
@@ -288,8 +295,10 @@ class DataService {
   static Future<List<FamilyGroup>> familyGroups() async {
     final rows = await supabase
         .from('family_groups')
+        // [2M-02] No se trae `image` en listados masivos (puede ser un blob
+        // base64 grande y no se muestra); el avatar se cargaría bajo demanda.
         .select('id, name, color, owner_id, '
-            'profiles!profiles_family_group_id_fkey(id, name, email, role, family_group_id, image)')
+            'profiles!profiles_family_group_id_fkey(id, name, email, role, family_group_id)')
         .order('name');
     return (rows as List).map((e) => FamilyGroup.fromMap(e)).toList();
   }
@@ -309,7 +318,8 @@ class DataService {
   static Future<List<Profile>> allProfiles() async {
     final rows = await supabase
         .from('profiles')
-        .select('id, name, email, role, family_group_id, image')
+        // [2M-02] Sin `image` en el listado (no se muestra; evita difundir blobs).
+        .select('id, name, email, role, family_group_id')
         .order('name');
     return (rows as List).map((e) => Profile.fromMap(e)).toList();
   }
