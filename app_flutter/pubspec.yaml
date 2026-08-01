@@ -28,8 +28,18 @@ dependencies:
   crypto: ^3.0.6
   flutter_secure_storage: ^10.3.1  # 10.x compatible con package_info_plus 10.x (win32)
   shared_preferences: ^2.5.5       # ya transitivo; explícito para el linter y la migración [M-09]
+  # Abrir la carpeta de registros (file://) y la página de descargas cuando la
+  # app no puede auto-actualizarse (.deb / .tar.gz). Ya era transitivo.
+  url_launcher: ^6.3.1
+  # Compartir el informe del último fallo desde el móvil (mailto: no admite
+  # adjuntos, así que hace falta el menú de compartir del sistema).
+  # (la 13.x es la que casa con package_info_plus 10.x por la versión de win32;
+  # las 10.x-12.x piden win32 ^5 y rompen la resolución)
+  share_plus: ^13.3.0
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.1
 

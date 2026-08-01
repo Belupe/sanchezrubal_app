@@ -1,7 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/system_config.dart';
 import '../services/data_service.dart';
+import '../services/log_service.dart';
 import '../utils/errors.dart';
 
 class ConfigScreen extends StatefulWidget {
@@ -743,7 +748,119 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                 : const Text('Guardar'),
           ),
         ),
+        // Visible para TODOS los perfiles: cualquiera puede tener que mandar
+        // el informe de un fallo.
+        const SizedBox(height: 24),
+        const _DiagnosticoCard(),
       ],
     );
   }
+}
+
+// ====================================================================
+// (4) Diagnóstico — registro de fallos
+// ====================================================================
+
+/// Deja a mano el informe del último fallo, para poder pedírselo al usuario.
+/// En el ordenador abre la carpeta `Logs/`; en el móvil comparte el fichero
+/// (`mailto:` no admite adjuntos, por eso va por el menú del sistema).
+class _DiagnosticoCard extends StatefulWidget {
+  const _DiagnosticoCard();
+
+  @override
+  State<_DiagnosticoCard> createState() => _DiagnosticoCardState();
+}
+
+class _DiagnosticoCardState extends State<_DiagnosticoCard> {
+  static bool get _esEscritorio =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux);
+
+  Future<void> _abrirCarpeta() async {
+    final dir = LogService.carpeta;
+    if (dir == null) return;
+    var abierta = false;
+    try {
+      abierta = await launchUrl(dir.uri);
+    } catch (_) {
+      abierta = false;
+    }
+    if (abierta || !mounted) return;
+    // Sin gestor de archivos (o sin xdg-open): al menos que pueda copiar la ruta.
+    await Clipboard.setData(ClipboardData(text: dir.path));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ruta copiada al portapapeles.')),
+    );
+  }
+
+  Future<void> _compartirInforme() async {
+    final f = LogService.ultimoFallo;
+    if (f == null) return;
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(f.path)],
+      subject: 'Portal Familia — informe de fallo',
+      text: 'Informe del último fallo de Portal Familia.',
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fallo = LogService.ultimoFallo;
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Diagnóstico', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Si la app se cierra sola o da un error raro, aquí queda un '
+              'informe técnico del último fallo. Solo hace falta si te lo '
+              'piden; no contiene tu contraseña ni tu sesión.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              fallo == null
+                  ? 'No hay ningún fallo registrado.'
+                  : 'Hay un informe del ${_fecha(fallo.lastModifiedSync())}.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            if (_esEscritorio) ...[
+              const SizedBox(height: 12),
+              SelectableText(
+                LogService.rutaCarpeta,
+                style:
+                    theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _abrirCarpeta,
+                icon: const Icon(Icons.folder_open),
+                label: const Text('Abrir carpeta de registros'),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: fallo == null ? null : _compartirInforme,
+                icon: const Icon(Icons.ios_share),
+                label: const Text('Enviar informe del último fallo'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fecha(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/'
+      '${d.year} ${d.hour.toString().padLeft(2, '0')}:'
+      '${d.minute.toString().padLeft(2, '0')}';
 }
