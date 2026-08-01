@@ -1,9 +1,19 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../main.dart';
 import '../services/media_service.dart';
 import '../utils/errors.dart';
+
+/// En ESCRITORIO (Windows, macOS y Linux) `image_picker` no implementa la
+/// cámara: `ImageSource.camera` lanza siempre. Por eso ahí solo se ofrece
+/// elegir archivos del disco; las fotos y vídeos se hacen desde el móvil.
+bool get _esEscritorio =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux);
 
 /// Formulario de inspección de salida: sube fotos/vídeo a MinIO y guarda
 /// el reporte (out_reports) con las referencias de los archivos.
@@ -146,20 +156,23 @@ class _InspectionScreenState extends State<InspectionScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              OutlinedButton.icon(
-                onPressed: _busy ? null : () => _add(video: false, source: ImageSource.camera),
-                icon: const Icon(Icons.photo_camera),
-                label: const Text('Cámara'),
-              ),
+              // En el ordenador no hay cámara: el botón se oculta y los otros
+              // dos hablan de archivos, que es lo que abre el selector GTK/Win32.
+              if (!_esEscritorio)
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _add(video: false, source: ImageSource.camera),
+                  icon: const Icon(Icons.photo_camera),
+                  label: const Text('Cámara'),
+                ),
               OutlinedButton.icon(
                 onPressed: _busy ? null : () => _add(video: false),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Galería'),
+                icon: Icon(_esEscritorio ? Icons.image_outlined : Icons.photo_library),
+                label: Text(_esEscritorio ? 'Elegir foto' : 'Galería'),
               ),
               OutlinedButton.icon(
                 onPressed: _busy ? null : () => _add(video: true),
                 icon: const Icon(Icons.videocam),
-                label: const Text('Vídeo'),
+                label: Text(_esEscritorio ? 'Elegir vídeo' : 'Vídeo'),
               ),
             ],
           ),

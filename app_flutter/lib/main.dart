@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:ui' show AppExitResponse;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -10,11 +14,44 @@ import 'screens/auth/mfa_challenge_screen.dart';
 import 'screens/auth/set_new_password_screen.dart';
 import 'screens/home_shell.dart';
 import 'services/deep_link_service.dart';
+import 'services/linux_desktop_integration.dart';
+import 'services/log_service.dart';
 import 'services/mfa_service.dart';
 import 'services/secure_session_storage.dart';
 
-Future<void> main() async {
+/// [args] son los argumentos con los que el sistema lanzó el ejecutable. En
+/// Linux es la ÚNICA vía para el arranque en frío desde un enlace
+/// `portalfamilia://` (ver [DeepLinkService.init]).
+Future<void> main(List<String> args) async {
+  // Todo el arranque va dentro de una zona guardada para que cualquier error
+  // asíncrono que se escape acabe en el registro de fallos.
+  runZonedGuarded(
+    () => _arrancar(args),
+    (e, s) => LogService.error(e, s, 'zona raíz'),
+  );
+}
+
+Future<void> _arrancar(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Lo PRIMERO: así el registro cubre también los fallos del propio arranque.
+  await LogService.init();
+
+  // Errores del framework (build/layout/paint) y errores asíncronos sueltos.
+  final erroresPrevios = FlutterError.onError;
+  FlutterError.onError = (details) {
+    LogService.errorFlutter(details);
+    erroresPrevios?.call(details);
+  };
+  PlatformDispatcher.instance.onError = (e, s) {
+    LogService.error(e, s, 'PlatformDispatcher');
+    return true; // ya está registrado; no tumbamos la app por esto
+  };
+
+  // Linux: un AppImage no instala nada, así que registra su propio .desktop
+  // la primera vez para que funcionen los enlaces portalfamilia:// del correo.
+  await LinuxDesktopIntegration.registrarSiHaceFalta();
+
   await initializeDateFormatting('es', null);
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
@@ -31,27 +68,27 @@ Future<void> main() async {
   // que además del evento en caliente se guarda un flag persistente cifrado.
   //  1) Al arrancar: si el flag está puesto y hay sesión, seguimos bloqueando;
   //     si el flag está puesto pero ya no hay sesión, se limpia (obsoleto).
-  final pending = await _recoveryStore.read(key: _kPendingRecovery);
+  final pending = await _leerFlagRecuperacion();
   if (pending == '1') {
     if (supabase.auth.currentSession != null) {
       passwordRecoveryNotifier.value = true;
     } else {
-      await _recoveryStore.delete(key: _kPendingRecovery);
+      await _borrarFlagRecuperacion();
     }
   }
   //  2) En caliente: el enlace de recuperación puede abrir la app antes de que
   //     el AuthGate se suscriba; este listener global lo captura siempre.
   supabase.auth.onAuthStateChange.listen((state) async {
     if (state.event == AuthChangeEvent.passwordRecovery) {
-      await _recoveryStore.write(key: _kPendingRecovery, value: '1');
+      await _escribirFlagRecuperacion();
       passwordRecoveryNotifier.value = true;
     } else if (state.event == AuthChangeEvent.signedOut) {
-      await _recoveryStore.delete(key: _kPendingRecovery);
+      await _borrarFlagRecuperacion();
       passwordRecoveryNotifier.value = false;
     }
   });
 
-  runApp(const PortalFamiliaApp());
+  runApp(PortalFamiliaApp(argumentosDeArranque: args));
 }
 
 /// Acceso global al cliente de Supabase.
@@ -66,10 +103,42 @@ final passwordRecoveryNotifier = ValueNotifier<bool>(false);
 const _recoveryStore = FlutterSecureStorage();
 const _kPendingRecovery = 'pending_pw_recovery';
 
+// El almacén cifrado depende del llavero del sistema, y ese llavero puede NO
+// estar disponible: en Linux sin gnome-keyring/KWallet (o con el llavero
+// bloqueado) lanza `PlatformException(KeyringLocked)`, y en Android el Keystore
+// puede invalidarse al cambiar el bloqueo de pantalla. Sin estas envolturas ese
+// fallo se propagaba desde main() ANTES de runApp y la app no llegaba a abrir.
+// Ahora se degrada a "no hay flag": como mucho se pierde el bloqueo de
+// recuperación de contraseña, que es recuperable, en vez de no arrancar.
+Future<String?> _leerFlagRecuperacion() async {
+  try {
+    return await _recoveryStore.read(key: _kPendingRecovery);
+  } catch (e, s) {
+    LogService.error(e, s, 'flag de recuperación (lectura)');
+    return null;
+  }
+}
+
+Future<void> _escribirFlagRecuperacion() async {
+  try {
+    await _recoveryStore.write(key: _kPendingRecovery, value: '1');
+  } catch (e, s) {
+    LogService.error(e, s, 'flag de recuperación (escritura)');
+  }
+}
+
+Future<void> _borrarFlagRecuperacion() async {
+  try {
+    await _recoveryStore.delete(key: _kPendingRecovery);
+  } catch (e, s) {
+    LogService.error(e, s, 'flag de recuperación (borrado)');
+  }
+}
+
 /// [2M-04] Marca la recuperación como resuelta: borra el flag persistente y
 /// desactiva el bloqueo. La llama SetNewPasswordScreen al fijar la contraseña.
 Future<void> clearPasswordRecovery() async {
-  await _recoveryStore.delete(key: _kPendingRecovery);
+  await _borrarFlagRecuperacion();
   passwordRecoveryNotifier.value = false;
 }
 
@@ -105,17 +174,46 @@ String themeModeToString(ThemeMode m) {
 const _seed = Color(0xFF2563EB);
 
 class PortalFamiliaApp extends StatefulWidget {
-  const PortalFamiliaApp({super.key});
+  const PortalFamiliaApp({super.key, this.argumentosDeArranque = const []});
+
+  /// Argumentos con los que el sistema lanzó el ejecutable.
+  final List<String> argumentosDeArranque;
 
   @override
   State<PortalFamiliaApp> createState() => _PortalFamiliaAppState();
 }
 
 class _PortalFamiliaAppState extends State<PortalFamiliaApp> {
+  AppLifecycleListener? _ciclo;
+
   @override
   void initState() {
     super.initState();
-    DeepLinkService.init();
+    DeepLinkService.init(argumentosDeArranque: widget.argumentosDeArranque);
+
+    // Cierre LIMPIO del registro: si la app se cierra por aquí, no era un
+    // fallo y no debe quedar rastro. Si muere sin pasar por aquí, el marcador
+    // sobrevive y el registro se conserva como `ultimo-fallo.log`.
+    //
+    //  · Escritorio: cerrar la ventana → onExitRequested / onDetach.
+    //  · Móvil: irse a segundo plano ya cuenta como cierre limpio, porque a
+    //    partir de ahí el sistema puede matar la app cuando quiera y eso es
+    //    normal, no un fallo. Al volver, se reabre la sesión.
+    _ciclo = AppLifecycleListener(
+      onExitRequested: () async {
+        LogService.cierreLimpio();
+        return AppExitResponse.exit;
+      },
+      onDetach: LogService.cierreLimpio,
+      onPause: LogService.cierreLimpio,
+      onResume: LogService.reabrirSesion,
+    );
+  }
+
+  @override
+  void dispose() {
+    _ciclo?.dispose();
+    super.dispose();
   }
 
   @override
