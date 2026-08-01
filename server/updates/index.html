@@ -29,6 +29,7 @@
       padding: 14px 20px; border-radius: 12px; margin-bottom: 12px;
     }
     a.btn.win { background: #0f766e; }
+    a.btn.linux { background: #7c3aed; }
     a.btn.ios { background: #000; }
     a.btn:active { transform: translateY(1px); }
     h2 { font-size: 1rem; margin: 24px 0 8px; }
@@ -46,6 +47,10 @@
     <a class="btn" href="{{DOWNLOAD_ANDROID_PLAY_URL}}">🤖 Android — Instalar desde Google Play</a>
     <!--ANDROID_PLAY:END-->
     <a class="btn win" href="{{DOWNLOAD_WINDOWS_URL}}" download>🖥️ Windows — Descargar instalador</a>
+    <!--LINUX:START-->
+    <a class="btn linux" href="{{DOWNLOAD_LINUX_APPIMAGE_URL}}" download>🐧 Linux — Descargar AppImage (cualquier distro)</a>
+    <a class="btn linux" href="{{DOWNLOAD_LINUX_DEB_URL}}" download>🐧 Linux — Descargar .deb (Ubuntu · Debian · Kali)</a>
+    <!--LINUX:END-->
     <!--IOS:START-->
     <a class="btn ios" href="{{DOWNLOAD_IOS_URL}}">🍏 iPhone / iPad — Abrir en App Store</a>
     <!--IOS:END-->
@@ -60,6 +65,19 @@
     <ol>
       <li class="step">Ejecuta el instalador. Windows puede avisar (app sin firma): <b>Más información → Ejecutar de todas formas</b>.</li>
     </ol>
+    <!--LINUX:START-->
+    <h2>Linux</h2>
+    <ol>
+      <li class="step"><b>Ubuntu, Debian, Kali o Linux Mint</b> → descarga el <b>.deb</b> y ábrelo,
+        o desde la terminal: <code>sudo apt install ./portal-familia_amd64.deb</code>.</li>
+      <li class="step"><b>Arch, Fedora, openSUSE o cualquier otra</b> → descarga el <b>AppImage</b>,
+        dale permiso de ejecución (<code>chmod +x portal-familia-x86_64.AppImage</code>, o
+        Propiedades → Permisos → «Permitir ejecutar») y ábrelo. No hay que instalar nada.</li>
+      <li class="step">El <b>AppImage se actualiza solo</b> desde dentro de la app. El <b>.deb</b>
+        también, pidiéndote la contraseña de administrador porque está instalado para
+        todos los usuarios del equipo.</li>
+    </ol>
+    <!--LINUX:END-->
     <!--IOS:START-->
     <h2>iPhone / iPad</h2>
     <ol>
@@ -69,7 +87,7 @@
 
     <p class="note">Android e iPhone/iPad se instalan y actualizan solos desde su tienda
     (<b>Google Play</b> / <b>App Store</b>) y son <b>privados / por invitación</b>: solo se acceden con
-    los enlaces de arriba. Windows se actualiza desde dentro de la app.</p>
+    los enlaces de arriba. <b>Windows</b> y <b>Linux</b> se actualizan desde dentro de la app.</p>
   </main>
 </body>
 </html>
