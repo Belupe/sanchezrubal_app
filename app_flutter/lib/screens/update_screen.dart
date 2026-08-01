@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../services/update_service.dart';
 
-/// Pantalla de actualización de Windows. Se abre sola al detectar una versión
-/// nueva y **se actualiza sola**: descarga el instalador, verifica su firma
-/// SHA-256 y lo lanza (la app se cierra y el instalador la relanza).
+/// Pantalla de actualización del escritorio (Windows y Linux). Se abre sola al
+/// detectar una versión nueva.
+///
+/// Tiene dos modos, según lo que permita la forma en que se instaló la app
+/// (ver [UpdateChannel]):
+///
+///  - **se actualiza sola**: descarga el paquete, verifica su SHA-256 y lo
+///    instala. En la instalación de sistema de Linux, además, el escritorio
+///    pedirá la contraseña de administrador.
+///  - **solo avisa**: no se puede instalar desde aquí (por ejemplo una copia
+///    suelta sin permisos de escritura), así que se ofrece abrir la página de
+///    descargas.
 class UpdateScreen extends StatefulWidget {
   final UpdateInfo info;
   const UpdateScreen({super.key, required this.info});
@@ -16,13 +25,16 @@ class UpdateScreen extends StatefulWidget {
 class _UpdateScreenState extends State<UpdateScreen> {
   double _progress = 0;
   String? _error;
-  bool _busy = true;
+  late bool _busy = widget.info.puedeInstalarSola;
 
   @override
   void initState() {
     super.initState();
-    // Auto-arranca la actualización al abrirse la pantalla.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    // Solo se auto-arranca si de verdad podemos instalarla; si no, la pantalla
+    // se queda esperando a que el usuario pulse "Descargar".
+    if (widget.info.puedeInstalarSola) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    }
   }
 
   Future<void> _start() async {
@@ -47,13 +59,19 @@ class _UpdateScreenState extends State<UpdateScreen> {
     }
   }
 
+  Future<void> _abrirWeb() async {
+    await UpdateService.abrirPaginaDeDescargas();
+    if (mounted) Navigator.of(context).maybePop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final info = widget.info;
     final theme = Theme.of(context);
     // Bloquea "atrás" mientras instala o si es obligatoria; si falla y no es
     // obligatoria, se puede cerrar y seguir usando la versión actual.
-    final canLeave = !_busy && (_error != null) && !info.mandatory;
+    final canLeave = !_busy && !info.mandatory;
+    final soloAvisa = !info.puedeInstalarSola;
 
     return PopScope(
       canPop: canLeave,
@@ -67,11 +85,15 @@ class _UpdateScreenState extends State<UpdateScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.system_update, size: 56, color: theme.colorScheme.primary),
+                  Icon(Icons.system_update,
+                      size: 56, color: theme.colorScheme.primary),
                   const SizedBox(height: 16),
                   Text(
-                    'Actualizando Portal Familia'
-                    '${info.versionName.isNotEmpty ? ' a ${info.versionName}' : ''}',
+                    soloAvisa
+                        ? 'Hay una versión nueva'
+                            '${info.versionName.isNotEmpty ? ' (${info.versionName})' : ''}'
+                        : 'Actualizando Portal Familia'
+                            '${info.versionName.isNotEmpty ? ' a ${info.versionName}' : ''}',
                     style: theme.textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
@@ -79,8 +101,32 @@ class _UpdateScreenState extends State<UpdateScreen> {
                     Text(info.notes, style: theme.textTheme.bodyMedium),
                     const SizedBox(height: 16),
                   ],
-                  if (_error == null) ...[
-                    LinearProgressIndicator(value: _progress > 0 ? _progress : null),
+                  if (soloAvisa) ...[
+                    Text(
+                      'Esta copia no se puede actualizar sola. Descarga la '
+                      'versión nueva desde la página e instálala encima.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (!info.mandatory)
+                          TextButton(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            child: const Text('Ahora no'),
+                          ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: _abrirWeb,
+                          icon: const Icon(Icons.download),
+                          label: const Text('Descargar'),
+                        ),
+                      ],
+                    ),
+                  ] else if (_error == null) ...[
+                    LinearProgressIndicator(
+                        value: _progress > 0 ? _progress : null),
                     const SizedBox(height: 12),
                     Text(
                       _progress > 0
@@ -93,8 +139,18 @@ class _UpdateScreenState extends State<UpdateScreen> {
                       'La app se cerrará y se reabrirá sola al terminar.',
                       style: theme.textTheme.bodySmall,
                     ),
+                    if (info.pideContrasena) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Está instalada para todos los usuarios del equipo, así '
+                        'que al terminar la descarga tu escritorio te pedirá la '
+                        'contraseña de administrador.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
                   ] else ...[
-                    Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+                    Text(_error!,
+                        style: TextStyle(color: theme.colorScheme.error)),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -104,6 +160,12 @@ class _UpdateScreenState extends State<UpdateScreen> {
                             onPressed: () => Navigator.of(context).maybePop(),
                             child: const Text('Ahora no'),
                           ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: _abrirWeb,
+                          icon: const Icon(Icons.public),
+                          label: const Text('Abrir la web'),
+                        ),
                         const SizedBox(width: 8),
                         FilledButton.icon(
                           onPressed: _start,
