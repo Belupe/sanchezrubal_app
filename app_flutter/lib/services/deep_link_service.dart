@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../screens/inspection_screen.dart';
+import 'log_service.dart';
 
 /// Maneja los enlaces `portalfamilia://...` de los correos para abrir la app
 /// en la pantalla correcta. Multiplataforma (Android, iOS, Windows, Linux) vía
@@ -74,6 +75,8 @@ class DeepLinkService {
     }
     _ultimo = uri;
     _ultimoInstante = ahora;
+    // Sin el identificador: el enlace lleva el id de una reserva.
+    LogService.evento('Deep link recibido: ${uri.scheme}://${uri.host}');
     // Sin sesión todavía: lo guardamos para procesarlo tras el login.
     if (supabase.auth.currentSession == null) {
       _pending = uri;
