@@ -1,0 +1,10 @@
+{
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "url": "https://app.sanchezrubal.net/linux/portal-familia-x86_64.AppImage",
+  "sha256": "PON_AQUI_EL_SHA256_DEL_APPIMAGE (lo calcula scripts/release.ps1 al publicar)",
+  "urlDeb": "https://app.sanchezrubal.net/linux/portal-familia_amd64.deb",
+  "sha256Deb": "PON_AQUI_EL_SHA256_DEL_DEB (lo calcula scripts/release.ps1 al publicar)",
+  "mandatory": false,
+  "notes": "Primera versión."
+}

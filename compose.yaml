@@ -10,7 +10,7 @@
 #   - minio:         almacén S3 self-hosted de fotos/vídeo (en MEDIA_DATA_DIR).
 #   - createbuckets: crea el bucket privado al arrancar.
 #   - updates:       nginx que sirve los instaladores + version.json para que
-#                    Android y Windows se auto-actualicen (en UPDATES_DATA_DIR).
+#                    Windows y Linux se auto-actualicen (en UPDATES_DATA_DIR).
 #
 #  La BD/Auth/API están en Supabase Cloud (no aquí). El túnel cloudflared
 #  corre en el HOST: ver server/cloudflared/config.example.yml.

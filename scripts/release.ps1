@@ -1,19 +1,24 @@
 # =====================================================================
 #  release.ps1  —  Compila y publica una versión nueva (un solo comando)
 # =====================================================================
-#  Compila el instalador de Windows, deja los artefactos en dist/ y, si
-#  UPDATES_DATA_DIR es una ruta local accesible, los publica y regenera la
-#  página de descargas (con los enlaces de tienda del .env).
+#  Compila el instalador de Windows y los paquetes de Linux, deja los
+#  artefactos en dist/ y, si UPDATES_DATA_DIR es una ruta local accesible, los
+#  publica y regenera la página de descargas (con los enlaces del .env).
 #
 #  Android va por Google Play (scripts/build-aab.ps1) e iOS por App Store: no
-#  se compilan aquí. Windows se auto-actualiza desde su propio instalador.
+#  se compilan aquí. Windows y el AppImage de Linux se auto-actualizan.
+#
+#  Linux se compila dentro de Docker (Flutter no compila Linux en cruzado
+#  desde Windows): lo hace scripts/build-linux.ps1, que solo necesita el
+#  Docker que ya usas para el servidor.
 #
 #  Uso:
 #    ./scripts/release.ps1            # compila la versión actual de pubspec
 #    ./scripts/release.ps1 -Bump      # sube el build number (+1) y compila
 #    ./scripts/release.ps1 -SkipWindows
+#    ./scripts/release.ps1 -SkipLinux
 # =====================================================================
-param([switch]$Bump, [switch]$SkipWindows)
+param([switch]$Bump, [switch]$SkipWindows, [switch]$SkipLinux)
 $ErrorActionPreference = 'Stop'
 $scripts = $PSScriptRoot
 $root    = Split-Path $scripts -Parent
@@ -50,21 +55,33 @@ if (-not $SkipWindows) {
   if ($LASTEXITCODE -eq 2) { Write-Warning "Windows: instalador no generado (falta Inno Setup o Visual Studio)." }
 }
 
-# [C-02] Calcula el SHA-256 del instalador y lo escribe en dist/windows/version.json.
-# La app rechaza cualquier binario cuyo hash no coincida con este valor, así que
-# un version.json manipulado ya no puede forzar la ejecución de un .exe ajeno.
+if (-not $SkipLinux) {
+  & (Join-Path $scripts 'build-linux.ps1')
+  if ($LASTEXITCODE -eq 2) { Write-Warning "Linux: paquetes no generados (falta Docker)." }
+}
+
+# [C-02] Calcula el SHA-256 de CADA artefacto y lo escribe en el version.json de
+# su plataforma. La app rechaza cualquier paquete cuyo hash no coincida con este
+# valor, así que un version.json manipulado no puede forzar la ejecución (ni la
+# instalación como root, en el canal de sistema de Linux) de un binario ajeno.
 $distDir = Join-Path $root 'dist'
-$winExe  = Join-Path $distDir 'windows\portal-familia-setup.exe'
-$winVer  = Join-Path $distDir 'windows\version.json'
-if (Test-Path $winExe) {
-  $sha = (Get-FileHash -Algorithm SHA256 -Path $winExe).Hash.ToLower()
-  if (Test-Path $winVer) {
-    $vj = Get-Content $winVer -Raw | ConvertFrom-Json
-    $vj | Add-Member -NotePropertyName sha256 -NotePropertyValue $sha -Force
-    ($vj | ConvertTo-Json -Depth 8) | Set-Content $winVer -Encoding UTF8
-    Write-Host "SHA-256 del instalador escrito en version.json: $sha" -ForegroundColor Cyan
+$artefactos = @(
+  @{ Plat = 'windows'; File = 'portal-familia-setup.exe';        Campo = 'sha256' },
+  @{ Plat = 'linux';   File = 'portal-familia-x86_64.AppImage';  Campo = 'sha256' },
+  @{ Plat = 'linux';   File = 'portal-familia_amd64.deb';        Campo = 'sha256Deb' }
+)
+foreach ($a in $artefactos) {
+  $bin = Join-Path $distDir "$($a.Plat)\$($a.File)"
+  $vjPath = Join-Path $distDir "$($a.Plat)\version.json"
+  if (-not (Test-Path $bin)) { continue }
+  $sha = (Get-FileHash -Algorithm SHA256 -Path $bin).Hash.ToLower()
+  if (Test-Path $vjPath) {
+    $vj = Get-Content $vjPath -Raw | ConvertFrom-Json
+    $vj | Add-Member -NotePropertyName $a.Campo -NotePropertyValue $sha -Force
+    ($vj | ConvertTo-Json -Depth 8) | Set-Content $vjPath -Encoding UTF8
+    Write-Host "SHA-256 de $($a.File) -> $($a.Plat)/version.json ($($a.Campo))" -ForegroundColor Cyan
   } else {
-    Write-Warning "No hay dist/windows/version.json; SHA-256 del instalador: $sha (anadelo como campo 'sha256')."
+    Write-Warning "No hay dist/$($a.Plat)/version.json; SHA-256 de $($a.File): $sha (anadelo como campo '$($a.Campo)')."
   }
 }
 
@@ -72,7 +89,7 @@ if (Test-Path $winExe) {
 $dataDir = $envv['UPDATES_DATA_DIR']
 $dist = Join-Path $root 'dist'
 if ($dataDir -and (Test-Path $dataDir)) {
-  foreach ($plat in @('windows')) {
+  foreach ($plat in @('windows', 'linux')) {
     $src = Join-Path $dist $plat
     if (Test-Path $src) {
       $dst = Join-Path $dataDir $plat
@@ -85,6 +102,8 @@ if ($dataDir -and (Test-Path $dataDir)) {
   $windowsUrl     = if ($envv['DOWNLOAD_WINDOWS_URL'])      { $envv['DOWNLOAD_WINDOWS_URL'] }      else { './windows/portal-familia-setup.exe' }
   $iosUrl         = if ($envv['DOWNLOAD_IOS_URL'])          { $envv['DOWNLOAD_IOS_URL'] }          else { '' }
   $androidPlayUrl = if ($envv['DOWNLOAD_ANDROID_PLAY_URL']) { $envv['DOWNLOAD_ANDROID_PLAY_URL'] } else { '' }
+  $linuxAppImgUrl = if ($envv['DOWNLOAD_LINUX_APPIMAGE_URL']) { $envv['DOWNLOAD_LINUX_APPIMAGE_URL'] } else { './linux/portal-familia-x86_64.AppImage' }
+  $linuxDebUrl    = if ($envv['DOWNLOAD_LINUX_DEB_URL'])      { $envv['DOWNLOAD_LINUX_DEB_URL'] }      else { './linux/portal-familia_amd64.deb' }
   $tpl = Get-Content (Join-Path $root 'server\updates\index.html') -Raw
   # Android: SOLO Google Play (por invitación). Si hay enlace, se muestra el botón;
   # si no, se oculta (igual que iOS). Ya no se ofrece APK de descarga directa.
@@ -108,6 +127,8 @@ if ($dataDir -and (Test-Path $dataDir)) {
   }
   $tpl = $tpl.Replace('{{DOWNLOAD_ANDROID_PLAY_URL}}', (Html-Attr $androidPlayUrl)).
               Replace('{{DOWNLOAD_WINDOWS_URL}}', (Html-Attr $windowsUrl)).
+              Replace('{{DOWNLOAD_LINUX_APPIMAGE_URL}}', (Html-Attr $linuxAppImgUrl)).
+              Replace('{{DOWNLOAD_LINUX_DEB_URL}}', (Html-Attr $linuxDebUrl)).
               Replace('{{DOWNLOAD_IOS_URL}}', (Html-Attr $iosUrl))
   Set-Content (Join-Path $dataDir 'index.html') $tpl -Encoding UTF8
   Write-Host "`nPublicado en UPDATES_DATA_DIR: $dataDir  →  las apps se actualizarán solas." -ForegroundColor Green
