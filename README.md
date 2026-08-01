@@ -1,12 +1,13 @@
 # Portal Familia
 
 Gestión de casas familiares (calendario, reservas, inspecciones con fotos/vídeo, anuncios,
-sorteos, usuarios). **Una sola base de código Flutter** → **3 apps nativas**:
+sorteos, usuarios). **Una sola base de código Flutter** → **4 apps nativas**:
 
 | Plataforma | Distribución | Auto-update |
 |-----------|--------------|-------------|
 | **Android** | APK propio alojado en tu Docker (sin Google Play) | ✅ desde la app |
 | **Windows** | Instalador `.exe` (Inno Setup) alojado en tu Docker | ✅ desde la app |
+| **Linux** | `AppImage` (**cualquier** distro: Ubuntu, Kali, Arch, Fedora…) + `.deb` (Ubuntu/Debian/Kali) + `.tar.gz`, alojados en tu Docker | ✅ desde la app (el AppImage, sin contraseña) |
 | **Apple (iOS)** | **App Store de forma privada (no listado / *unlisted*)** — accesible solo por enlace, NO público y NO por TestFlight | ✅ auto-update de App Store (cada versión nativa pasa revisión, rápida en no listado) |
 
 **Backend:** Supabase Cloud (Postgres + Auth + API + Edge Functions). **Media** (fotos/vídeo):
@@ -18,6 +19,12 @@ sorteos, usuarios). **Una sola base de código Flutter** → **3 apps nativas**:
 
 ## Novedades
 
+- **Compatible con Linux.** Cualquier distro: **AppImage** (un solo fichero, se actualiza solo y
+  sin contraseña), **`.deb`** para Ubuntu/Debian/Kali y **`.tar.gz`** con instalador de dos modos.
+  Se compila desde Windows dentro de Docker. Guía: [docs/LINUX.md](docs/LINUX.md).
+- **Registro de fallos en las 5 plataformas.** Si la app se cierra sola o falla, deja un informe
+  técnico (sin credenciales) que el usuario puede enviarte desde Configuración → *Diagnóstico*.
+  Guía: [docs/REGISTROS.md](docs/REGISTROS.md).
 - **Lista de espera (cola) de reservas.** Si unas fechas están ocupadas, te apuntas a la cola; si
   quien la tiene **cancela**, el siguiente (orden FIFO) hereda la reserva **automáticamente** y
   recibe **2 avisos** ("X canceló" y "las fechas son tuyas").
@@ -38,14 +45,17 @@ sorteos, usuarios). **Una sola base de código Flutter** → **3 apps nativas**:
 README.md          ← este archivo
 .env.example       ← ÚNICA fuente de configuración (credenciales, rutas, URLs)
 compose.yaml       ← Docker: minio + updates  (docker compose up -d)
-app_flutter/       ← la app (android/ · ios/ · windows/ · lib/)
+app_flutter/       ← la app (android/ · ios/ · linux/ · macos/ · windows/ · lib/ · test/)
 supabase/          ← migraciones (0001–0021) + Edge Functions (media-sign · send-email ·
                      admin-users · test-smtp · send-push · notify-waitlist)
 server/            ← soporte del servidor:  nginx/ · cloudflared/ · updates/ (plantillas)
-scripts/           ← release.ps1 · build-aab.ps1 · build-windows.ps1 · push-supabase-secrets.*
-docs/              ← DESPLIEGUE.md · GOOGLE.md · APPLE.md · WINDOWS.md · ANDROID.md ·
-                     ARQUITECTURA.md · SEGURIDAD.md · COLA-NOTIFICACIONES-TIEMPO-REAL.md
-dist/              ← (generado) artefactos finales: setup.exe (Windows), .aab (Google Play), version.json
+scripts/           ← release.ps1 · build-aab.ps1 · build-windows.ps1 · build-linux.ps1|.sh ·
+                     linux-build.Dockerfile · linux/instalar.sh · push-supabase-secrets.*
+docs/              ← DESPLIEGUE.md · GOOGLE.md · APPLE.md · WINDOWS.md · LINUX.md · ANDROID.md ·
+                     ARQUITECTURA.md · SEGURIDAD.md · REGISTROS.md ·
+                     COLA-NOTIFICACIONES-TIEMPO-REAL.md
+dist/              ← (generado) artefactos finales: setup.exe (Windows), .AppImage/.deb/.tar.gz
+                     (Linux), .aab (Google Play), version.json
 ```
 
 ## Configuración: un único `.env`
@@ -70,12 +80,13 @@ ejecución, **3 adaptadores** lo reparten (sin filtrar secretos al cliente):
    [server/cloudflared/config.example.yml](server/cloudflared/config.example.yml).
 5. `./scripts/push-supabase-secrets.ps1` (o `.sh`) → sube los secrets de Supabase.
 
-## Las 3 apps
+## Las 4 apps
 
 | Plataforma | Cómo se compila y se actualiza | Guía |
 |-----------|-------------------------------|------|
 | Android | `flutter build appbundle` (`build-aab.ps1`) → **Google Play** (por invitación) | [docs/GOOGLE.md](docs/GOOGLE.md) |
 | Windows | `flutter build windows` (Visual Studio C++) + Inno Setup → `setup.exe`; auto-update | [docs/WINDOWS.md](docs/WINDOWS.md) |
+| Linux | `flutter build linux` **dentro de Docker** (`build-linux.ps1`) → `AppImage` + `.deb` + `.tar.gz`; auto-update | [docs/LINUX.md](docs/LINUX.md) |
 | Apple | `flutter build ipa` en un **Mac** → App Store Connect → **App Store privado (no listado)** | [docs/APPLE.md](docs/APPLE.md) |
 
 ## Publicar una actualización (un comando)
@@ -83,11 +94,16 @@ ejecución, **3 adaptadores** lo reparten (sin filtrar secretos al cliente):
 ```powershell
 ./scripts/release.ps1 -Bump
 ```
-Sube el número de versión de `app_flutter/pubspec.yaml`, compila **Windows**, deja los artefactos en
-`dist/` y —si `UPDATES_DATA_DIR` es accesible— los **publica** en el servidor y regenera la página de
-descargas. **No** hace falta reconstruir imágenes ni reiniciar contenedores: el servicio `updates`
-sirve la carpeta en vivo y **Windows se actualiza solo** al reabrirse. (Android va por **Google Play**
-—`build-aab.ps1`— e iOS por el **App Store**; se publican aparte, ver sus guías.)
+Sube el número de versión de `app_flutter/pubspec.yaml`, compila **Windows y Linux**, deja los
+artefactos en `dist/` y —si `UPDATES_DATA_DIR` es accesible— los **publica** en el servidor y
+regenera la página de descargas. **No** hace falta reconstruir imágenes ni reiniciar contenedores: el
+servicio `updates` sirve la carpeta en vivo y **Windows y Linux se actualizan solos** al reabrirse.
+(Android va por **Google Play** —`build-aab.ps1`— e iOS por el **App Store**; se publican aparte, ver
+sus guías.)
+
+> Linux se compila dentro de **Docker** porque Flutter no puede compilar Linux desde Windows. Si no
+> tienes Docker arrancado, `release.ps1` avisa y sigue con lo demás; puedes hacerlo luego con
+> `./scripts/build-linux.ps1`, o saltártelo con `-SkipLinux`.
 
 > Si el servidor Docker está en otra máquina (Linux), copia el contenido de `dist/` a la carpeta
 > `UPDATES_DATA_DIR` de ese servidor (la primera vez incluye `index.html`).
@@ -96,6 +112,10 @@ sirve la carpeta en vivo y **Windows se actualiza solo** al reabrirse. (Android 
 
 - **Android**: Android Studio o el Android SDK (cmdline-tools). Keystore de subida (ver ANDROID.md); el `.aab` se compila con `build-aab.ps1` (ver GOOGLE.md).
 - **Windows**: Visual Studio con *Desktop development with C++* + **Inno Setup**.
+- **Linux**: **solo Docker** (el mismo que ya usas para el servidor). No hace falta un ordenador con
+  Linux: `build-linux.ps1` compila dentro de un contenedor Ubuntu 22.04 — y esa versión antigua es
+  a propósito, es lo que hace que el binario arranque también en distros más viejas
+  (ver [docs/LINUX.md](docs/LINUX.md)).
 - **Apple**: un **Mac** con Xcode + **Apple Developer Program** (99 €/año). Distribución en
   **App Store no listado** (privado por enlace), no TestFlight — ver [docs/APPLE.md](docs/APPLE.md).
 - **Push (FCM)**: proyecto **Firebase** (`flutterfire configure` + service account). Setup completo

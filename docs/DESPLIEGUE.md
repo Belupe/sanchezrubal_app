@@ -92,12 +92,14 @@ Las fotos y vídeos los guarda **MinIO** (un almacén tipo S3) en tu servidor.
 
 | Variable | Dónde se saca |
 |---|---|
-| `UPDATES_DATA_DIR` | Carpeta del servidor que sirve los instaladores (Windows) + `version.json`. |
+| `UPDATES_DATA_DIR` | Carpeta del servidor que sirve los instaladores (Windows y Linux) + `version.json`. |
 | `UPDATES_PUBLIC_URL` | Subdominio público de descargas/auto-update (tu túnel). |
 | `BIND_HOST` | Déjalo en `127.0.0.1` (recomendado con Cloudflare delante). **No uses `0.0.0.0`** salvo firewall estricto. |
 | `DOWNLOAD_ANDROID_PLAY_URL` | Enlace de la prueba de **Google Play** (ver [docs/GOOGLE.md](GOOGLE.md)). |
 | `DOWNLOAD_IOS_URL` | Enlace de distribución no listada de **App Store** (ver [docs/APPLE.md](APPLE.md)). |
 | `DOWNLOAD_WINDOWS_URL` | Ruta del instalador de Windows (por defecto la sirve tu propio servidor). |
+| `DOWNLOAD_LINUX_APPIMAGE_URL` | Ruta del AppImage de Linux, que vale para cualquier distro (ver [docs/LINUX.md](LINUX.md)). |
+| `DOWNLOAD_LINUX_DEB_URL` | Ruta del `.deb` de Linux para Ubuntu/Debian/Kali. |
 
 ### 1.6 Endurecimiento de Docker  (opcional; recomendado)
 
