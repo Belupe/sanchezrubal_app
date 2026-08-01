@@ -11,12 +11,22 @@
 #    docker run --rm -v "$PWD:/src" -w /src portal-familia/linux-build:3.44.6 \
 #           bash scripts/build-linux.sh
 #
-#  ⚠️  BASE UBUNTU 22.04 A PROPÓSITO — NO LA SUBAS SIN LEER ESTO:
-#  glibc es compatible HACIA ATRÁS pero NO HACIA ADELANTE. Un binario
-#  compilado contra una glibc NUEVA muere en una distro con una MÁS VIEJA
-#  ("version 'GLIBC_2.xx' not found"), y ni AppImage ni .deb lo arreglan
-#  (empaquetan las librerías de la app, no la libc del sistema). La única
-#  solución es compilar sobre la base más antigua que se quiera soportar.
+#  ⚠️  BASE UBUNTU 22.04 A PROPÓSITO — NO LA SUBAS SIN LEER ESTO.
+#
+#  Son DOS problemas distintos, y los dos se arreglan con la misma decisión:
+#
+#  1) glibc es compatible HACIA ATRÁS pero NO HACIA ADELANTE. Un binario
+#     compilado contra una glibc NUEVA muere en una distro con una MÁS VIEJA
+#     ("version 'GLIBC_2.xx' not found"), y ni AppImage ni .deb lo arreglan
+#     (empaquetan las librerías de la app, no la libc del sistema).
+#
+#  2) Los NOMBRES de los paquetes del .deb. Ubuntu 24.04 renombró media
+#     distribución por la transición de time_t a 64 bits: allí `dpkg-shlibdeps`
+#     deduce libgtk-3-0t64 / libglib2.0-0t64 / libatk1.0-0t64, que NO EXISTEN
+#     en Ubuntu 22.04 ni en Debian 12 → el .deb sería ininstalable ahí. Desde
+#     22.04 salen los nombres sin sufijo, y esos sí funcionan también en 24.04
+#     (los paquetes t64 los declaran con Provides:).
+#
 #  22.04 = glibc 2.35, que cubre Ubuntu 22.04+, Debian 12+, Kali rolling,
 #  Arch, Fedora 36+, Mint 21+ y Pop 22.04+.
 # =====================================================================
