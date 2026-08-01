@@ -17,6 +17,13 @@ aquí, ejecutas un comando, y los iconos nativos de cada plataforma se
 | `icon_android.png`   | Android                    | 1024×1024 px       | ✅ permitida    |
 | `icon_macos.png`     | Mac (macOS)                | 1024×1024 px       | ✅ permitida    |
 | `icon_windows.png`   | Windows                    | 1024×1024 px       | ✅ permitida    |
+| `icon_linux.png`     | Linux                      | 1024×1024 px       | ✅ permitida    |
+
+> **Linux es el único que NO pasa por `flutter_launcher_icons`**: esa herramienta no
+> soporta Linux (no es que falte la opción, no existe). El icono lo coloca
+> [`scripts/build-linux.sh`](../../scripts/build-linux.sh) al empaquetar, copiando
+> `icon_linux.png` a `usr/share/icons/hicolor/256x256/apps/`. Solo tienes que dejar
+> el fichero aquí con ese nombre.
 
 > **iPadOS no lleva icono propio.** En iOS, iPhone y iPad usan el mismo icono, así
 > que `icon_ios.png` cubre los dos. Un `icon_ipados.png` **no** se usaría.

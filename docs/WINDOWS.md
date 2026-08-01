@@ -11,7 +11,7 @@ auto-actualización igual que Android.
 
 ## Compilar y publicar
 ```powershell
-./scripts/release.ps1 -Bump        # Android + Windows; o solo Windows:
+./scripts/release.ps1 -Bump        # Windows + Linux; o solo Windows:
 ./scripts/build-windows.ps1
 ```
 Hace `flutter build windows --release` y empaqueta el resultado con

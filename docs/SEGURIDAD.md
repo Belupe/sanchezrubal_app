@@ -34,6 +34,15 @@ rechaza si no coincide, y (2) solo acepta descargas **por HTTPS y de tu propio
 dominio**. Si algo no cuadra, no instala nada. Actualizar sigue siendo igual de
 fácil para ti.
 
+**Al añadir Linux esto se ha reforzado.** Ahora hay varias formas de instalar la
+app (AppImage, `.deb`, carpeta personal), y una de ellas —la que instala para
+todos los usuarios del equipo— necesita **permiso de administrador**. Por eso la
+comprobación de la huella se ha movido al tronco común, **antes** de decidir cómo
+instalar: ninguna de las formas puede saltársela, y en la que usa administrador
+eso significa que **si la huella no cuadra ni siquiera se te llega a pedir la
+contraseña**. Además, esa contraseña la pide **el propio escritorio** (PolicyKit),
+no la app: Portal Familia nunca la ve.
+
 ---
 
 ## Fase 2 — Fallos altos
@@ -175,6 +184,14 @@ la **caja fuerte del sistema** (Llavero en iPhone/Mac, almacén cifrado por
 hardware en Android). Si por lo que sea no se puede leer, simplemente te pedirá
 iniciar sesión otra vez (nunca deja el pase en claro). No notas ningún cambio.
 
+**En Linux** se usa el llavero del sistema (gnome-keyring / KWallet), que en
+Ubuntu, Kali, Fedora o Mint se desbloquea solo al entrar en el ordenador. En una
+distro muy minimalista puede no haber ninguno; en ese caso **se ha decidido a
+propósito NO inventar un almacén propio**: guardar la clave en el mismo disco que
+el dato sería aparentar una protección que no existe. Ahí la app simplemente te
+pedirá iniciar sesión cada vez que la abras — la sesión **de la app**, nunca la
+del ordenador. Se arregla instalando `gnome-keyring` (ver [LINUX.md](LINUX.md)).
+
 ### Cambiar tu contraseña o correo pide confirmar tu contraseña `[M-12]`
 Antes, con una sesión abierta (un móvil olvidado, por ejemplo), cualquiera podía
 **cambiar tu contraseña o tu correo** y quedarse con la cuenta. Ahora, para
@@ -245,6 +262,11 @@ contraseña sigue con su valor de ejemplo, para que nunca se levante "abierto".
 El instalador nuevo se guarda en una carpeta con **nombre aleatorio**, así ningún
 otro programa puede colar un fichero falso en su lugar. Justo antes de instalar se
 vuelve a comprobar su huella (SHA-256), como ya se hacía.
+
+En Linux esa carpeta se crea **junto a la propia app** en vez de en la carpeta
+temporal del sistema. Además de ser necesario por cómo funciona Linux, así el
+fichero ya comprobado se pone en su sitio de una sola vez, sin ningún momento
+intermedio en el que se pudiera cambiar por otro.
 
 ### Los enlaces de la app se validan `[B-12]`
 Cuando abres la app desde un enlace de una inspección, ahora se comprueba que el
@@ -461,3 +483,29 @@ con su checklist:
 - **Verificación en 2 pasos (MFA/TOTP)** disponible de forma opcional (`[M-11]`).
 - **Contraseñas más fuertes** y bloqueo de contraseñas filtradas (`[M-13]`).
 - **Reautenticación** al cambiar contraseña/correo (`[M-12]`).
+
+
+---
+
+## Los informes de fallos no llevan credenciales
+
+La app guarda un **informe técnico del último fallo** para poder diagnosticarlo
+(ver [REGISTROS.md](REGISTROS.md)). Ese informe está pensado para que **tú lo
+envíes** por correo o por el móvil, así que el riesgo evidente es que arrastre
+algo que no debe: los errores de red incluyen la dirección completa de lo que se
+estaba descargando —con la firma de acceso a tus fotos dentro— y los errores del
+servidor arrastran la cabecera de autorización con tu pase de sesión.
+
+Por eso **todo lo que se escribe pasa antes por un filtro** que sustituye:
+
+- el **pase de sesión** (token) y el de renovación;
+- las **claves de Supabase** y las cabeceras de autorización;
+- las **firmas de las direcciones de fotos y vídeos**;
+- las **direcciones de correo**, de las que se deja solo el dominio.
+
+Lo que sí se conserva es lo que hace falta para arreglar el problema: qué falló,
+dónde y cuándo. Ese filtro está cubierto por **pruebas automáticas**
+(`app_flutter/test/log_service_test.dart`), porque es lo único de ese sistema
+que, si se rompe, filtra credenciales. La primera versión de esas pruebas ya
+detectó una fuga real: la cabecera `Authorization: Bearer <pase>` se cortaba en
+el primer espacio y dejaba el pase a la vista.

@@ -4,9 +4,9 @@
 
 ```
 ┌──────────────────────────────┐         ┌──────────────────────────────┐
-│  Flutter — 3 apps nativas     │  HTTPS  │       Supabase Cloud          │
-│  Android · Windows · iOS      │ ──────► │  Postgres + Auth + API (RLS)  │
-│  (misma base de código)       │         │  Edge Functions (media-sign,  │
+│  Flutter — 4 apps nativas     │  HTTPS  │       Supabase Cloud          │
+│  Android · Windows · Linux    │ ──────► │  Postgres + Auth + API (RLS)  │
+│  · iOS  (misma base de código)│         │  Edge Functions (media-sign,  │
 │                               │         │   correos) + pg_cron          │
 └───────────┬──────────────────┘         └──────────────────────────────┘
             │  URL prefirmada (la firma una Edge Function)
@@ -62,5 +62,6 @@ Rol y pertenencia a grupo son **ejes independientes**. Todo se aplica con **RLS*
 - [x] Edge Functions `media-sign` y `send-email` + pg_cron
 - [x] App Flutter base: login, recuperar contraseña, calendario, reservas, inspección con media
 - [x] Android (APK firmado + auto-update) · Windows (instalador + auto-update) · iOS (scaffolding)
+- [x] Linux (AppImage + .deb + .tar.gz, con auto-update) — ver [LINUX.md](LINUX.md)
 - [~] Apple: build + TestFlight pendiente de Mac (ver [APPLE.md](APPLE.md))
 - [~] Cutover de datos — guía en [CUTOVER.md](CUTOVER.md)
