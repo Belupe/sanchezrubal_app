@@ -117,8 +117,10 @@ class LogService {
       ..writeln('Portal Familia — registro de sesión')
       ..writeln('Inicio      : ${_ahora()}')
       ..writeln('Versión     : $version')
-      ..writeln('Plataforma  : ${Platform.operatingSystem} '
-          '${Platform.operatingSystemVersion}')
+      ..writeln(
+        'Plataforma  : ${Platform.operatingSystem} '
+        '${Platform.operatingSystemVersion}',
+      )
       ..writeln('Idioma      : ${Platform.localeName}')
       ..writeln('Ejecutable  : ${Platform.resolvedExecutable}')
       ..writeln('Carpeta log : ${_dir!.path}');
@@ -143,7 +145,8 @@ class LogService {
 
   /// Un error del framework de Flutter, con su contexto de widget.
   static void errorFlutter(FlutterErrorDetails d) {
-    final b = StringBuffer()..writeln('ERROR Flutter: ${d.exceptionAsString()}');
+    final b = StringBuffer()
+      ..writeln('ERROR Flutter: ${d.exceptionAsString()}');
     if (d.library != null) b.writeln('Librería: ${d.library}');
     if (d.context != null) b.writeln('Contexto: ${d.context}');
     if (d.stack != null) b.writeln(d.stack.toString().trimRight());
@@ -179,7 +182,7 @@ class LogService {
 
   static void _linea(String nivel, String texto) {
     debugPrint('[$nivel] $texto');
-    // La redacción la aplica _escribirCrudo a TODO lo que pasa por él, para
+    // La redacción la aplica _escribirCrudo a todo lo que pasa por el registro,
     // que no haya ninguna ruta de escritura que se la salte.
     _escribirCrudo('${_ahora()}  $nivel  $texto\n');
   }
@@ -191,8 +194,7 @@ class LogService {
     final f = _sesion;
     if (f == null) return;
     try {
-      f.writeAsStringSync(redactar(texto),
-          mode: FileMode.append, flush: true);
+      f.writeAsStringSync(redactar(texto), mode: FileMode.append, flush: true);
       if (f.lengthSync() > _maxBytes) _recortar(f);
     } catch (_) {
       // Disco lleno o sin permisos: no molestar al usuario por esto.
@@ -241,34 +243,41 @@ class LogService {
     // JWT (access token / refresh de Supabase): tres segmentos base64url.
     (
       RegExp(r'eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]+'),
-      (_) => '<JWT>'
+      (_) => '<JWT>',
     ),
     // Claves publicables/secretas de Supabase.
-    (RegExp(r'sb_(publishable|secret)_[A-Za-z0-9_-]+'), (_) => '<SUPABASE_KEY>'),
+    (
+      RegExp(r'sb_(publishable|secret)_[A-Za-z0-9_-]+'),
+      (_) => '<SUPABASE_KEY>',
+    ),
     // Tokens en JSON: "access_token":"…", "refresh_token":"…".
     (
       RegExp(r'"(access_token|refresh_token|apikey|api_key)"\s*:\s*"[^"]*"'),
-      (m) => '"${m.group(1)}":"<REDACTADO>"'
+      (m) => '"${m.group(1)}":"<REDACTADO>"',
     ),
     // Cabeceras HTTP. El valor se come ENTERO hasta el separador de cabecera
     // (coma, cierre de llave o fin de línea): parar en el primer espacio
     // dejaría el token a la vista en "Authorization: Bearer <token>".
     (
-      RegExp(r'(authorization|apikey|x-api-key)\s*[:=]\s*[^,}\]\r\n]+',
-          caseSensitive: false),
-      (m) => '${m.group(1)}: <REDACTADO>'
+      RegExp(
+        r'(authorization|apikey|x-api-key)\s*[:=]\s*[^,}\]\r\n]+',
+        caseSensitive: false,
+      ),
+      (m) => '${m.group(1)}: <REDACTADO>',
     ),
     // Firmas de las URLs prefirmadas de MinIO (van en la query string y las
     // excepciones de Dio incluyen la URL entera).
     (
-      RegExp(r'(X-Amz-Signature|X-Amz-Credential|X-Amz-Security-Token)=[^&\s"]+',
-          caseSensitive: false),
-      (m) => '${m.group(1)}=<REDACTADO>'
+      RegExp(
+        r'(X-Amz-Signature|X-Amz-Credential|X-Amz-Security-Token)=[^&\s"]+',
+        caseSensitive: false,
+      ),
+      (m) => '${m.group(1)}=<REDACTADO>',
     ),
     // Correos: se deja el dominio, que a veces ayuda a situar el caso.
     (
       RegExp(r'[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})'),
-      (m) => '<correo>@${m.group(1)}'
+      (m) => '<correo>@${m.group(1)}',
     ),
   ];
 }
