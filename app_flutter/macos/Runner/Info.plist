@@ -59,5 +59,11 @@
 	     Si algún día se cifran datos con clave propia, hay que poner <true/>. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- Categoría en la Mac App Store; sin ella Xcode avisa y el envío se rechaza.
+	     "productivity" es lo que mejor describe la app: gestionar inspecciones de
+	     la casa, calendario y documentos de la familia. Debe coincidir con la
+	     categoría que se elija en la ficha de App Store Connect. -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
 </dict>
 </plist>
