@@ -48,6 +48,18 @@ fi
 flutter precache --"$PLATFORM"
 flutter pub get
 
+# iOS: `--config-only` no compila ni firma nada, pero `flutter build ios` asume que
+# el destino es un dispositivo físico y comprueba igualmente que haya certificados
+# en el llavero. En la fase post-clone de Xcode Cloud todavía no están (Apple los
+# inyecta más tarde, al ejecutar la acción Archive), así que la comprobación abortaba
+# el script con "No valid code signing certificates were found" y ninguna build de
+# iOS llegaba a empezar. --no-codesign la desactiva; la firma de verdad la hace
+# xcodebuild después. macOS no tiene esa opción ni la necesita.
+CODESIGN_ARG=""
+if [ "$PLATFORM" = "ios" ]; then
+  CODESIGN_ARG="--no-codesign"
+fi
+
 # El número de build sale de `version: X.Y.Z+N` de pubspec.yaml y acaba en
 # CFBundleVersion vía $(FLUTTER_BUILD_NUMBER). Si se dejara así, TODAS las builds
 # de Xcode Cloud subirían con el mismo número y App Store Connect rechazaría la
@@ -57,5 +69,5 @@ flutter pub get
 # Solución: usar el número de ejecución de Xcode Cloud (CI_BUILD_NUMBER), que es
 # único y creciente. `${VAR:+...}` solo añade el argumento si la variable existe,
 # así que en local (donde no existe) manda pubspec.yaml y no cambia nada.
-flutter build "$PLATFORM" --config-only --release \
+flutter build "$PLATFORM" --config-only --release $CODESIGN_ARG \
   ${CI_BUILD_NUMBER:+--build-number="$CI_BUILD_NUMBER"}
