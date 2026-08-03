@@ -52,5 +52,12 @@
 	<string>Portal Familia accede a tus fotos para adjuntar imágenes y vídeos a las inspecciones.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Portal Familia usa el micrófono al grabar vídeos de las inspecciones.</string>
+	<!-- Cumplimiento de exportación (paridad con iOS). La app solo usa cifrado
+	     exento: HTTPS/TLS estándar y el Llavero del sistema vía
+	     flutter_secure_storage. Los SHA-256 de UpdateService son hashes, no
+	     cifrado. Con esta clave App Store Connect no pregunta en cada subida.
+	     Si algún día se cifran datos con clave propia, hay que poner <true/>. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

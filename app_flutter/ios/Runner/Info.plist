@@ -24,6 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Cumplimiento de exportación: la app solo usa cifrado exento (HTTPS/TLS
+	     estándar, el Llavero de iOS vía flutter_secure_storage) y hashes
+	     SHA-256 para verificar las actualizaciones, que no son cifrado. Con
+	     esta clave App Store Connect deja de preguntar en cada subida. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
