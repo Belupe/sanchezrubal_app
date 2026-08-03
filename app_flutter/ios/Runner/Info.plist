@@ -22,16 +22,29 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>net.sanchezrubal.portalFamilia</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>portalfamilia</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<!-- Cumplimiento de exportación: la app solo usa cifrado exento (HTTPS/TLS
-	     estándar, el Llavero de iOS vía flutter_secure_storage) y hashes
-	     SHA-256 para verificar las actualizaciones, que no son cifrado. Con
-	     esta clave App Store Connect deja de preguntar en cada subida. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Portal Familia usa la cámara para hacer fotos y vídeos de las inspecciones de la casa.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Portal Familia usa el micrófono al grabar vídeos de las inspecciones.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Portal Familia accede a tus fotos para adjuntar imágenes y vídeos a las inspecciones.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -72,27 +85,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- Abrir la app desde los enlaces de los correos: portalfamilia:// -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>net.sanchezrubal.portalFamilia</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>portalfamilia</string>
-			</array>
-		</dict>
-	</array>
-	<!-- Permisos iOS (obligatorios: la app usa cámara, fotos y vídeo en las
-	     inspecciones vía image_picker). Sin estas cadenas iOS cierra la app al
-	     pedir el permiso y App Store rechaza el binario. El texto se muestra al
-	     usuario en el diálogo de permiso. -->
-	<key>NSCameraUsageDescription</key>
-	<string>Portal Familia usa la cámara para hacer fotos y vídeos de las inspecciones de la casa.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Portal Familia accede a tus fotos para adjuntar imágenes y vídeos a las inspecciones.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Portal Familia usa el micrófono al grabar vídeos de las inspecciones.</string>
 </dict>
 </plist>
