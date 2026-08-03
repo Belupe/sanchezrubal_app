@@ -47,4 +47,15 @@ if [ "$PLATFORM" = "macos" ]; then
 fi
 flutter precache --"$PLATFORM"
 flutter pub get
-flutter build "$PLATFORM" --config-only --release
+
+# El número de build sale de `version: X.Y.Z+N` de pubspec.yaml y acaba en
+# CFBundleVersion vía $(FLUTTER_BUILD_NUMBER). Si se dejara así, TODAS las builds
+# de Xcode Cloud subirían con el mismo número y App Store Connect rechazaría la
+# segunda por duplicado. La opción de Xcode Cloud para incrementarlo no sirve,
+# porque el valor lo impone Flutter al generar el xcconfig.
+#
+# Solución: usar el número de ejecución de Xcode Cloud (CI_BUILD_NUMBER), que es
+# único y creciente. `${VAR:+...}` solo añade el argumento si la variable existe,
+# así que en local (donde no existe) manda pubspec.yaml y no cambia nada.
+flutter build "$PLATFORM" --config-only --release \
+  ${CI_BUILD_NUMBER:+--build-number="$CI_BUILD_NUMBER"}
