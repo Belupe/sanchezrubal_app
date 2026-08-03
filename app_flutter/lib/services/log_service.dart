@@ -183,7 +183,7 @@ class LogService {
   static void _linea(String nivel, String texto) {
     debugPrint('[$nivel] $texto');
     // La redacción la aplica _escribirCrudo a todo lo que pasa por el registro,
-    // que no haya ninguna ruta de escritura que se la salte.
+    // para que no haya ninguna ruta de escritura que se la salte.
     _escribirCrudo('${_ahora()}  $nivel  $texto\n');
   }
 
