@@ -26,18 +26,6 @@ que decide en qué distros arrancará la app (ver "Por qué Ubuntu 22.04" más a
 
 ## Compilar y publicar
 
-### Desde GitHub Actions (recomendado si trabajas desde un Mac)
-
-Pestaña **Actions** → workflow **build-linux** → **Run workflow**. Al terminar, en la
-ejecución, sección **Artifacts**, descarga **portal-familia-linux**: un `.zip` con el
-`.AppImage`, el `.deb`, el `.tar.gz` y el `version.json`.
-
-No sube nada al servidor; para publicarlo, copia su contenido a `UPDATES_DATA_DIR/linux/`.
-El workflow compila **dentro de la misma imagen Ubuntu 22.04** que se usa en local (ver más
-abajo por qué eso importa), así que el resultado es idéntico.
-
-### En local
-
 ```powershell
 ./scripts/release.ps1 -Bump        # Windows + Linux; o solo Linux:
 ./scripts/build-linux.ps1
@@ -54,8 +42,25 @@ portal-familia-<versión>-x86_64.tar.gz
 version.json                          (release.ps1 le estampa los SHA-256)
 ```
 
-`release.ps1` los publica en `UPDATES_DATA_DIR/linux/` y regenera la página de descargas. Si el
-servidor está en otra máquina, copia ahí el contenido de `dist/`.
+`release.ps1` los publica en `UPDATES_DATA_DIR/linux/` y regenera la página de descargas.
+
+Si compilas en otra máquina (por ejemplo una VM), sube esos cuatro ficheros por **SFTP** a la
+subcarpeta `linux/` de tu `UPDATES_DATA_DIR`:
+
+```bash
+sftp nach@192.168.8.214
+> cd /home/nach/sr/updates/linux
+> put portal-familia-x86_64.AppImage
+> put portal-familia_amd64.deb
+> put portal-familia-*-x86_64.tar.gz
+> put version.json          # ← el último, siempre
+```
+
+**El `version.json` va el último.** Si lo subes antes que los paquetes, durante unos segundos
+la app anunciará una versión cuyos ficheros aún no están completos y la descarga fallará a
+mitad. Comprueba también que quedan legibles (`chmod 644`): nginx los sirve en solo lectura.
+
+No hay que reiniciar ningún contenedor: el servicio `updates` sirve la carpeta en vivo.
 
 En una máquina que ya sea Linux puedes saltarte Docker y ejecutar `./scripts/build-linux.sh`
 directamente, siempre que tenga las dependencias que instala ese Dockerfile.

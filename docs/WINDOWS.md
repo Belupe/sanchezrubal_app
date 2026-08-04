@@ -6,38 +6,60 @@ auto-actualización igual que Android.
 
 ---
 
-## Compilar
+## Compilar y publicar
 
-### Opción A — GitHub Actions (recomendada si trabajas desde un Mac)
+Flutter **no compila Windows en cruzado**: el `.exe` no se puede generar desde macOS ni
+desde Linux. Hace falta una máquina con Windows — sirve una **máquina virtual**.
 
-Flutter **no compila Windows en cruzado**: no se puede generar el `.exe` desde macOS ni
-desde Linux. Por eso hay un workflow que lo hace en un runner de Windows y te deja el
-instalador para descargar.
+### 1. Requisitos en esa máquina Windows
 
-1. En GitHub, pestaña **Actions** → workflow **build-windows** → **Run workflow**.
-2. Cuando termine (unos minutos), entra en la ejecución y baja hasta **Artifacts**.
-3. Descarga **portal-familia-windows**. Es un `.zip` con el `setup.exe` y el `version.json`.
-
-No sube nada al servidor: solo te da el fichero. Para publicarlo, copia su contenido a
-`UPDATES_DATA_DIR/windows/` en el servidor.
-
-Usa exactamente el mismo [scripts/build-windows.ps1](../scripts/build-windows.ps1) que
-compilando en local, así que el resultado es idéntico.
-
-### Opción B — en tu propio PC con Windows
-
-Requisitos:
 - **Visual Studio** (Community o Build Tools) con el workload **"Desktop development with C++"**.
   VS Code **no** sirve para compilar; es un editor distinto.
 - **Inno Setup** (gratis): https://jrsoftware.org/isdl.php — aporta `ISCC.exe`.
+- El repositorio clonado y un `.env` con al menos `SUPABASE_URL`, `SUPABASE_ANON_KEY` y
+  `UPDATES_PUBLIC_URL` (son los únicos tres valores que se hornean en la app; ninguno es
+  secreto).
+
+### 2. Compilar
 
 ```powershell
 ./scripts/release.ps1 -Bump        # Windows + Linux; o solo Windows:
 ./scripts/build-windows.ps1
 ```
 
-Deja `dist/windows/portal-familia-setup.exe` + `version.json`. `release.ps1` además lo
-publica en `UPDATES_DATA_DIR/windows/`.
+Deja en `dist/windows/`:
+
+```
+portal-familia-setup.exe
+version.json
+```
+
+### 3. Subir al servidor por SFTP
+
+Los dos ficheros van a la subcarpeta `windows/` de tu `UPDATES_DATA_DIR`:
+
+```
+/home/nach/sr/updates/windows/portal-familia-setup.exe
+/home/nach/sr/updates/windows/version.json
+```
+
+Con cualquier cliente SFTP (FileZilla, Cyberduck, WinSCP) o por consola:
+
+```bash
+sftp nach@192.168.8.214
+> cd /home/nach/sr/updates/windows
+> put portal-familia-setup.exe
+> put version.json
+```
+
+**Sube el `.exe` primero y el `version.json` después.** Si lo haces al revés, durante unos
+segundos la app anunciará una versión cuyo instalador todavía no está completo, y la
+descarga fallará a mitad.
+
+Comprueba que los ficheros quedan legibles (`chmod 644` si tu cliente los sube con permisos
+raros): nginx los sirve en modo solo lectura y no puede arreglar un permiso mal puesto.
+
+No hay que reiniciar ningún contenedor: el servicio `updates` sirve la carpeta en vivo.
 
 ---
 
