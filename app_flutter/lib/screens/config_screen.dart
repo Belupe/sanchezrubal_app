@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/system_config.dart';
 import '../services/data_service.dart';
 import '../services/log_service.dart';
+import '../services/push_service.dart';
 import '../utils/errors.dart';
 
 class ConfigScreen extends StatefulWidget {
@@ -42,8 +43,10 @@ class _ConfigScreenState extends State<ConfigScreen> {
       });
     } catch (e) {
       setState(() {
-        _error =
-            friendlyError(e, fallback: 'No se pudo cargar la configuración.');
+        _error = friendlyError(
+          e,
+          fallback: 'No se pudo cargar la configuración.',
+        );
         _loading = false;
       });
     }
@@ -66,9 +69,11 @@ class _ConfigScreenState extends State<ConfigScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red)),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
                 const SizedBox(height: 16),
                 FilledButton.tonal(
                   onPressed: _init,
@@ -156,8 +161,10 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
       setState(() => _loading = false);
     } catch (e) {
       setState(() {
-        _error =
-            friendlyError(e, fallback: 'No se pudo cargar la configuración.');
+        _error = friendlyError(
+          e,
+          fallback: 'No se pudo cargar la configuración.',
+        );
         _loading = false;
       });
     }
@@ -167,7 +174,8 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpHost.text = cfg?.smtpHost ?? '';
     _smtpPort.text = cfg?.smtpPort?.toString() ?? '';
     _smtpUser.text = cfg?.smtpUser ?? '';
-    _smtpPass.text = ''; // [M-07] no se descarga; en blanco = conservar la guardada.
+    _smtpPass.text =
+        ''; // [M-07] no se descarga; en blanco = conservar la guardada.
     _smtpSecure = cfg?.smtpSecure ?? false;
     _maxDays.text = cfg?.maxReservationDays.toString() ?? '';
     _maxDaysCap.text = cfg?.maxReservationDaysCap.toString() ?? '';
@@ -182,13 +190,21 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     });
     try {
       final err = await DataService.testSmtp();
-      setState(() => _testResult = err == null
-          ? '✅ Correo de prueba enviado a tu correo.'
-          : friendlyError(err,
-              fallback: '❌ No se pudo enviar el correo de prueba.'));
+      setState(
+        () => _testResult = err == null
+            ? '✅ Correo de prueba enviado a tu correo.'
+            : friendlyError(
+                err,
+                fallback: '❌ No se pudo enviar el correo de prueba.',
+              ),
+      );
     } catch (e) {
-      setState(() => _testResult = friendlyError(e,
-          fallback: '❌ No se pudo enviar el correo de prueba.'));
+      setState(
+        () => _testResult = friendlyError(
+          e,
+          fallback: '❌ No se pudo enviar el correo de prueba.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _testing = false);
     }
@@ -214,13 +230,17 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
       return;
     }
     if (days == null || days < 1) {
-      setState(() =>
-          _error = 'Los días mínimos de reserva deben ser un número mayor o igual a 1.');
+      setState(
+        () => _error =
+            'Los días mínimos de reserva deben ser un número mayor o igual a 1.',
+      );
       return;
     }
     if (daysCap == null || daysCap < days) {
-      setState(() => _error =
-          'Los días máximos de reserva deben ser un número mayor o igual al mínimo.');
+      setState(
+        () => _error =
+            'Los días máximos de reserva deben ser un número mayor o igual al mínimo.',
+      );
       return;
     }
     setState(() {
@@ -242,13 +262,14 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         await DataService.setSmtpPassword(_smtpPass.text);
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Configuración guardada')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Configuración guardada')));
       }
     } catch (e) {
-      setState(() =>
-          _error = friendlyError(e, fallback: 'No se pudo guardar.'));
+      setState(
+        () => _error = friendlyError(e, fallback: 'No se pudo guardar.'),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -268,23 +289,24 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('General',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text('General', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _maxDays,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                      labelText: 'Días mínimos de reserva',
-                      border: OutlineInputBorder()),
+                    labelText: 'Días mínimos de reserva',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _maxDaysCap,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                      labelText: 'Días máximos de reserva',
-                      border: OutlineInputBorder()),
+                    labelText: 'Días máximos de reserva',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ],
             ),
@@ -302,28 +324,35 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
                 TextField(
                   controller: _smtpHost,
                   decoration: const InputDecoration(
-                      labelText: 'Servidor (host)',
-                      border: OutlineInputBorder()),
+                    labelText: 'Servidor (host)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _smtpPort,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                      labelText: 'Puerto', border: OutlineInputBorder()),
+                    labelText: 'Puerto',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _smtpUser,
                   decoration: const InputDecoration(
-                      labelText: 'Usuario', border: OutlineInputBorder()),
+                    labelText: 'Usuario',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _smtpPass,
                   obscureText: true,
                   decoration: const InputDecoration(
-                      labelText: 'Contraseña', border: OutlineInputBorder()),
+                    labelText: 'Contraseña',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 4),
                 SwitchListTile(
@@ -333,8 +362,10 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
                   onChanged: (v) => setState(() => _smtpSecure = v),
                 ),
                 const Divider(height: 24),
-                Text('Probar envío',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Probar envío',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 8),
                 const Text(
                   'Se enviará un correo de prueba a TU propio correo, usando la '
@@ -353,7 +384,8 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
                         ? const SizedBox(
                             height: 16,
                             width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.send),
                     label: const Text('Enviar correo de prueba'),
                   ),
@@ -375,7 +407,8 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Guardar'),
           ),
         ),
@@ -418,8 +451,10 @@ class _TemplatesTabState extends State<_TemplatesTab> {
       });
     } catch (e) {
       setState(() {
-        _error =
-            friendlyError(e, fallback: 'No se pudieron cargar las plantillas.');
+        _error = friendlyError(
+          e,
+          fallback: 'No se pudieron cargar las plantillas.',
+        );
         _loading = false;
       });
     }
@@ -437,12 +472,16 @@ class _TemplatesTabState extends State<_TemplatesTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red)),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
               const SizedBox(height: 16),
               FilledButton.tonal(
-                  onPressed: _load, child: const Text('Reintentar')),
+                onPressed: _load,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         ),
@@ -483,10 +522,12 @@ class _TemplateCard extends StatefulWidget {
 }
 
 class _TemplateCardState extends State<_TemplateCard> {
-  late final TextEditingController _subject =
-      TextEditingController(text: widget.subject);
-  late final TextEditingController _body =
-      TextEditingController(text: widget.body);
+  late final TextEditingController _subject = TextEditingController(
+    text: widget.subject,
+  );
+  late final TextEditingController _body = TextEditingController(
+    text: widget.body,
+  );
   bool _saving = false;
   String? _error;
 
@@ -525,12 +566,15 @@ class _TemplateCardState extends State<_TemplateCard> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Plantilla "${_label(widget.type)}" guardada')),
+          SnackBar(
+            content: Text('Plantilla "${_label(widget.type)}" guardada'),
+          ),
         );
       }
     } catch (e) {
-      setState(() =>
-          _error = friendlyError(e, fallback: 'No se pudo guardar.'));
+      setState(
+        () => _error = friendlyError(e, fallback: 'No se pudo guardar.'),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -544,17 +588,23 @@ class _TemplateCardState extends State<_TemplateCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(_label(widget.type),
-                style: Theme.of(context).textTheme.titleMedium),
-            Text(widget.type,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    )),
+            Text(
+              _label(widget.type),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(
+              widget.type,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _subject,
               decoration: const InputDecoration(
-                  labelText: 'Asunto', border: OutlineInputBorder()),
+                labelText: 'Asunto',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -581,7 +631,8 @@ class _TemplateCardState extends State<_TemplateCard> {
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2))
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Text('Guardar'),
               ),
             ),
@@ -626,9 +677,9 @@ class _NotificationsTabState extends State<_NotificationsTab> {
     try {
       final rows = await DataService.myNotificationSettings();
       final existing = rows.cast<Map<String, dynamic>?>().firstWhere(
-            (r) => r?['type'] == _type,
-            orElse: () => null,
-          );
+        (r) => r?['type'] == _type,
+        orElse: () => null,
+      );
       setState(() {
         _isActive = (existing?['is_active'] as bool?) ?? true;
         _customText.text = (existing?['custom_text'] as String?) ?? '';
@@ -636,8 +687,10 @@ class _NotificationsTabState extends State<_NotificationsTab> {
       });
     } catch (e) {
       setState(() {
-        _error = friendlyError(e,
-            fallback: 'No se pudieron cargar tus notificaciones.');
+        _error = friendlyError(
+          e,
+          fallback: 'No se pudieron cargar tus notificaciones.',
+        );
         _loading = false;
       });
     }
@@ -668,8 +721,9 @@ class _NotificationsTabState extends State<_NotificationsTab> {
         );
       }
     } catch (e) {
-      setState(() =>
-          _error = friendlyError(e, fallback: 'No se pudo guardar.'));
+      setState(
+        () => _error = friendlyError(e, fallback: 'No se pudo guardar.'),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -687,12 +741,16 @@ class _NotificationsTabState extends State<_NotificationsTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red)),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
               const SizedBox(height: 16),
               FilledButton.tonal(
-                  onPressed: _load, child: const Text('Reintentar')),
+                onPressed: _load,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         ),
@@ -707,14 +765,17 @@ class _NotificationsTabState extends State<_NotificationsTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Mis notificaciones',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Mis notificaciones',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 4),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Recordatorio previo a la estancia'),
                   subtitle: const Text(
-                      'Recibe un aviso antes de tu reserva (PRE_STAY).'),
+                    'Recibe un aviso antes de tu reserva (PRE_STAY).',
+                  ),
                   value: _isActive,
                   onChanged: (v) => setState(() => _isActive = v),
                 ),
@@ -744,7 +805,8 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Guardar'),
           ),
         ),
@@ -796,14 +858,26 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
     );
   }
 
+  /// Envía el informe del último fallo si lo hay y, si no, el registro de la
+  /// sesión en curso. Antes solo se podía enviar cuando la app se había
+  /// cerrado sola, que es justo cuando MENOS falta hace: los fallos que se
+  /// tragan (push, red, permisos) no cierran la app y eran imposibles de
+  /// diagnosticar en un móvil.
   Future<void> _compartirInforme() async {
-    final f = LogService.ultimoFallo;
+    final f = LogService.ultimoFallo ?? LogService.sesionActual;
     if (f == null) return;
-    await SharePlus.instance.share(ShareParams(
-      files: [XFile(f.path)],
-      subject: 'Portal Familia — informe de fallo',
-      text: 'Informe del último fallo de Portal Familia.',
-    ));
+    final esFallo = LogService.ultimoFallo != null;
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(f.path)],
+        subject: esFallo
+            ? 'Portal Familia — informe de fallo'
+            : 'Portal Familia — registro de sesión',
+        text: esFallo
+            ? 'Informe del último fallo de Portal Familia.'
+            : 'Registro de la sesión en curso de Portal Familia.',
+      ),
+    );
   }
 
   @override
@@ -832,12 +906,20 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
                   : 'Hay un informe del ${_fecha(fallo.lastModifiedSync())}.',
               style: theme.textTheme.bodyMedium,
             ),
+            const SizedBox(height: 8),
+            // Estado de las notificaciones: un fallo de push no cierra la app,
+            // así que sin esto no hay forma de saber por qué no llegan.
+            SelectableText(
+              'Notificaciones — ${PushService.estado}',
+              style: theme.textTheme.bodySmall,
+            ),
             if (_esEscritorio) ...[
               const SizedBox(height: 12),
               SelectableText(
                 LogService.rutaCarpeta,
-                style:
-                    theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                ),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
@@ -848,9 +930,15 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
             ] else ...[
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: fallo == null ? null : _compartirInforme,
+                // Siempre habilitado: si no hay fallo, envía el registro de la
+                // sesión, que es el único rastro de los errores silenciosos.
+                onPressed: _compartirInforme,
                 icon: const Icon(Icons.ios_share),
-                label: const Text('Enviar informe del último fallo'),
+                label: Text(
+                  fallo == null
+                      ? 'Enviar registro de la sesión'
+                      : 'Enviar informe del último fallo',
+                ),
               ),
             ],
           ],

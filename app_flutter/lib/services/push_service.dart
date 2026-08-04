@@ -27,10 +27,17 @@ class PushService {
   /// Es defensivo: solo en Android/iOS, y si Firebase aún no está configurado
   /// (faltan google-services.json / GoogleService-Info.plist) se desactiva sin
   /// romper la app. Requiere `flutterfire configure` y la config nativa.
+  /// Qué pasó en el último [init], para enseñarlo en Configuración →
+  /// Diagnóstico. Sin esto, un fallo de push es invisible: la app sigue
+  /// funcionando y el error solo quedaba en un registro que en móvil no se
+  /// podía sacar.
+  static String estado = 'Sin iniciar.';
+
   static Future<void> init() async {
     if (kIsWeb) return;
     if (defaultTargetPlatform != TargetPlatform.android &&
         defaultTargetPlatform != TargetPlatform.iOS) {
+      estado = 'No aplica en esta plataforma.';
       return; // Windows/macOS/Linux: sin push nativo.
     }
     final esIOS = defaultTargetPlatform == TargetPlatform.iOS;
@@ -38,7 +45,8 @@ class PushService {
     try {
       await Firebase.initializeApp();
       final messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission();
+      final permiso = await messaging.requestPermission();
+      estado = 'Permiso: ${permiso.authorizationStatus.name}. Pidiendo token…';
 
       // El listener se registra ANTES de pedir el token, no después: si
       // getToken() falla, esta suscripción es la única vía por la que el token
@@ -58,20 +66,29 @@ class PushService {
         }
         if (apns == null) {
           // No es fatal: si APNs responde más tarde, onTokenRefresh lo recoge.
-          LogService.evento(
-            'Push: APNs no entregó su token en 10 s; se espera a onTokenRefresh.',
-          );
+          estado =
+              'APNs no entregó su token en 10 s. Revisa que el dispositivo '
+              'tenga red y que las notificaciones estén permitidas.';
+          LogService.evento('Push: $estado');
           return;
         }
       }
 
       final token = await messaging.getToken();
-      if (token != null) await saveToken(token, platform: platform);
+      if (token == null) {
+        estado = 'FCM no devolvió token (getToken() = null).';
+        LogService.evento('Push: $estado');
+        return;
+      }
+      await saveToken(token, platform: platform);
+      estado = 'Activo. Token registrado (${token.substring(0, 12)}…).';
+      LogService.evento('Push: activo, token registrado.');
     } catch (e, t) {
       // Deja rastro en el registro de diagnóstico: antes solo iba a debugPrint,
       // que no se ve en una build de release, y cualquier fallo se leía como
       // "Firebase no configurado" aunque fuese otra cosa. Push desactivado no
       // bloquea la app.
+      estado = 'Error: $e';
       LogService.error(e, t, 'PushService.init');
     }
   }

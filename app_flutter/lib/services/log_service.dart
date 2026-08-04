@@ -53,6 +53,14 @@ class LogService {
   /// Ruta de la carpeta `Logs/` para enseñarla en Configuración.
   static String get rutaCarpeta => _dir?.path ?? '(no disponible)';
 
+  /// El registro de la sesión EN CURSO, exista o no un fallo. Hace falta para
+  /// poder enviarlo cuando algo va mal sin que la app se cierre: en ese caso
+  /// [ultimoFallo] es null y el registro de sesión es el único rastro.
+  static File? get sesionActual {
+    final f = _sesion;
+    return (f != null && f.existsSync()) ? f : null;
+  }
+
   /// El informe del último fallo, o null si no hay ninguno.
   static File? get ultimoFallo {
     final d = _dir;
