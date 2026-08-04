@@ -49,7 +49,8 @@ compose.yaml       ← Docker: minio + updates  (docker compose up -d)
 app_flutter/       ← la app (android/ · ios/ · linux/ · macos/ · windows/ · lib/ · test/)
 supabase/          ← migraciones (0001–0021) + Edge Functions (media-sign · send-email ·
                      admin-users · test-smtp · send-push · notify-waitlist)
-server/            ← soporte del servidor:  nginx/ · cloudflared/ · updates/ (plantillas)
+server/            ← soporte del servidor:  cloudflared/ · updates/ (plantillas) ·
+                     media-scrub/ (fuente de la imagen que publica GitHub Actions)
 scripts/           ← release.ps1 · build-aab.ps1 · build-windows.ps1 · build-linux.ps1|.sh ·
                      linux-build.Dockerfile · linux/instalar.sh · push-supabase-secrets.*
 docs/              ← DESPLIEGUE.md · GOOGLE.md · APPLE.md · WINDOWS.md · LINUX.md · ANDROID.md ·
@@ -74,7 +75,7 @@ ejecución, **3 adaptadores** lo reparten (sin filtrar secretos al cliente):
 ## Puesta en marcha del servidor (una vez)
 
 1. **Instala Docker** (Docker Desktop en Windows/Mac, o Docker Engine en Linux): https://docs.docker.com/get-docker/
-2. `cp .env.example .env` y rellena las líneas marcadas con ⬅️ CAMBIA (rutas de almacenamiento,
+2. `cp .env.example .env` y rellena las líneas marcadas con CAMBIA (rutas de almacenamiento,
    contraseña de MinIO, subdominios).
 3. `docker compose up -d` → levanta **MinIO** (media) y **updates** (instaladores).
 4. **cloudflared** (en el host) para publicar `media.` y `app.`: ver
