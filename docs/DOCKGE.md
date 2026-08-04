@@ -4,12 +4,25 @@ Guía para levantar el stack de Portal Familia usando [Dockge](https://github.co
 en vez de `docker compose` a mano. Complementa a [DESPLIEGUE.md](DESPLIEGUE.md), que es donde se
 explica **qué significa cada variable del `.env`**; aquí solo está lo específico de Dockge y Ubuntu.
 
-**El [`compose.yaml`](../compose.yaml) es autosuficiente:** no hay que copiar ningún fichero al
-servidor. Todas las imágenes se descargan (`media-scrub` la publica GitHub Actions en GHCR) y la
-config de nginx va incrustada en el propio compose. Se pega en el editor de Dockge y funciona.
+**Ninguna imagen se construye en el servidor:** todas se descargan (`media-scrub` la publica
+GitHub Actions en GHCR). Junto al `compose.yaml` solo hacen falta dos ficheros:
 
-> **Requisito:** Docker Compose **v2.23 o superior** (el compose usa `configs` con `content:`).
-> Compruébalo con `docker compose version`. Cualquier instalación reciente de `docker-ce` lo cumple.
+```
+~/stacks/portal-familia/
+├── compose.yaml
+├── .env
+└── server/nginx/updates.conf
+```
+
+> **Por qué esa config no va dentro del compose.** Se intentó incrustarla con
+> `configs: content:` para poder pegar el stack de una pieza, y Docker Compose lo rechaza:
+> ```
+> cannot create config "portal-familia_updates_nginx" in read-only service updates:
+> `file` is the sole supported option
+> ```
+> No sabe inyectar un config con contenido en un servicio con `read_only: true`
+> ([docker/compose#12031](https://github.com/docker/compose/issues/12031)). Entre quitar el
+> `read_only` —endurecimiento puesto a propósito— y montar un fichero, se monta el fichero.
 
 ---
 
@@ -52,10 +65,19 @@ Panel en `http://IP_DEL_SERVIDOR:5001`.
 
 En Dockge: **+ Compose** → nombre `portal-familia` → pega el contenido de
 [`compose.yaml`](../compose.yaml) en el editor → pega tu `.env` en la pestaña de variables de
-entorno. Nada más.
+entorno.
 
-Dockge lo guardará en `~/stacks/portal-familia/`. No hace falta clonar el repositorio en el
-servidor ni copiar carpetas.
+Dockge lo guarda en `~/stacks/portal-familia/`. Falta llevar ahí el `updates.conf`, que Dockge
+no puede crear desde su editor. Por SFTP, o desde el propio servidor:
+
+```bash
+mkdir -p ~/stacks/portal-familia/server/nginx
+curl -fsSL -o ~/stacks/portal-familia/server/nginx/updates.conf \
+  https://raw.githubusercontent.com/Belupe/sanchezrubal_app/main/server/nginx/updates.conf
+```
+
+Si no está, el contenedor `updates` arranca con la configuración por defecto de nginx: la
+página de descargas no se sirve bien y los instaladores no fuerzan la descarga.
 
 ---
 

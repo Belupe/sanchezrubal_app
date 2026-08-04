@@ -1,9 +1,15 @@
 # =====================================================================
 #  Portal Familia — servidor Docker (media + actualizaciones)
 # =====================================================================
-#  AUTOSUFICIENTE: no depende de ningún fichero de al lado salvo el .env. Todas
-#  las imágenes se descargan (ninguna se construye aquí) y la config de nginx va
-#  incrustada al final. Por eso se puede pegar tal cual en Dockge o Portainer.
+#  Ninguna imagen se construye aquí: todas se descargan (media-scrub la publica
+#  GitHub Actions en GHCR). Junto a este fichero hacen falta SOLO dos cosas:
+#      .env                        (copiado de .env.example y rellenado)
+#      server/nginx/updates.conf   (config del servicio updates)
+#
+#  Esa config va como fichero montado y NO incrustada con `configs: content:`,
+#  porque Docker Compose no sabe inyectar un config con contenido en un servicio
+#  con read_only: true (docker/compose#12031). Ver la nota en el servicio.
+#
 #      cp .env.example .env   &&   edítalo   &&   docker compose up -d
 #  Con Dockge: ver docs/DOCKGE.md.
 #
@@ -137,8 +143,8 @@ services:
   # limpiado ocurre justo después, de forma asíncrona).
   media-scrub:
     # Imagen ya construida y publicada en GHCR por .github/workflows/media-scrub.yml.
-    # NO lleva `build:` a propósito: así el servidor solo descarga y este fichero
-    # se puede pegar entero en Dockge sin copiar nada más.
+    # NO lleva `build:` a propósito: el servidor solo descarga, no compila, así
+    # que no hace falta copiarle el Dockerfile ni el scrub.sh.
     image: ${MEDIA_SCRUB_IMAGE:-ghcr.io/belupe/media-scrub:latest}
     container_name: pf_media_scrub
     restart: unless-stopped
@@ -195,12 +201,12 @@ services:
         condition: service_completed_successfully
     volumes:
       - ${UPDATES_DATA_DIR}:/usr/share/nginx/html:ro
-    configs:
-      # La config va incrustada al final de este fichero (no es un fichero
-      # aparte) para que el stack se pueda pegar entero en Dockge.
-      - source: updates_nginx
-        target: /etc/nginx/conf.d/default.conf
-        mode: 0444
+      # La config va como fichero montado y NO incrustada con `configs: content:`.
+      # Docker Compose no sabe inyectar un config con contenido en un servicio
+      # con read_only: true — falla con "cannot create config ... in read-only
+      # service updates: `file` is the sole supported option" (docker/compose
+      # #12031). Solo admite montarlo, que es justo lo que hace esta línea.
+      - ./server/nginx/updates.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "${BIND_HOST:-127.0.0.1}:${UPDATES_PORT:-8090}:80"
     deploy:
@@ -216,65 +222,3 @@ services:
     #   puerto privilegiado ni cambia de uid). Como eso modifica la config y el mapeo
     #   de puerto interno, queda como paso 2 aparte.
 
-# =====================================================================
-#  Config de nginx del servicio `updates`, incrustada
-# =====================================================================
-#  Va aquí dentro (y no en un fichero aparte) para que este compose.yaml sea
-#  autosuficiente: se pega en Dockge y funciona, sin copiar nada al servidor.
-#
-#  OJO AL EDITARLA: Compose interpola las variables, así que **cada `$` de la
-#  config de nginx va escrito `$$`**. Es decir, `$$uri` llega a nginx como
-#  `$uri`, y `\.apk$$` como `\.apk$`. Si escribes un solo `$`, Compose se lo
-#  come y nginx recibe una directiva rota.
-#
-#  Requiere Docker Compose v2.23 o superior (`configs` con `content:`).
-#  Comprueba con: docker compose version
-#
-#  OJO con add_header: dentro de un `location` REEMPLAZA el conjunto heredado
-#  del bloque `server`, no lo amplía. Por eso cada location que añade cabeceras
-#  repite también X-Content-Type-Options.
-# =====================================================================
-configs:
-  updates_nginx:
-    content: |
-      server {
-          listen 80;
-          server_name _;
-
-          root /usr/share/nginx/html;
-          index index.html;
-          autoindex off;
-
-          # version.json de cualquier plataforma: NO cachear (detectar al momento).
-          location ~* /version\.json$$ {
-              add_header Cache-Control "no-cache, no-store, must-revalidate" always;
-              default_type application/json;
-          }
-
-          # NO hay bloque para .apk a propósito: Android se distribuye por Google
-          # Play y el actualizador solo define los canales windows y linux
-          # (ver UpdateChannel en lib/services/update_service.dart).
-
-          # Instalador de Windows: forzar descarga.
-          location ~* \.exe$$ {
-              default_type application/octet-stream;
-              add_header Content-Disposition "attachment" always;
-              add_header Cache-Control "no-cache" always;
-              add_header X-Content-Type-Options "nosniff" always;
-          }
-
-          # Paquetes de Linux: forzar descarga. La regex ~* no distingue mayúsculas,
-          # así que la de appimage cubre también el .AppImage real.
-          location ~* \.(appimage|deb|tar\.gz)$$ {
-              default_type application/octet-stream;
-              add_header Content-Disposition "attachment" always;
-              add_header Cache-Control "no-cache" always;
-              add_header X-Content-Type-Options "nosniff" always;
-          }
-
-          location / {
-              try_files $$uri $$uri/ =404;
-          }
-
-          add_header X-Content-Type-Options "nosniff" always;
-      }
