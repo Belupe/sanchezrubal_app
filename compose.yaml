@@ -251,13 +251,9 @@ configs:
               default_type application/json;
           }
 
-          # APK de Android: MIME correcto + forzar descarga.
-          location ~* \.apk$$ {
-              default_type application/vnd.android.package-archive;
-              add_header Content-Disposition "attachment" always;
-              add_header Cache-Control "no-cache" always;
-              add_header X-Content-Type-Options "nosniff" always;
-          }
+          # NO hay bloque para .apk a propósito: Android se distribuye por Google
+          # Play y el actualizador solo define los canales windows y linux
+          # (ver UpdateChannel en lib/services/update_service.dart).
 
           # Instalador de Windows: forzar descarga.
           location ~* \.exe$$ {
