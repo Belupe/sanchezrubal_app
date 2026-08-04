@@ -1,0 +1,72 @@
+# =====================================================================
+#  Compila la app de Windows y deja el instalador como artefacto
+# =====================================================================
+#  Pensado para desarrollar desde un Mac: Flutter no compila Windows en
+#  cruzado, así que lo hace un runner de Windows y tú te descargas el
+#  .exe desde la pestaña Actions. No sube nada al servidor.
+#
+#  Se lanza A MANO: Actions -> build-windows -> Run workflow.
+#
+#  Reutiliza scripts/build-windows.ps1 tal cual (mismo instalador y mismo
+#  version.json que compilando en local), así que no hay dos verdades.
+# =====================================================================
+name: build-windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest      # trae Visual Studio 2022 con el workload de C++
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Flutter se instala clonando el tag, igual que
+      # app_flutter/ci_scripts/flutter_ci_bootstrap.sh, para que CI == local.
+      # No se usa una acción de terceros: las que hay declaran Node 20 y
+      # reintroducirían el aviso de obsolescencia.
+      - name: Instalar Flutter 3.44.6
+        shell: pwsh
+        run: |
+          git clone https://github.com/flutter/flutter.git --depth 1 -b 3.44.6 "$env:RUNNER_TEMP\flutter"
+          "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Preparar Flutter
+        shell: pwsh
+        run: |
+          flutter --version
+          flutter config --no-analytics --enable-windows-desktop
+
+      # ISCC.exe, que es lo que build-windows.ps1 busca para empaquetar.
+      - name: Instalar Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      # build-windows.ps1 lee el .env para hornear los 4 valores PÚBLICOS con
+      # --dart-define. El .env real no está en el repo (ni debe estarlo), así
+      # que aquí se reconstruye solo con esos cuatro. Ninguno es secreto: la
+      # anon key la protege el RLS y las URLs son públicas por definición.
+      # Se pueden sobrescribir en Settings -> Secrets and variables -> Actions
+      # -> Variables, sin tocar este fichero.
+      - name: Generar el .env con los valores públicos
+        shell: pwsh
+        run: |
+          @"
+          SUPABASE_URL=${{ vars.SUPABASE_URL || 'https://pjceyplciujtrnxptwbx.supabase.co' }}
+          SUPABASE_ANON_KEY=${{ vars.SUPABASE_ANON_KEY || 'sb_publishable_3pBEywFkB05ysg4MB_AeJw_JU7InPa7' }}
+          MEDIA_PUBLIC_URL=${{ vars.MEDIA_PUBLIC_URL || 'https://media.sanchezrubal.net' }}
+          UPDATES_PUBLIC_URL=${{ vars.UPDATES_PUBLIC_URL || 'https://app.sanchezrubal.net' }}
+          "@ | Set-Content -Path .env -Encoding utf8
+
+      - name: Compilar y empaquetar
+        shell: pwsh
+        run: .\scripts\build-windows.ps1
+
+      # Queda en la pestaña Actions, en la ejecución, sección Artifacts.
+      # Se descarga como .zip; dentro van el setup.exe y el version.json.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: portal-familia-windows
+          path: dist/windows/
+          if-no-files-found: error

@@ -1,0 +1,80 @@
+# =====================================================================
+#  Compila la app de Linux (AppImage + .deb + .tar.gz) como artefacto
+# =====================================================================
+#  Pensado para desarrollar desde un Mac: te descargas los paquetes desde
+#  la pestaña Actions. No sube nada al servidor.
+#
+#  Se lanza A MANO: Actions -> build-linux -> Run workflow.
+#
+#  OJO — NO se compila directamente sobre ubuntu-latest a propósito.
+#  Se hace DENTRO de scripts/linux-build.Dockerfile (Ubuntu 22.04) por las
+#  dos razones que ese fichero documenta:
+#    1. glibc es compatible hacia atrás pero NO hacia adelante: compilar
+#       contra una glibc nueva rompe la app en distros más viejas.
+#    2. Ubuntu 24.04 (que es lo que hoy es ubuntu-latest) renombró paquetes
+#       por la transición a time_t de 64 bits, y dpkg-shlibdeps deduciría
+#       dependencias libgtk-3-0t64 y compañía, que no existen en Ubuntu
+#       22.04 ni en Debian 12: el .deb sería ininstalable ahí.
+#  El runner solo aporta Docker. Todo lo demás sale de esa imagen.
+# =====================================================================
+name: build-linux
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Se construye la imagen de Ubuntu 22.04 con Flutter 3.44.6 dentro.
+      # load: true la deja disponible en el daemon local para el docker run.
+      # La caché de Actions evita reinstalar Flutter en cada ejecución.
+      - name: Construir la imagen de compilación (Ubuntu 22.04)
+        uses: docker/build-push-action@v7
+        with:
+          context: scripts
+          file: scripts/linux-build.Dockerfile
+          tags: portal-familia/linux-build:3.44.6
+          load: true
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # build-linux.sh lee el .env para hornear los 4 valores PÚBLICOS con
+      # --dart-define. Ninguno es secreto (la anon key la protege el RLS).
+      # Se pueden sobrescribir en Settings -> Secrets and variables -> Actions
+      # -> Variables, sin tocar este fichero.
+      - name: Generar el .env con los valores públicos
+        run: |
+          cat > .env <<'EOF'
+          SUPABASE_URL=${{ vars.SUPABASE_URL || 'https://pjceyplciujtrnxptwbx.supabase.co' }}
+          SUPABASE_ANON_KEY=${{ vars.SUPABASE_ANON_KEY || 'sb_publishable_3pBEywFkB05ysg4MB_AeJw_JU7InPa7' }}
+          MEDIA_PUBLIC_URL=${{ vars.MEDIA_PUBLIC_URL || 'https://media.sanchezrubal.net' }}
+          UPDATES_PUBLIC_URL=${{ vars.UPDATES_PUBLIC_URL || 'https://app.sanchezrubal.net' }}
+          EOF
+
+      # appimagetool es a su vez un AppImage y necesitaría /dev/fuse; la imagen
+      # ya trae APPIMAGE_EXTRACT_AND_RUN=1, así que funciona sin privilegios.
+      - name: Compilar y empaquetar
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src \
+            portal-familia/linux-build:3.44.6 \
+            bash scripts/build-linux.sh
+
+      # El contenedor escribe como root; se devuelve la propiedad al runner
+      # para que el paso de subida pueda leer los ficheros.
+      - name: Ajustar permisos de la salida
+        run: sudo chown -R "$USER" dist/
+
+      # Queda en la pestaña Actions, en la ejecución, sección Artifacts.
+      # Dentro van el .AppImage, el .deb, el .tar.gz y el version.json.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: portal-familia-linux
+          path: dist/linux/
+          if-no-files-found: error

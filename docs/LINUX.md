@@ -26,6 +26,18 @@ que decide en qué distros arrancará la app (ver "Por qué Ubuntu 22.04" más a
 
 ## Compilar y publicar
 
+### Desde GitHub Actions (recomendado si trabajas desde un Mac)
+
+Pestaña **Actions** → workflow **build-linux** → **Run workflow**. Al terminar, en la
+ejecución, sección **Artifacts**, descarga **portal-familia-linux**: un `.zip` con el
+`.AppImage`, el `.deb`, el `.tar.gz` y el `version.json`.
+
+No sube nada al servidor; para publicarlo, copia su contenido a `UPDATES_DATA_DIR/linux/`.
+El workflow compila **dentro de la misma imagen Ubuntu 22.04** que se usa en local (ver más
+abajo por qué eso importa), así que el resultado es idéntico.
+
+### En local
+
 ```powershell
 ./scripts/release.ps1 -Bump        # Windows + Linux; o solo Linux:
 ./scripts/build-linux.ps1
