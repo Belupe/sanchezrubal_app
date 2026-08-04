@@ -1,37 +1,7 @@
 # =====================================================================
 #  Portal Familia — servidor Docker (media + actualizaciones)
 # =====================================================================
-#  Ninguna imagen se construye aquí: todas se descargan (media-scrub la publica
-#  GitHub Actions en GHCR). Junto a este fichero hacen falta SOLO dos cosas:
-#      .env                        (copiado de .env.example y rellenado)
-#      server/nginx/updates.conf   (config del servicio updates)
-#
-#  Esa config va como fichero montado y NO incrustada con `configs: content:`,
-#  porque Docker Compose no sabe inyectar un config con contenido en un servicio
-#  con read_only: true (docker/compose#12031). Ver la nota en el servicio.
-#
-#      cp .env.example .env   &&   edítalo   &&   docker compose up -d
-#  Con Dockge: ver docs/DOCKGE.md.
-#
-#  Servicios:
-#   - preflight:     valida el .env ANTES de arrancar nada (aborta si hay
-#                    credenciales con placeholder). [B-10]
-#   - minio:         almacén S3 self-hosted de fotos/vídeo (en MEDIA_DATA_DIR).
-#   - createbuckets: crea el bucket privado al arrancar.
-#   - media-scrub:   worker que quita metadatos (EXIF/GPS) de los vídeos. [2L-12]
-#   - updates:       nginx que sirve los instaladores + version.json para que
-#                    Windows y Linux se auto-actualicen (en UPDATES_DATA_DIR).
-#
-#  La BD/Auth/API están en Supabase Cloud (no aquí). El túnel cloudflared
-#  corre en el HOST: ver server/cloudflared/config.example.yml.
-#
-#  Endurecimiento [B-14]: los servicios corren no-root donde se puede, con
-#  cap_drop:[ALL], read_only + tmpfs, no-new-privileges, límites de memoria/CPU
-#  e imágenes fijables por digest (MINIO_IMAGE/MC_IMAGE/NGINX_IMAGE en .env).
-# =====================================================================
-
-name: portal-familia
-
+name: sr
 services:
   # Valida el .env ANTES de arrancar nada: si alguna credencial sigue con su
   # placeholder o está vacía, ABORTA el `docker compose up` entero. [B-10]
