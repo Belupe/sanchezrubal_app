@@ -1,7 +1,12 @@
 name: portal_familia
 description: "Portal Familia — gestión de casas familiares (web + móvil)."
 publish_to: "none"
-version: 1.0.0+3
+# Versión visible: VERSIÓN.BUILD.TEST. El último dígito llega hasta 9 y al
+# siguiente se resetea subiendo el del medio (1.2.9 -> 1.3.0).
+# El número tras el '+' es OTRA cosa: el contador interno de Apple
+# (CFBundleVersion). Solo puede subir y nunca repetirse, así que no sigue el
+# esquema de arriba — si retrocediera, App Store Connect rechazaría la subida.
+version: 1.2.4+4
 
 environment:
   # [2I-08] Alineado con lo que exige el pubspec.lock (Dart >=3.12).
