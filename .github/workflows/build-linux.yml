@@ -54,7 +54,6 @@ jobs:
           cat > .env <<'EOF'
           SUPABASE_URL=${{ vars.SUPABASE_URL || 'https://pjceyplciujtrnxptwbx.supabase.co' }}
           SUPABASE_ANON_KEY=${{ vars.SUPABASE_ANON_KEY || 'sb_publishable_3pBEywFkB05ysg4MB_AeJw_JU7InPa7' }}
-          MEDIA_PUBLIC_URL=${{ vars.MEDIA_PUBLIC_URL || 'https://media.sanchezrubal.net' }}
           UPDATES_PUBLIC_URL=${{ vars.UPDATES_PUBLIC_URL || 'https://app.sanchezrubal.net' }}
           EOF
 

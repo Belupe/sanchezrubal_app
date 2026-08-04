@@ -45,7 +45,9 @@ leer_env() {   # leer_env CLAVE  ->  valor por stdout
 }
 
 DEFINES=()
-for K in SUPABASE_URL SUPABASE_ANON_KEY MEDIA_PUBLIC_URL UPDATES_PUBLIC_URL; do
+# MEDIA_PUBLIC_URL no se hornea: el cliente no lo usa (las URLs de las fotos
+# las firma la Edge Function media-sign). Sigue haciendo falta en el servidor.
+for K in SUPABASE_URL SUPABASE_ANON_KEY UPDATES_PUBLIC_URL; do
   V="$(leer_env "$K")"
   [ -n "$V" ] && DEFINES+=("--dart-define=$K=$V")
 done
