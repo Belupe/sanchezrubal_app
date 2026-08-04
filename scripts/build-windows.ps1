@@ -27,7 +27,9 @@ function Read-DotEnv($path) {
 
 $envv = Read-DotEnv $envFile
 $defines = @()
-foreach ($k in 'SUPABASE_URL','SUPABASE_ANON_KEY','MEDIA_PUBLIC_URL','UPDATES_PUBLIC_URL') {
+# MEDIA_PUBLIC_URL no se hornea: el cliente no lo usa (las URLs de las fotos
+# las firma la Edge Function media-sign). Sigue haciendo falta en el servidor.
+foreach ($k in 'SUPABASE_URL','SUPABASE_ANON_KEY','UPDATES_PUBLIC_URL') {
   if ($envv[$k]) { $defines += "--dart-define=$k=$($envv[$k])" }
 }
 

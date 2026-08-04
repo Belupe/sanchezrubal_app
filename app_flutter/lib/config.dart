@@ -12,12 +12,11 @@ class AppConfig {
     defaultValue: 'sb_publishable_3pBEywFkB05ysg4MB_AeJw_JU7InPa7',
   );
 
-  /// URL pública del API S3 de MinIO (solo informativo en el cliente;
-  /// las URLs reales las firma la Edge Function media-sign).
-  static const mediaPublicUrl = String.fromEnvironment(
-    'MEDIA_PUBLIC_URL',
-    defaultValue: '',
-  );
+  // NO hay constante para MEDIA_PUBLIC_URL a propósito: el cliente nunca
+  // necesita el dominio de MinIO, porque las URLs de las fotos las firma la
+  // Edge Function media-sign y llegan ya completas. Existió como valor
+  // "informativo" y no la leía nadie. La variable sigue siendo necesaria en
+  // el servidor (MINIO_SERVER_URL) y en media-sign (MINIO_ENDPOINT).
 
   /// Base pública del servidor de actualizaciones (sirve `<plataforma>/version.json`
   /// y el instalador). La usan Android y Windows para auto-actualizarse; iOS lo
