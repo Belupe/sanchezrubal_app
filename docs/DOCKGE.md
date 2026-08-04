@@ -183,3 +183,56 @@ docker compose pull media-scrub && docker compose up -d media-scrub
 
 Cuando cambie el `compose.yaml` del repositorio, pega la versión nueva en el editor de Dockge y
 redespliega. El `.env` no se toca: no está en el repositorio, y no debe estarlo.
+
+---
+
+## Problemas frecuentes
+
+### «Are you trying to mount a directory onto a file?»
+
+```
+error mounting ".../server/nginx/updates.conf" to rootfs at "/etc/nginx/conf.d/default.conf":
+flags=MS_BIND|MS_REC: not a directory: Are you trying to mount a directory onto a file
+(or vice-versa)?
+```
+
+Significa que **el `updates.conf` no estaba** al arrancar el stack. El mensaje despista porque
+no dice «falta el fichero», y la razón es un comportamiento poco intuitivo de Docker: **cuando
+el origen de un bind mount no existe, el demonio lo crea — y siempre como directorio**. Como en
+la imagen `nginx:alpine` el destino sí existe y es un fichero, montar un directorio encima
+devuelve `ENOTDIR`.
+
+Lo importante: **ya hay un directorio vacío ocupando el sitio del fichero**. Si te limitas a
+subirlo por SFTP, o falla porque el nombre está ocupado, o te lo deja dentro
+(`updates.conf/updates.conf`) y el error se repite igual. Hay que borrarlo primero:
+
+```bash
+rm -rf ~/stacks/portal-familia/server/nginx/updates.conf
+curl -fsSL -o ~/stacks/portal-familia/server/nginx/updates.conf \
+  https://raw.githubusercontent.com/Belupe/sanchezrubal_app/main/server/nginx/updates.conf
+head -3 ~/stacks/portal-familia/server/nginx/updates.conf   # debe mostrar comentarios
+```
+
+Vale para cualquier montaje del stack, no solo este.
+
+### Mover la carpeta de stacks (por ejemplo de `/opt/stacks` al home)
+
+`/opt/stacks` pertenece a root, así que editar ahí obliga a `sudo`. Para pasarlo al home, en
+este orden:
+
+```bash
+cd /opt/stacks/<stack> && sudo docker compose down
+mkdir -p /home/USUARIO/stacks
+sudo mv /opt/stacks/<stack> /home/USUARIO/stacks/
+sudo chown -R USUARIO:USUARIO /home/USUARIO/stacks
+```
+
+Después hay que **actualizar el compose de Dockge** (no el del stack) con la ruta nueva a los
+dos lados del montaje y en `DOCKGE_STACKS_DIR`, como se explica en el apartado 1, y recrearlo:
+
+```bash
+cd ~/dockge && docker compose up -d --force-recreate
+```
+
+Si solo cambias una de las dos, los montajes relativos del stack apuntarán a una ruta que no
+existe dentro del contenedor y volverás a ver errores de montaje.
