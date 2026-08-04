@@ -15,6 +15,10 @@ Supabase. Está pensada para que cualquiera de la familia pueda seguirla.
 - [2) Aplicarlo todo en Supabase — comandos](#2-aplicarlo-todo-en-supabase--comandos)
 - [3) Comprobar que salió bien](#3-comprobar-que-salió-bien)
 
+> **¿Vas a gestionar los contenedores con Dockge?** Los pasos del `.env` de esta guía valen igual,
+> pero la colocación del stack y los ajustes propios de Linux (rutas, permisos del `MEDIA_DATA_DIR`)
+> están en [DOCKGE.md](DOCKGE.md).
+
 ---
 
 ## 0) Antes de empezar (requisitos)
