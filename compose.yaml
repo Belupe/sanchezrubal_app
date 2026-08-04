@@ -1,14 +1,18 @@
 # =====================================================================
 #  Portal Familia — servidor Docker (media + actualizaciones)
 # =====================================================================
-#  Listo para copiar/pegar. Configúralo con el .env de al lado:
+#  AUTOSUFICIENTE: no depende de ningún fichero de al lado salvo el .env. Todas
+#  las imágenes se descargan (ninguna se construye aquí) y la config de nginx va
+#  incrustada al final. Por eso se puede pegar tal cual en Dockge o Portainer.
 #      cp .env.example .env   &&   edítalo   &&   docker compose up -d
+#  Con Dockge: ver docs/DOCKGE.md.
 #
 #  Servicios:
 #   - preflight:     valida el .env ANTES de arrancar nada (aborta si hay
 #                    credenciales con placeholder). [B-10]
 #   - minio:         almacén S3 self-hosted de fotos/vídeo (en MEDIA_DATA_DIR).
 #   - createbuckets: crea el bucket privado al arrancar.
+#   - media-scrub:   worker que quita metadatos (EXIF/GPS) de los vídeos. [2L-12]
 #   - updates:       nginx que sirve los instaladores + version.json para que
 #                    Windows y Linux se auto-actualicen (en UPDATES_DATA_DIR).
 #
@@ -132,8 +136,10 @@ services:
   # recodificar). Worker interno; el flujo de subida de la app no cambia (el
   # limpiado ocurre justo después, de forma asíncrona).
   media-scrub:
-    build: ./server/media-scrub
-    image: ${MEDIA_SCRUB_IMAGE:-portal-familia/media-scrub:local}
+    # Imagen ya construida y publicada en GHCR por .github/workflows/media-scrub.yml.
+    # NO lleva `build:` a propósito: así el servidor solo descarga y este fichero
+    # se puede pegar entero en Dockge sin copiar nada más.
+    image: ${MEDIA_SCRUB_IMAGE:-ghcr.io/belupe/media-scrub:latest}
     container_name: pf_media_scrub
     restart: unless-stopped
     depends_on:
@@ -189,7 +195,12 @@ services:
         condition: service_completed_successfully
     volumes:
       - ${UPDATES_DATA_DIR}:/usr/share/nginx/html:ro
-      - ./server/nginx/updates.conf:/etc/nginx/conf.d/default.conf:ro
+    configs:
+      # La config va incrustada al final de este fichero (no es un fichero
+      # aparte) para que el stack se pueda pegar entero en Dockge.
+      - source: updates_nginx
+        target: /etc/nginx/conf.d/default.conf
+        mode: 0444
     ports:
       - "${BIND_HOST:-127.0.0.1}:${UPDATES_PORT:-8090}:80"
     deploy:
@@ -198,9 +209,76 @@ services:
           memory: ${UPDATES_MEM_LIMIT:-128m}
           cpus: "${UPDATES_CPU_LIMIT:-0.5}"
 
-    # ENDURECIMIENTO OPCIONAL (más fuerte, requiere tocar server/nginx/updates.conf):
-    #   usar la imagen no-root oficial  nginxinc/nginx-unprivileged:alpine ,
-    #   cambiar en updates.conf `listen 80;` -> `listen 8080;`, mapear
-    #   "${UPDATES_PORT:-8090}:8080", añadir  user: "101:101"  y quitar el bloque
-    #   cap_add entero (ya no bindea puerto privilegiado ni cambia de uid). Como eso
-    #   modifica updates.conf y el mapeo de puerto interno, queda como paso 2 aparte.
+    # ENDURECIMIENTO OPCIONAL (más fuerte, requiere tocar el config `updates_nginx`
+    # de abajo): usar la imagen no-root oficial  nginxinc/nginx-unprivileged:alpine ,
+    #   cambiar `listen 80;` -> `listen 8080;`, mapear "${UPDATES_PORT:-8090}:8080",
+    #   añadir  user: "101:101"  y quitar el bloque cap_add entero (ya no bindea
+    #   puerto privilegiado ni cambia de uid). Como eso modifica la config y el mapeo
+    #   de puerto interno, queda como paso 2 aparte.
+
+# =====================================================================
+#  Config de nginx del servicio `updates`, incrustada
+# =====================================================================
+#  Va aquí dentro (y no en un fichero aparte) para que este compose.yaml sea
+#  autosuficiente: se pega en Dockge y funciona, sin copiar nada al servidor.
+#
+#  OJO AL EDITARLA: Compose interpola las variables, así que **cada `$` de la
+#  config de nginx va escrito `$$`**. Es decir, `$$uri` llega a nginx como
+#  `$uri`, y `\.apk$$` como `\.apk$`. Si escribes un solo `$`, Compose se lo
+#  come y nginx recibe una directiva rota.
+#
+#  Requiere Docker Compose v2.23 o superior (`configs` con `content:`).
+#  Comprueba con: docker compose version
+#
+#  OJO con add_header: dentro de un `location` REEMPLAZA el conjunto heredado
+#  del bloque `server`, no lo amplía. Por eso cada location que añade cabeceras
+#  repite también X-Content-Type-Options.
+# =====================================================================
+configs:
+  updates_nginx:
+    content: |
+      server {
+          listen 80;
+          server_name _;
+
+          root /usr/share/nginx/html;
+          index index.html;
+          autoindex off;
+
+          # version.json de cualquier plataforma: NO cachear (detectar al momento).
+          location ~* /version\.json$$ {
+              add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+              default_type application/json;
+          }
+
+          # APK de Android: MIME correcto + forzar descarga.
+          location ~* \.apk$$ {
+              default_type application/vnd.android.package-archive;
+              add_header Content-Disposition "attachment" always;
+              add_header Cache-Control "no-cache" always;
+              add_header X-Content-Type-Options "nosniff" always;
+          }
+
+          # Instalador de Windows: forzar descarga.
+          location ~* \.exe$$ {
+              default_type application/octet-stream;
+              add_header Content-Disposition "attachment" always;
+              add_header Cache-Control "no-cache" always;
+              add_header X-Content-Type-Options "nosniff" always;
+          }
+
+          # Paquetes de Linux: forzar descarga. La regex ~* no distingue mayúsculas,
+          # así que la de appimage cubre también el .AppImage real.
+          location ~* \.(appimage|deb|tar\.gz)$$ {
+              default_type application/octet-stream;
+              add_header Content-Disposition "attachment" always;
+              add_header Cache-Control "no-cache" always;
+              add_header X-Content-Type-Options "nosniff" always;
+          }
+
+          location / {
+              try_files $$uri $$uri/ =404;
+          }
+
+          add_header X-Content-Type-Options "nosniff" always;
+      }

@@ -4,22 +4,12 @@ Guía para levantar el stack de Portal Familia usando [Dockge](https://github.co
 en vez de `docker compose` a mano. Complementa a [DESPLIEGUE.md](DESPLIEGUE.md), que es donde se
 explica **qué significa cada variable del `.env`**; aquí solo está lo específico de Dockge y Ubuntu.
 
----
+**El [`compose.yaml`](../compose.yaml) es autosuficiente:** no hay que copiar ningún fichero al
+servidor. Todas las imágenes se descargan (`media-scrub` la publica GitHub Actions en GHCR) y la
+config de nginx va incrustada en el propio compose. Se pega en el editor de Dockge y funciona.
 
-## 0) Por qué este stack NO se puede pegar en el editor de Dockge
-
-Es lo primero que hay que entender, porque ahorra media hora de pelea.
-
-El editor de Dockge crea un `compose.yaml` y nada más. Este stack necesita **dos ficheros del repo
-que viven junto al compose**:
-
-| Referencia en `compose.yaml` | Qué es | ¿Se puede incrustar? |
-|---|---|---|
-| `build: ./server/media-scrub` | `Dockerfile` + `scrub.sh` que construyen la imagen del worker | **No.** Compose no tiene sintaxis para meter un contexto de construcción dentro del fichero. |
-| `./server/nginx/updates.conf` | configuración de nginx del servicio `updates` | Técnicamente sí (`configs:` + `content:`), pero no compensa: obliga a escapar cada `$` como `$$` y la carpeta hace falta igual por lo de arriba. |
-
-**Conclusión:** el stack se despliega poniendo la carpeta en el disco del servidor, y Dockge la
-detecta sola. Es el flujo normal de Dockge para stacks con `build:`, no un apaño.
+> **Requisito:** Docker Compose **v2.23 o superior** (el compose usa `configs` con `content:`).
+> Compruébalo con `docker compose version`. Cualquier instalación reciente de `docker-ce` lo cumple.
 
 ---
 
@@ -27,8 +17,8 @@ detecta sola. Es el flujo normal de Dockge para stacks con `build:`, no un apañ
 
 Dockge exige que **la ruta de la carpeta de stacks sea idéntica dentro y fuera del contenedor**.
 No habla con la API de Docker para levantar los stacks: ejecuta `docker compose` por debajo, y las
-rutas las resuelve el *daemon* del host. Si montas `/home/USUARIO/stacks` en `/app/stacks`, los
-`build:` y los *bind mounts* relativos fallan de forma difícil de diagnosticar.
+rutas las resuelve el *daemon* del host. Si montas `/home/USUARIO/stacks` en `/app/stacks`, las
+rutas relativas fallan de forma difícil de diagnosticar.
 
 Sustituye `USUARIO` por el tuyo en los tres sitios:
 
@@ -58,38 +48,23 @@ Panel en `http://IP_DEL_SERVIDOR:5001`.
 
 ---
 
-## 2) Colocar el stack
+## 2) Crear el stack
 
-```bash
-cd ~/stacks
-git clone https://github.com/Belupe/sanchezrubal_app portal-familia-src
-mkdir -p portal-familia
-cd portal-familia
-cp -r ../portal-familia-src/compose.yaml ../portal-familia-src/server .
-cp ../portal-familia-src/.env.example .env
-```
+En Dockge: **+ Compose** → nombre `portal-familia` → pega el contenido de
+[`compose.yaml`](../compose.yaml) en el editor → pega tu `.env` en la pestaña de variables de
+entorno. Nada más.
 
-La carpeta del stack tiene que quedar así — el nombre de la carpeta es el nombre que verás en Dockge:
-
-```
-~/stacks/portal-familia/
-├── compose.yaml
-├── .env
-└── server/
-    ├── nginx/updates.conf
-    └── media-scrub/{Dockerfile,scrub.sh}
-```
-
-Refresca Dockge y el stack aparece en la lista, listo para editar el `.env` y arrancar desde el panel.
-
-> El resto de `server/` (`cloudflared/`, `updates/`) no lo usa el compose: el túnel corre en el
-> host. Copiarlo entero es lo más simple y no molesta.
+Dockge lo guardará en `~/stacks/portal-familia/`. No hace falta clonar el repositorio en el
+servidor ni copiar carpetas.
 
 ---
 
-## 3) Ajustar el `.env` para Linux
+## 3) Preparar las carpetas de datos (esto sí es tuyo)
 
-El `.env.example` viene con rutas de Windows. **Hay que cambiarlas o MinIO no arranca:**
+El compose no crea las carpetas del host: solo las monta. Elige dónde quieres los datos y créalas
+**antes** de arrancar.
+
+En el `.env`, cambia las rutas de Windows que trae la plantilla:
 
 ```diff
 -MEDIA_DATA_DIR=C:/PortalFamilia/media
@@ -98,18 +73,18 @@ El `.env.example` viene con rutas de Windows. **Hay que cambiarlas o MinIO no ar
 +UPDATES_DATA_DIR=/home/USUARIO/portal-familia/updates
 ```
 
-Crea las carpetas y **dales el dueño correcto**. MinIO corre como UID 1000 (`user: "${MINIO_UID:-1000}:${MINIO_GID:-1000}"`)
-con el sistema de ficheros de solo lectura salvo `/data`. En Windows el *bind mount* ignora el UID,
-pero **en Linux no**: sin este `chown`, MinIO arranca y falla al escribir.
+Créalas y **dales el dueño correcto**. MinIO corre como UID 1000
+(`user: "${MINIO_UID:-1000}:${MINIO_GID:-1000}"`) con el sistema de ficheros de solo lectura salvo
+`/data`. En Windows el *bind mount* ignora el UID, pero **en Linux no**: sin este `chown`, MinIO
+arranca y falla al escribir.
 
 ```bash
 mkdir -p ~/portal-familia/{media,updates}
 sudo chown -R 1000:1000 ~/portal-familia/media ~/portal-familia/updates
 ```
 
-Las demás variables (`MEDIA_PUBLIC_URL`, secretos, Supabase…) están explicadas en
-[DESPLIEGUE.md](DESPLIEGUE.md) §1. El servicio `preflight` aborta el arranque entero si algún
-secreto sigue con su valor de plantilla, así que si el stack no levanta, mira **sus** logs primero.
+Las demás variables (secretos, Supabase, URLs públicas) están explicadas en
+[DESPLIEGUE.md](DESPLIEGUE.md) §1.
 
 ---
 
@@ -148,19 +123,41 @@ docker compose logs createbuckets
 docker compose logs media-scrub  # [media-scrub] conectado. Vigilando subidas…
 ```
 
-La primera vez `media-scrub` tarda un poco: construye su imagen (Alpine + ffmpeg + mc).
-
-> **Nota de arquitectura:** su `Dockerfile` descarga el cliente `mc` de MinIO fijado a
-> `linux-amd64`. En un servidor x86 no hay problema; en ARM (Raspberry Pi, Ampere…) hay que
-> cambiar esa URL a `linux-arm64`.
+Si el stack no levanta, **mira `preflight` primero**: aborta el arranque entero si algún secreto
+sigue con su valor de plantilla.
 
 ---
 
-## 6) Actualizar
+## 6) La imagen de media-scrub
+
+`media-scrub` es un worker que quita los metadatos (EXIF/GPS) de los vídeos subidos. Su imagen la
+construye y publica **GitHub Actions** ([`.github/workflows/media-scrub.yml`](../.github/workflows/media-scrub.yml))
+en GHCR cada vez que cambia algo en `server/media-scrub/`. El servidor solo la descarga.
+
+| Etiqueta | Para qué |
+|---|---|
+| `ghcr.io/belupe/media-scrub:latest` | la que usa el compose por defecto |
+| `ghcr.io/belupe/media-scrub:sha-<hash>` | inmutable, para fijar una versión en `MEDIA_SCRUB_IMAGE` |
+
+**El paquete tiene que ser público**, o el servidor no podrá descargarlo sin autenticarse. La
+primera publicación lo crea privado: ve a la pestaña **Packages** del repositorio → `media-scrub` →
+*Package settings* → *Change visibility* → **Public**. Si prefieres dejarlo privado, hay que hacer
+`docker login ghcr.io` en el servidor con un token que tenga `read:packages`.
+
+La imagen se construye para **linux/amd64** (el `Dockerfile` fija el cliente `mc` a esa
+arquitectura). Si algún día mueves el servidor a ARM, hay que parametrizar esa URL y añadir
+`linux/arm64` a `platforms:` en el workflow.
+
+Para actualizar el worker en el servidor, basta con volver a bajar la imagen:
 
 ```bash
-cd ~/stacks/portal-familia-src && git pull
-cd ../portal-familia && cp -r ../portal-familia-src/compose.yaml ../portal-familia-src/server .
+cd ~/stacks/portal-familia
+docker compose pull media-scrub && docker compose up -d media-scrub
 ```
 
-El `.env` no se toca al actualizar: no está en el repo, y no debe estarlo.
+---
+
+## 7) Actualizar el stack
+
+Cuando cambie el `compose.yaml` del repositorio, pega la versión nueva en el editor de Dockge y
+redespliega. El `.env` no se toca: no está en el repositorio, y no debe estarlo.
