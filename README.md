@@ -16,6 +16,7 @@ sorteos, usuarios). **Una sola base de código Flutter** → **4 apps nativas**:
 > Arquitectura completa: [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
 > Seguridad (explicada para todos): [docs/SEGURIDAD.md](docs/SEGURIDAD.md).
 > **Despliegue paso a paso** (de dónde sale cada valor del `.env` + comandos): [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
+> Servidor con **Dockge** en Ubuntu (colocación del stack, rutas y permisos): [docs/DOCKGE.md](docs/DOCKGE.md).
 
 ## Novedades
 
