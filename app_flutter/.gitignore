@@ -13,6 +13,9 @@ build/
 **/Flutter/ephemeral/
 ios/.symlinks/
 android/.gradle/
-# Config de Firebase (la genera flutterfire configure en cada máquina)
+# Config de Firebase de Android: sigue fuera del repositorio. Solo se compila
+# Android en máquinas que ya lo tienen, así que nadie lo echa en falta.
 android/app/google-services.json
-ios/Runner/GoogleService-Info.plist
+# ios/Runner/GoogleService-Info.plist va INCLUIDO en el repositorio a propósito:
+# el proyecto de Xcode lo referencia y Xcode Cloud, que solo tiene el clon,
+# fallaba al enlazar con "Build input file cannot be found". No es un secreto.

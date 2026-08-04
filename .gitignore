@@ -13,11 +13,18 @@ key.properties
 *.jks
 *.keystore
 
-# Firebase / FCM (NUNCA subir la service account ni la config nativa)
+# Firebase / FCM — la SERVICE ACCOUNT no se sube JAMÁS: contiene una clave
+# privada que permite enviar push a todos los dispositivos. El patrón de
+# adminsdk está porque Firebase descarga el fichero con ESE nombre, que no
+# encaja con "service-account" y se colaría sin darte cuenta.
 *service-account*.json
+*adminsdk*.json
 fcm-service-account.json
-google-services.json
-GoogleService-Info.plist
+
+# GoogleService-Info.plist (iOS) SÍ está en el repositorio, a propósito: no
+# contiene secretos —solo API key de cliente, sender ID y project ID, que son
+# identificadores públicos— y cualquiera puede extraerlo del .ipa publicado.
+# Xcode Cloud lo necesita en el clon, porque el proyecto lo referencia.
 
 # Artefactos finales (se regeneran con scripts/release.ps1)
 dist/
