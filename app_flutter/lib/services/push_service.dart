@@ -22,17 +22,22 @@ class PushService {
     }, onConflict: 'user_id,token');
   }
 
-  /// Inicializa FCM y registra el token. Llamar tras el login.
-  ///
-  /// Es defensivo: solo en Android/iOS, y si Firebase aún no está configurado
-  /// (faltan google-services.json / GoogleService-Info.plist) se desactiva sin
-  /// romper la app. Requiere `flutterfire configure` y la config nativa.
+  /// Cuántas veces se pregunta por el token de APNs antes de rendirse, con 2 s
+  /// entre intentos: 30 × 2 s = un minuto de margen. El valor anterior (10 s)
+  /// se quedaba corto en un primer registro.
+  static const _intentosApns = 30;
+
   /// Qué pasó en el último [init], para enseñarlo en Configuración →
   /// Diagnóstico. Sin esto, un fallo de push es invisible: la app sigue
   /// funcionando y el error solo quedaba en un registro que en móvil no se
   /// podía sacar.
   static String estado = 'Sin iniciar.';
 
+  /// Inicializa FCM y registra el token. Llamar tras el login.
+  ///
+  /// Es defensivo: solo en Android/iOS, y si Firebase aún no está configurado
+  /// (faltan google-services.json / GoogleService-Info.plist) se desactiva sin
+  /// romper la app. Requiere `flutterfire configure` y la config nativa.
   static Future<void> init() async {
     if (kIsWeb) return;
     if (defaultTargetPlatform != TargetPlatform.android &&
@@ -55,20 +60,31 @@ class PushService {
       messaging.onTokenRefresh.listen((t) => saveToken(t, platform: platform));
 
       // iOS: FCM no puede emitir su token hasta que APNs ha entregado el suyo
-      // al dispositivo, y eso tarda un momento tras aceptar el permiso. Pedirlo
-      // antes hace que getToken() lance 'apns-token-not-set'. Se espera con
-      // reintentos cortos en vez de asumir que ya está.
+      // al dispositivo. En un PRIMER registro eso puede tardar bastante más de
+      // lo que uno espera —hasta minutos con mala cobertura—, así que se espera
+      // con margen. No bloquea nada: init() se llama sin await desde HomeShell.
+      //
+      // Cada llamada lleva su propio timeout porque getAPNSToken() puede
+      // quedarse colgada sin devolver ni token ni null: visto en un iPhone real,
+      // dejaba el estado en "Pidiendo token…" para siempre y el bucle de espera
+      // ni siquiera empezaba a contar.
       if (esIOS) {
-        var apns = await messaging.getAPNSToken();
-        for (var i = 0; apns == null && i < 10; i++) {
-          await Future<void>.delayed(const Duration(seconds: 1));
-          apns = await messaging.getAPNSToken();
+        String? apns;
+        for (var i = 0; i < _intentosApns; i++) {
+          apns = await messaging.getAPNSToken().timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => null,
+          );
+          if (apns != null) break;
+          estado = 'Esperando token de APNs… (${i + 1}/$_intentosApns)';
+          await Future<void>.delayed(const Duration(seconds: 2));
         }
         if (apns == null) {
           // No es fatal: si APNs responde más tarde, onTokenRefresh lo recoge.
           estado =
-              'APNs no entregó su token en 10 s. Revisa que el dispositivo '
-              'tenga red y que las notificaciones estén permitidas.';
+              'APNs no entregó su token en ${_intentosApns * 2} s. Suele ser '
+              'la red: APNs usa el puerto 5223 y algunas wifis lo bloquean. '
+              'Prueba con datos móviles.';
           LogService.evento('Push: $estado');
           return;
         }
