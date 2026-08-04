@@ -5,6 +5,11 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Firebase (push con FCM). Va DESPUÉS del plugin de Android, que es de quien
+    // depende. Lee app/google-services.json —que está en .gitignore, nunca se
+    // sube— y genera los recursos que firebase_core consulta en el arranque.
+    // La versión se declara en android/settings.gradle.kts.
+    id("com.google.gms.google-services")
 }
 
 // Carga la configuración de firma release desde android/key.properties
