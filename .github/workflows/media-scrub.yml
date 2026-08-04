@@ -1,0 +1,64 @@
+# =====================================================================
+#  Publica la imagen de media-scrub en GHCR
+# =====================================================================
+#  El servidor NO construye nada: descarga esta imagen ya hecha. Por eso
+#  compose.yaml solo tiene `image:` y se puede pegar tal cual en Dockge.
+#
+#  Se dispara al tocar server/media-scrub/ y también a mano desde la
+#  pestaña Actions (workflow_dispatch).
+#
+#  Etiquetas publicadas:
+#    :latest      -> siempre la última de main (es la que usa el compose)
+#    :sha-<hash>  -> inmutable, para fijar una versión concreta en el .env
+# =====================================================================
+name: media-scrub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/media-scrub/**'
+      - '.github/workflows/media-scrub.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # necesario para empujar a GHCR
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Token que GitHub inyecta solo; no hay que crear ningún secreto.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # metadata-action pasa el nombre a minúsculas, que es lo que exige
+          # Docker (el usuario es "Belupe" -> ghcr.io/belupe/media-scrub).
+          images: ghcr.io/${{ github.repository_owner }}/media-scrub
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./server/media-scrub
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # El Dockerfile fija el cliente mc a linux-amd64, así que la imagen
+          # es amd64. Si algún día el servidor pasa a ARM, hay que parametrizar
+          # esa URL en el Dockerfile y añadir aquí platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
