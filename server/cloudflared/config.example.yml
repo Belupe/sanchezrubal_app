@@ -6,6 +6,12 @@
 # cloudflared publica dos cosas de tu Docker: MinIO (media) y el servidor de
 # actualizaciones (instaladores de Android/Windows). No hay web.
 #
+# OJO — el host de `service:` DEBE coincidir con el BIND_HOST del .env:
+#   BIND_HOST=127.0.0.1      -> service: http://localhost:PUERTO
+#   BIND_HOST=192.168.x.y    -> service: http://192.168.x.y:PUERTO
+# Docker publica los puertos SOLO en esa interfaz. Si dejas `localhost` teniendo
+# una IP LAN en BIND_HOST, los tres dominios responden 502 Bad Gateway.
+#
 # Crea los registros DNS del túnel (una vez por hostname):
 #   cloudflared tunnel route dns <TUNNEL_ID> media.sanchezrubal.net
 #   cloudflared tunnel route dns <TUNNEL_ID> media-console.sanchezrubal.net
@@ -23,6 +29,12 @@ ingress:
     service: http://localhost:9000
 
   # --- (Opcional) Consola de administración de MinIO ---
+  # Publicarla deja el formulario de administración de MinIO accesible desde
+  # internet, así que va SIEMPRE detrás de Cloudflare Access (Zero Trust ->
+  # Access -> Applications -> Self-hosted). Sin Access, la única barrera es la
+  # contraseña root y nadie limita los intentos.
+  # NUNCA pongas Access delante de media.sanchezrubal.net: las URLs prefirmadas
+  # las abre el móvil sin sesión de navegador y Access las rechazaría.
   - hostname: media-console.sanchezrubal.net
     service: http://localhost:9001
 
