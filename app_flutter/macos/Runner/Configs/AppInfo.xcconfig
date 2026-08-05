@@ -11,4 +11,7 @@ PRODUCT_NAME = Portal Familia
 PRODUCT_BUNDLE_IDENTIFIER = net.sanchezrubal.portalFamilia
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 net.sanchezrubal. All rights reserved.
+// Sale en el "Acerca de" de la app. El titular es la persona, no el bundle id
+// (el valor por defecto de `flutter create` ponía net.sanchezrubal). El código
+// se publica bajo licencia MIT: ver LICENSE en la raíz del repositorio.
+PRODUCT_COPYRIGHT = Copyright © 2026 Ignacio Sánchez Bas. Licencia MIT.
