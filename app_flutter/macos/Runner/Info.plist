@@ -4,6 +4,9 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- Nombre visible (paridad con iOS). -->
+	<key>CFBundleDisplayName</key>
+	<string>Portal Familia</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconFile</key>
@@ -18,20 +21,6 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>$(PRODUCT_COPYRIGHT)</string>
-	<key>NSMainNibFile</key>
-	<string>MainMenu</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<!-- Nombre visible (paridad con iOS). -->
-	<key>CFBundleDisplayName</key>
-	<string>Portal Familia</string>
-	<!-- Abrir la app desde los enlaces de los correos: portalfamilia:// -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -43,15 +32,8 @@
 			</array>
 		</dict>
 	</array>
-	<!-- Permisos (paridad con iOS). En macOS image_picker usa el panel de
-	     archivos; estas cadenas se muestran si algún plugin pide cámara/fotos/
-	     micrófono y evitan que el sistema cierre la app. -->
-	<key>NSCameraUsageDescription</key>
-	<string>Portal Familia usa la cámara para hacer fotos y vídeos de las inspecciones de la casa.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Portal Familia accede a tus fotos para adjuntar imágenes y vídeos a las inspecciones.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Portal Familia usa el micrófono al grabar vídeos de las inspecciones.</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<!-- Cumplimiento de exportación (paridad con iOS). La app solo usa cifrado
 	     exento: HTTPS/TLS estándar y el Llavero del sistema vía
 	     flutter_secure_storage. Los SHA-256 de UpdateService son hashes, no
@@ -65,5 +47,22 @@
 	     categoría que se elija en la ficha de App Store Connect. -->
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<!-- Permisos (paridad con iOS). En macOS image_picker usa el panel de
+	     archivos; estas cadenas se muestran si algún plugin pide cámara/fotos/
+	     micrófono y evitan que el sistema cierre la app. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Portal Familia usa la cámara para hacer fotos y vídeos de las inspecciones de la casa.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>$(PRODUCT_COPYRIGHT)</string>
+	<key>NSMainNibFile</key>
+	<string>MainMenu</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Portal Familia usa el micrófono al grabar vídeos de las inspecciones.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Portal Familia accede a tus fotos para adjuntar imágenes y vídeos a las inspecciones.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>
