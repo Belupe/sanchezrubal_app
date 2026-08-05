@@ -122,3 +122,14 @@ sus guías.)
   **App Store no listado** (privado por enlace), no TestFlight — ver [docs/APPLE.md](docs/APPLE.md).
 - **Push (FCM)**: proyecto **Firebase** (`flutterfire configure` + service account). Setup completo
   en [docs/COLA-NOTIFICACIONES-TIEMPO-REAL.md](docs/COLA-NOTIFICACIONES-TIEMPO-REAL.md).
+
+## Licencia
+
+[MIT](LICENSE) — Copyright © 2026 Ignacio Sánchez Bas.
+
+Puedes usar, copiar, modificar y redistribuir el código, incluso con fines comerciales, siempre que
+mantengas el aviso de copyright y el texto de la licencia. Se ofrece sin garantía de ningún tipo.
+
+Lo que **no** cubre la licencia: este repositorio es público, pero las credenciales no están en él.
+El `.env` está en `.gitignore` y nunca debe subirse. Quien clone el proyecto tiene que crear el suyo
+a partir de [`.env.example`](.env.example) y generar sus propios secretos.
