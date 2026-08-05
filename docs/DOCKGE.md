@@ -5,14 +5,19 @@ en vez de `docker compose` a mano. Complementa a [DESPLIEGUE.md](DESPLIEGUE.md),
 explica **qué significa cada variable del `.env`**; aquí solo está lo específico de Dockge y Ubuntu.
 
 **Ninguna imagen se construye en el servidor:** todas se descargan (`media-scrub` la publica
-GitHub Actions en GHCR). Junto al `compose.yaml` solo hacen falta dos ficheros:
+GitHub Actions en GHCR). Lo único que hay que dejar en el disco es la config de nginx, y **no
+hace falta meterla en la carpeta del stack** — esa la gestiona Dockge y estorba tocarla a mano.
+Se pone donde quieras y se apunta desde el `.env`:
 
 ```
-~/stacks/portal-familia/
-├── compose.yaml
-├── .env
-└── server/nginx/updates.conf
+~/sr/server/nginx/updates.conf        ← el fichero, fuera del stack
+
+# en el .env:
+UPDATES_NGINX_CONF=/home/USUARIO/sr/server/nginx/updates.conf
 ```
+
+Si dejas `UPDATES_NGINX_CONF` vacía, el compose usa la del repositorio
+(`./server/nginx/updates.conf`), que es lo normal con un `docker compose up` a mano.
 
 > **Por qué esa config no va dentro del compose.** Se intentó incrustarla con
 > `configs: content:` para poder pegar el stack de una pieza, y Docker Compose lo rechaza:
@@ -67,17 +72,23 @@ En Dockge: **+ Compose** → nombre `portal-familia` → pega el contenido de
 [`compose.yaml`](../compose.yaml) en el editor → pega tu `.env` en la pestaña de variables de
 entorno.
 
-Dockge lo guarda en `~/stacks/portal-familia/`. Falta llevar ahí el `updates.conf`, que Dockge
-no puede crear desde su editor. Por SFTP, o desde el propio servidor:
+Falta dejar el `updates.conf` en el disco. Va **fuera** de la carpeta del stack, en la ruta que
+hayas puesto en `UPDATES_NGINX_CONF`:
 
 ```bash
-mkdir -p ~/stacks/portal-familia/server/nginx
-curl -fsSL -o ~/stacks/portal-familia/server/nginx/updates.conf \
+mkdir -p ~/sr/server/nginx
+rm -rf ~/sr/server/nginx/updates.conf
+curl -fsSL -o ~/sr/server/nginx/updates.conf \
   https://raw.githubusercontent.com/Belupe/sanchezrubal_app/main/server/nginx/updates.conf
+head -3 ~/sr/server/nginx/updates.conf     # debe mostrar comentarios, no un error
 ```
 
-Si no está, el contenedor `updates` arranca con la configuración por defecto de nginx: la
-página de descargas no se sirve bien y los instaladores no fuerzan la descarga.
+El `rm -rf` no sobra: si el stack ya intentó arrancar sin el fichero, Docker creó un
+**directorio** con ese nombre (ver *Problemas frecuentes*), y copiar encima falla o lo anida.
+
+Si el fichero no está, el contenedor `updates` **arranca igualmente** con la configuración por
+defecto de nginx. No verás ningún error: simplemente la página de descargas no se sirve bien y
+los instaladores no fuerzan la descarga.
 
 ---
 
