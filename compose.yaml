@@ -176,7 +176,12 @@ services:
       # con read_only: true — falla con "cannot create config ... in read-only
       # service updates: `file` is the sole supported option" (docker/compose
       # #12031). Solo admite montarlo, que es justo lo que hace esta línea.
-      - ./server/nginx/updates.conf:/etc/nginx/conf.d/default.conf:ro
+      #
+      # La ruta sale del .env (UPDATES_NGINX_CONF) para poder tenerla FUERA de
+      # la carpeta del stack: con Dockge, esa carpeta la gestiona el panel y
+      # meterle ficheros a mano estorba. Por defecto usa la del repositorio,
+      # que es lo que funciona en un 'docker compose up' normal.
+      - ${UPDATES_NGINX_CONF:-./server/nginx/updates.conf}:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "${BIND_HOST:-127.0.0.1}:${UPDATES_PORT:-8090}:80"
     deploy:
