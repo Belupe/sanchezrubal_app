@@ -127,8 +127,8 @@
 		33CC10EE2044A3C60003C045 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				33CC10ED2044A3C60003C045 /* Portal Familia.app */,
 				331C80D5294CF71000263BE5 /* RunnerTests.xctest */,
+				33CC10ED2044A3C60003C045 /* Portal Familia.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -205,7 +205,7 @@
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
-				3399D490228B24CF009A79C7 /* ShellScript */,
+				3399D490228B24CF009A79C7 /* Run Script */,
 			);
 			buildRules = (
 			);
@@ -291,9 +291,10 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		3399D490228B24CF009A79C7 /* ShellScript */ = {
+		3399D490228B24CF009A79C7 /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
+			name = "Run Script";
 			shellPath = /bin/sh;
 			shellScript = (
 				"echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed",
