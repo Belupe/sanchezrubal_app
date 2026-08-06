@@ -4,7 +4,6 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<!-- Nombre visible (paridad con iOS). -->
 	<key>CFBundleDisplayName</key>
 	<string>Portal Familia</string>
 	<key>CFBundleExecutable</key>
@@ -34,24 +33,12 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<!-- Cumplimiento de exportación (paridad con iOS). La app solo usa cifrado
-	     exento: HTTPS/TLS estándar y el Llavero del sistema vía
-	     flutter_secure_storage. Los SHA-256 de UpdateService son hashes, no
-	     cifrado. Con esta clave App Store Connect no pregunta en cada subida.
-	     Si algún día se cifran datos con clave propia, hay que poner <true/>. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<!-- Categoría en la Mac App Store; sin ella Xcode avisa y el envío se rechaza.
-	     "productivity" es lo que mejor describe la app: gestionar inspecciones de
-	     la casa, calendario y documentos de la familia. Debe coincidir con la
-	     categoría que se elija en la ficha de App Store Connect. -->
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
-	<!-- Permisos (paridad con iOS). En macOS image_picker usa el panel de
-	     archivos; estas cadenas se muestran si algún plugin pide cámara/fotos/
-	     micrófono y evitan que el sistema cierre la app. -->
 	<key>NSCameraUsageDescription</key>
 	<string>Portal Familia usa la cámara para hacer fotos y vídeos de las inspecciones de la casa.</string>
 	<key>NSHumanReadableCopyright</key>
