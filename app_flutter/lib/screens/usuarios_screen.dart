@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/family_group.dart';
+import '../models/profile.dart';
 import '../services/admin_service.dart';
 import '../services/data_service.dart';
 import '../utils/colors.dart';
@@ -18,8 +19,11 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   String? _role;
   Map<String, dynamic>? _myProfile;
   List<FamilyGroup> _groups = [];
+  List<Profile> _profiles = [];
   bool _loading = true;
   String? _error;
+
+  String? get _myId => _myProfile?['id'] as String?;
 
   bool get _isPrincipal => _role == 'MEGA_ADMIN' || _role == 'PRINCIPAL_ADMIN';
 
@@ -38,11 +42,28 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       final role = await DataService.currentRole();
       final groups = await DataService.familyGroups();
       final profile = await DataService.myProfile();
+      // Solo los principales pueden listar a todo el mundo; para el resto la
+      // consulta la corta el RLS, así que ni se pide.
+      final esPrincipal = role == 'MEGA_ADMIN' || role == 'PRINCIPAL_ADMIN';
+      final profiles = esPrincipal ? await DataService.allProfiles() : <Profile>[];
+      // Los administradores primero y, dentro de cada rango, por nombre.
+      profiles.sort((a, b) {
+        const orden = {
+          'MEGA_ADMIN': 0,
+          'PRINCIPAL_ADMIN': 1,
+          'FAMILY_ADMIN': 2,
+          'FAMILY_SECOND_ADMIN': 3,
+          'MEMBER': 4,
+        };
+        final c = (orden[a.role] ?? 9).compareTo(orden[b.role] ?? 9);
+        return c != 0 ? c : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
       if (!mounted) return;
       setState(() {
         _role = role;
         _groups = groups;
         _myProfile = profile;
+        _profiles = profiles;
       });
     } catch (e) {
       if (mounted) setState(() => _error = 'No se pudieron cargar los datos.');
@@ -54,6 +75,42 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   void _snack(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  /// Ejecuta una acción de gestión y recarga; si falla, lo cuenta sin romper.
+  Future<void> _run(Future<void> Function() action) async {
+    try {
+      await action();
+      await _load();
+    } catch (e) {
+      _snack(friendlyError(e));
+    }
+  }
+
+  Future<bool> _confirm(String titulo, String cuerpo) async =>
+      (await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text(titulo),
+          content: Text(cuerpo),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirmar')),
+          ],
+        ),
+      )) ??
+      false;
+
+  String _nombreGrupo(String? id) {
+    if (id == null) return 'Sin grupo';
+    for (final g in _groups) {
+      if (g.id == id) return g.name;
+    }
+    return 'Grupo desconocido';
   }
 
   Future<void> _openGroup(FamilyGroup g) async {
@@ -250,45 +307,198 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       );
     }
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: _showCreateGroupDialog,
-                icon: const Icon(Icons.group_add),
-                label: const Text('Crear grupo'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.tonalIcon(
-                onPressed: _showInviteUserDialog,
-                icon: const Icon(Icons.person_add),
-                label: const Text('Invitar usuario'),
-              ),
-            ),
-          ]),
-        ),
-        Expanded(
-          child: _groups.isEmpty
-              ? const Center(child: Text('No hay grupos todavía.'))
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  gridDelegate:
-                      const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 300,
-                    mainAxisExtent: 120,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  itemCount: _groups.length,
-                  itemBuilder: (_, i) => _groupCard(_groups[i]),
+    // Dos pestañas: los grupos por un lado y TODOS los usuarios por otro. Antes
+    // solo se listaban grupos, así que quien no pertenecía a ninguno no aparecía
+    // en ninguna parte y no había forma de cambiarle el rol ni de eliminarlo.
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _showCreateGroupDialog,
+                  icon: const Icon(Icons.group_add),
+                  label: const Text('Crear grupo'),
                 ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _showInviteUserDialog,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Invitar usuario'),
+                ),
+              ),
+            ]),
+          ),
+          const TabBar(tabs: [
+            Tab(text: 'Grupos'),
+            Tab(text: 'Usuarios'),
+          ]),
+          Expanded(
+            child: TabBarView(
+              children: [_pestanyaGrupos(), _pestanyaUsuarios()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pestanyaGrupos() {
+    if (_groups.isEmpty) {
+      return const Center(child: Text('No hay grupos todavía.'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        mainAxisExtent: 120,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: _groups.length,
+      itemBuilder: (_, i) => _groupCard(_groups[i]),
+    );
+  }
+
+  Widget _pestanyaUsuarios() {
+    if (_profiles.isEmpty) {
+      return const Center(child: Text('No hay usuarios todavía.'));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      itemCount: _profiles.length,
+      itemBuilder: (_, i) => _userCard(_profiles[i]),
+    );
+  }
+
+  Future<void> _eliminarUsuario(Profile p) async {
+    final quien = p.name.trim().isNotEmpty ? p.name.trim() : (p.email ?? 'este usuario');
+    final ok = await _confirm(
+      'Eliminar usuario',
+      'Se eliminará la cuenta de $quien y no podrá volver a entrar. '
+      'Esta acción no se puede deshacer.',
+    );
+    if (!ok) return;
+    await _run(() => AdminService.deleteUser(p.id));
+  }
+
+  Widget _userCard(Profile p) {
+    final esYo = p.id == _myId;
+    // No se edita ni la cuenta propia ni la de un mega administrador: lo primero
+    // evita quitarte los permisos sin querer y quedarte fuera; lo segundo, que la
+    // instalación se quede sin nadie capaz de administrarla.
+    final editable = !esYo && p.role != 'MEGA_ADMIN';
+    final quien = p.name.trim().isNotEmpty ? p.name.trim() : (p.email ?? '?');
+    // Si el grupo guardado ya no existe, el desplegable no puede preseleccionarlo.
+    final grupoActual =
+        _groups.any((g) => g.id == p.familyGroupId) ? p.familyGroupId : null;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              CircleAvatar(child: Text(quien.substring(0, 1).toUpperCase())),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(quien,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    if (p.email != null && p.email != quien)
+                      Text(p.email!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              if (esYo) const Chip(label: Text('Tú')),
+            ]),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 4, children: [
+              Chip(label: Text(p.roleLabel)),
+              Chip(label: Text(_nombreGrupo(p.familyGroupId))),
+            ]),
+            if (editable) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: const [
+                  'MEMBER',
+                  'FAMILY_ADMIN',
+                  'FAMILY_SECOND_ADMIN',
+                  'PRINCIPAL_ADMIN',
+                ].contains(p.role)
+                    ? p.role
+                    : 'MEMBER',
+                isDense: true,
+                decoration: const InputDecoration(
+                    labelText: 'Rol',
+                    isDense: true,
+                    border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'MEMBER', child: Text('Miembro')),
+                  DropdownMenuItem(
+                      value: 'FAMILY_ADMIN',
+                      child: Text('Administrador familiar')),
+                  DropdownMenuItem(
+                      value: 'FAMILY_SECOND_ADMIN',
+                      child: Text('Administrador secundario')),
+                  DropdownMenuItem(
+                      value: 'PRINCIPAL_ADMIN',
+                      child: Text('Administrador principal')),
+                ],
+                onChanged: (v) {
+                  if (v != null && v != p.role) {
+                    _run(() => DataService.setRole(p.id, v));
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: grupoActual,
+                isDense: true,
+                decoration: const InputDecoration(
+                    labelText: 'Grupo',
+                    isDense: true,
+                    border: OutlineInputBorder()),
+                items: [
+                  const DropdownMenuItem<String>(
+                      value: null, child: Text('Sin grupo')),
+                  ..._groups.map(
+                      (g) => DropdownMenuItem(value: g.id, child: Text(g.name))),
+                ],
+                onChanged: (v) {
+                  if (v != grupoActual) {
+                    _run(() => DataService.setMemberGroup(p.id, v));
+                  }
+                },
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  onPressed: () => _eliminarUsuario(p),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Eliminar usuario'),
+                ),
+              ),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 
