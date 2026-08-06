@@ -113,9 +113,21 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     return 'Grupo desconocido';
   }
 
+  /// El admin familiar gestiona los miembros de SU grupo (permiso y expulsión);
+  /// los principales, los de cualquiera. Dar de baja cuentas sigue siendo solo
+  /// de principal, y va por `puedeEliminarCuentas`.
+  bool _gestionaGrupo(FamilyGroup g) =>
+      _isPrincipal ||
+      (_role == 'FAMILY_ADMIN' &&
+          g.id == (_myProfile?['family_group_id'] as String?));
+
   Future<void> _openGroup(FamilyGroup g) async {
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => GroupDetailScreen(group: g, isPrincipal: _isPrincipal),
+      builder: (_) => GroupDetailScreen(
+        group: g,
+        isPrincipal: _gestionaGrupo(g),
+        puedeEliminarCuentas: _isPrincipal,
+      ),
     ));
     _load();
   }
@@ -184,34 +196,50 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                 initialValue: role,
                 decoration: const InputDecoration(
                     labelText: 'Rol', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'MEMBER', child: Text('Miembro')),
-                  DropdownMenuItem(
-                      value: 'FAMILY_ADMIN',
-                      child: Text('Administrador familiar')),
-                  DropdownMenuItem(
+                // Un admin familiar solo reparte POR DEBAJO de sí mismo. La
+                // función admin-users lo rechazaría igualmente, pero no tiene
+                // sentido ofrecer opciones que van a fallar.
+                items: [
+                  const DropdownMenuItem(
+                      value: 'MEMBER', child: Text('Miembro')),
+                  const DropdownMenuItem(
                       value: 'FAMILY_SECOND_ADMIN',
                       child: Text('Administrador secundario')),
-                  DropdownMenuItem(
-                      value: 'PRINCIPAL_ADMIN',
-                      child: Text('Administrador principal')),
+                  if (_isPrincipal) ...[
+                    const DropdownMenuItem(
+                        value: 'FAMILY_ADMIN',
+                        child: Text('Administrador familiar')),
+                    const DropdownMenuItem(
+                        value: 'PRINCIPAL_ADMIN',
+                        child: Text('Administrador principal')),
+                  ],
                 ],
                 onChanged: (v) => setLocal(() => role = v ?? 'MEMBER'),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: groupId,
-                decoration: const InputDecoration(
-                    labelText: 'Grupo (opcional)',
-                    border: OutlineInputBorder()),
-                items: [
-                  const DropdownMenuItem<String>(
-                      value: null, child: Text('Sin grupo')),
-                  ..._groups.map((g) =>
-                      DropdownMenuItem(value: g.id, child: Text(g.name))),
-                ],
-                onChanged: (v) => setLocal(() => groupId = v),
-              ),
+              // El admin familiar solo da de alta en SU grupo: no elige. El
+              // servidor impone el suyo aunque el cliente mande otro.
+              if (_isPrincipal)
+                DropdownButtonFormField<String>(
+                  initialValue: groupId,
+                  decoration: const InputDecoration(
+                      labelText: 'Grupo (opcional)',
+                      border: OutlineInputBorder()),
+                  items: [
+                    const DropdownMenuItem<String>(
+                        value: null, child: Text('Sin grupo')),
+                    ..._groups.map((g) =>
+                        DropdownMenuItem(value: g.id, child: Text(g.name))),
+                  ],
+                  onChanged: (v) => setLocal(() => groupId = v),
+                )
+              else
+                InputDecorator(
+                  decoration: const InputDecoration(
+                      labelText: 'Grupo', border: OutlineInputBorder()),
+                  child: Text(_nombreGrupo(
+                      _myProfile?['family_group_id'] as String?)),
+                ),
             ]),
           ),
           actions: [
@@ -282,12 +310,23 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     }
 
     if (!_isPrincipal) {
-      // No principal: solo su grupo, en ventana, solo lectura.
+      // No principal: solo su grupo. El admin familiar puede además dar de alta
+      // gente en él y gestionarla desde dentro; el resto lo ve en solo lectura.
       final myGroupId = _myProfile?['family_group_id'] as String?;
       final mine = _groups.where((g) => g.id == myGroupId).toList();
+      final esAdminFamiliar = _role == 'FAMILY_ADMIN' && mine.isNotEmpty;
       return ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          if (esAdminFamiliar)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: FilledButton.tonalIcon(
+                onPressed: _showInviteUserDialog,
+                icon: const Icon(Icons.person_add),
+                label: const Text('Invitar usuario'),
+              ),
+            ),
           if (mine.isEmpty)
             const Padding(
               padding: EdgeInsets.all(24),
@@ -295,12 +334,16 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
             )
           else
             _groupCard(mine.first),
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
-              'Para gestionar usuarios contacta con un administrador principal.',
+              esAdminFamiliar
+                  ? 'Puedes invitar y gestionar a los miembros de tu grupo. '
+                      'Para dar de baja una cuenta por completo, habla con un '
+                      'administrador principal.'
+                  : 'Para gestionar usuarios contacta con un administrador principal.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: const TextStyle(color: Colors.grey),
             ),
           ),
         ],
