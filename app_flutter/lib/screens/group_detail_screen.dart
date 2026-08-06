@@ -11,9 +11,20 @@ import '../utils/errors.dart';
 /// cambio de permisos y expulsión del grupo.
 class GroupDetailScreen extends StatefulWidget {
   final FamilyGroup group;
+
+  /// Puede gestionar a los miembros: cambiar su permiso y expulsarlos. Cierto
+  /// para los principales y para el admin familiar DE ESTE grupo.
   final bool isPrincipal;
+
+  /// Puede dar de baja la cuenta entera. Solo los principales: borrar es
+  /// irreversible y alcanza a alguien que puede estar en más sitios que este
+  /// grupo, así que un admin familiar únicamente expulsa.
+  final bool puedeEliminarCuentas;
   const GroupDetailScreen(
-      {super.key, required this.group, required this.isPrincipal});
+      {super.key,
+      required this.group,
+      required this.isPrincipal,
+      this.puedeEliminarCuentas = false});
 
   @override
   State<GroupDetailScreen> createState() => _GroupDetailScreenState();
@@ -261,13 +272,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     labelText: 'Permiso',
                     isDense: true,
                     border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'MEMBER', child: Text('Miembro')),
-                  DropdownMenuItem(
-                      value: 'FAMILY_ADMIN', child: Text('Admin. familiar')),
-                  DropdownMenuItem(
+                items: [
+                  const DropdownMenuItem(
+                      value: 'MEMBER', child: Text('Miembro')),
+                  const DropdownMenuItem(
                       value: 'FAMILY_SECOND_ADMIN',
                       child: Text('Admin. secundario')),
+                  // Nombrar a otro admin familiar es cosa de un principal: si un
+                  // admin familiar pudiera hacerlo, el escalón de permisos no
+                  // serviría de nada. La política RLS lo rechazaría igualmente,
+                  // pero mejor no ofrecer lo que va a fallar.
+                  if (widget.puedeEliminarCuentas)
+                    const DropdownMenuItem(
+                        value: 'FAMILY_ADMIN', child: Text('Admin. familiar')),
                 ],
                 onChanged: (v) {
                   if (v != null && v != m.role) {
@@ -284,13 +301,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     label: const Text('Expulsar'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Eliminar usuario',
-                  color: Colors.red,
-                  onPressed: () => _deleteUser(m),
-                  icon: const Icon(Icons.delete_outline),
-                ),
+                if (widget.puedeEliminarCuentas) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Eliminar usuario',
+                    color: Colors.red,
+                    onPressed: () => _deleteUser(m),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
               ]),
             ] else
               Align(

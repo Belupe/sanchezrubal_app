@@ -88,6 +88,12 @@ function assignableRoles(callerRole: string): string[] {
   if (callerRole === "PRINCIPAL_ADMIN") {
     return ["FAMILY_ADMIN", "FAMILY_SECOND_ADMIN", "MEMBER"];
   }
+  // Un admin familiar solo reparte POR DEBAJO de sí mismo, y solo dentro de su
+  // grupo (eso lo fuerza invite_user). Si pudiera nombrar a otro admin familiar
+  // o ascenderse, el escalón de permisos dejaría de servir para nada.
+  if (callerRole === "FAMILY_ADMIN") {
+    return ["FAMILY_SECOND_ADMIN", "MEMBER"];
+  }
   return [];
 }
 
@@ -127,11 +133,16 @@ Deno.serve(async (req) => {
     if (!u?.user) return fail(401, "No autorizado");
 
     const { data: prof } = await userClient
-      .from("profiles").select("role").eq("id", u.user.id).single();
-    if (!prof || !PRINCIPAL.includes(prof.role)) {
-      return fail(403, "Requiere administrador principal");
+      .from("profiles").select("role, family_group_id").eq("id", u.user.id).single();
+    // Los admin familiares entran, pero SOLO para dar de alta gente en su propio
+    // grupo: create_group y delete_user siguen siendo de principal (cada acción
+    // lo vuelve a comprobar más abajo).
+    const MANAGERS = [...PRINCIPAL, "FAMILY_ADMIN"];
+    if (!prof || !MANAGERS.includes(prof.role)) {
+      return fail(403, "Requiere administrador");
     }
     const callerRole = prof.role as string;
+    const callerGroup = (prof.family_group_id as string | null) ?? null;
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "");
@@ -140,7 +151,14 @@ Deno.serve(async (req) => {
       const email = String(body.email ?? "").trim();
       const name = String(body.name ?? "").trim();
       const role = String(body.role ?? "MEMBER");
-      const familyGroupId = body.familyGroupId ?? null;
+      // Un admin familiar solo da de alta EN SU GRUPO: el grupo que pida el
+      // cliente se ignora y se impone el suyo. Sin esto, el de una casa podría
+      // meter gente en otra.
+      const esFamiliar = callerRole === "FAMILY_ADMIN";
+      if (esFamiliar && !callerGroup) {
+        return fail(403, "No perteneces a ningún grupo");
+      }
+      const familyGroupId = esFamiliar ? callerGroup : (body.familyGroupId ?? null);
       if (!email || !name) return fail(400, "Faltan nombre o email");
       if (!assignableRoles(callerRole).includes(role)) {
         return fail(403, "No tienes permiso para asignar ese rol");
@@ -148,6 +166,18 @@ Deno.serve(async (req) => {
 
       const confirmRelink = body.confirmRelink === true;
       const existing = await profileByEmail(email);
+      // Un admin familiar no puede arrancar a alguien de otro grupo para
+      // llevárselo al suyo: solo vincula a quien no tiene grupo o ya está en el
+      // suyo. Tampoco puede tocar a un principal (lo cubre keepRole más abajo,
+      // pero aquí se corta antes y con un mensaje claro).
+      if (esFamiliar && existing) {
+        if (PRINCIPAL.includes(existing.role)) {
+          return fail(403, "Esa cuenta la gestiona un administrador principal");
+        }
+        if (existing.family_group_id && existing.family_group_id !== callerGroup) {
+          return fail(403, "Esa persona ya pertenece a otro grupo");
+        }
+      }
       if (existing) {
         // [B-03] Ya existe una cuenta con ese email. Re-vincular puede
         // trasladar de grupo y/o cambiar el rol de una cuenta REAL: exigir
@@ -199,6 +229,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_group") {
+      // Crear grupos sigue siendo cosa de principal.
+      if (!PRINCIPAL.includes(callerRole)) {
+        return fail(403, "Requiere administrador principal");
+      }
       const groupName = String(body.groupName ?? "").trim();
       const ownerName = String(body.ownerName ?? "").trim();
       const ownerEmail = String(body.ownerEmail ?? "").trim();
@@ -244,6 +278,12 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete_user") {
+      // Borrar una cuenta es destructivo e irreversible, y alcanza a alguien que
+      // puede estar en otros sitios además de este grupo. Un admin familiar
+      // EXPULSA (le quita el grupo, vía RLS); dar de baja lo hace un principal.
+      if (!PRINCIPAL.includes(callerRole)) {
+        return fail(403, "Requiere administrador principal");
+      }
       const userId = String(body.userId ?? "");
       if (!userId) return fail(400, "Falta userId");
       if (userId === u.user.id) return fail(400, "No puedes borrarte a ti mismo");
