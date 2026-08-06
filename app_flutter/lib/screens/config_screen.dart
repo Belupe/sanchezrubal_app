@@ -52,47 +52,46 @@ class _ConfigScreenState extends State<ConfigScreen> {
     }
   }
 
+  // Ninguna rama devuelve Scaffold ni AppBar: esta pantalla se monta dentro de
+  // home_shell, que ya aporta ambas y pinta el título de la sección. Las cuatro
+  // AppBar que había aquí (carga, error, con pestañas y sin ellas) apilaban una
+  // segunda barra y repetían "Configuración". Mismo caso que inspecciones_screen.
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Configuración')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Configuración')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.tonal(
-                  onPressed: _init,
-                  child: const Text('Reintentar'),
-                ),
-              ],
-            ),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                onPressed: _init,
+                child: const Text('Reintentar'),
+              ),
+            ],
           ),
         ),
       );
     }
 
     if (_isMega) {
-      return DefaultTabController(
+      // El TabBar iba colgado del `bottom:` de la AppBar. Al quitarla, va suelto
+      // justo debajo de la barra del shell y el TabBarView ocupa el resto.
+      return const DefaultTabController(
         length: 3,
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Configuración'),
-            bottom: const TabBar(
+        child: Column(
+          children: [
+            TabBar(
               isScrollable: true,
               tabs: [
                 Tab(text: 'SMTP y general'),
@@ -100,22 +99,21 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 Tab(text: 'Mis notificaciones'),
               ],
             ),
-          ),
-          body: const TabBarView(
-            children: [
-              _SystemConfigTab(),
-              _TemplatesTab(),
-              _NotificationsTab(),
-            ],
-          ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _SystemConfigTab(),
+                  _TemplatesTab(),
+                  _NotificationsTab(),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Configuración')),
-      body: const _NotificationsTab(),
-    );
+    return const _NotificationsTab();
   }
 }
 
