@@ -49,14 +49,15 @@ class _InspeccionesScreenState extends State<InspeccionesScreen> {
     );
   }
 
+  // Sin Scaffold ni AppBar propias: esta pantalla se monta dentro de home_shell,
+  // que ya aporta ambas y pinta el título de la sección. Añadir otra AppBar aquí
+  // apilaba dos barras y el título salía repetido. La pantalla de detalle sí
+  // lleva la suya, porque esa se abre con Navigator.push y necesita su volver.
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Inspecciones')),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: _buildBody(),
-      ),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: _buildBody(),
     );
   }
 
