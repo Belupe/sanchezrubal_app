@@ -31,6 +31,48 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 const PRINCIPAL = ["MEGA_ADMIN", "PRINCIPAL_ADMIN"];
 
+// Destino del enlace de los correos de alta. El esquema `portalfamilia://` está
+// registrado en las cuatro plataformas y admitido en el uri_allow_list de Auth;
+// supabase_flutter lo captura solo y abre la sesión sin pasar por ninguna web.
+const REDIRECT_APP = "portalfamilia://establecer-contrasena";
+
+/// Da de alta a alguien y le manda el correo para que ponga su contraseña.
+///
+/// NO usa inviteUserByEmail a propósito: su enlace dispara
+/// AuthChangeEvent.signedIn, y la app solo abre SetNewPasswordScreen con
+/// AuthChangeEvent.passwordRecovery (ver main.dart). Con la invitación, el
+/// recién llegado entraba en la app sin que nadie le pidiera una contraseña y
+/// después no podía volver a entrar. Dando el alta ya confirmada y mandando un
+/// correo de recuperación se reutiliza el flujo que ya funciona de punta a punta.
+async function altaConCorreo(
+  email: string,
+  name: string,
+): Promise<{ userId?: string; error?: unknown }> {
+  // Contraseña larga y aleatoria que no conoce nadie: a la cuenta solo se puede
+  // entrar siguiendo el enlace del correo.
+  const provisional = crypto.randomUUID() + crypto.randomUUID();
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password: provisional,
+    email_confirm: true,
+    user_metadata: { name },
+  });
+  if (error || !data?.user) return { error: error ?? new Error("sin usuario") };
+  const userId = data.user.id;
+
+  const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { error: mailErr } = await anon.auth.resetPasswordForEmail(email, {
+    redirectTo: REDIRECT_APP,
+  });
+  if (mailErr) {
+    // Sin correo, la cuenta queda inaccesible y sin que nadie se entere. Se
+    // deshace el alta, igual que hacía inviteUserByEmail cuando fallaba el envío.
+    await admin.auth.admin.deleteUser(userId);
+    return { error: mailErr };
+  }
+  return { userId };
+}
+
 const VALID_ROLES = [
   "MEGA_ADMIN",
   "PRINCIPAL_ADMIN",
@@ -144,11 +186,10 @@ Deno.serve(async (req) => {
 
       // Nuevo: el trigger handle_new_user lo crea como MEMBER; fijamos aquí el
       // rol ya validado (el rol NO viaja por metadata) [C-01].
-      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-        data: { name },
-      });
-      if (error) return fail(400, "No se pudo invitar al usuario", error);
-      const userId = data.user.id;
+      const { userId, error } = await altaConCorreo(email, name);
+      if (error || !userId) {
+        return fail(400, "No se pudo invitar al usuario", error);
+      }
       const { error: upErr } = await admin.from("profiles").update({
         role,
         ...(familyGroupId ? { family_group_id: familyGroupId } : {}),
@@ -183,11 +224,14 @@ Deno.serve(async (req) => {
           }).eq("id", ownerId);
           if (error) return fail(400, "No se pudo vincular al propietario", error);
         } else {
-          const { data, error } = await admin.auth.admin.inviteUserByEmail(ownerEmail, {
-            data: { name: ownerName || ownerEmail },
-          });
-          if (error) return fail(400, "No se pudo invitar al propietario", error);
-          ownerId = data.user.id;
+          const { userId, error } = await altaConCorreo(
+            ownerEmail,
+            ownerName || ownerEmail,
+          );
+          if (error || !userId) {
+            return fail(400, "No se pudo invitar al propietario", error);
+          }
+          ownerId = userId;
           const { error: upErr } = await admin.from("profiles").update({
             family_group_id: groupId,
             role: "FAMILY_ADMIN",
