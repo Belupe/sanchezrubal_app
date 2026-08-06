@@ -1,0 +1,35 @@
+-- ===============================================================
+-- 0023_fix_grant_set_smtp_password.sql — El GRANT que nunca llegó al servidor
+--
+-- Guardar la contraseña SMTP desde la app fallaba SIEMPRE, incluso siendo
+-- MEGA_ADMIN:
+--
+--   PostgrestException(message: permission denied for function
+--                      set_smtp_password, code: 42501)
+--
+-- Causa: en el servidor, set_smtp_password(text) solo tenía permiso de
+-- ejecución para `postgres`. La app llama por PostgREST con el rol
+-- `authenticated`, así que Postgres cortaba la llamada ANTES de entrar en la
+-- función. Ser MEGA_ADMIN no ayudaba: ese rol es una columna de `profiles`, no
+-- un rol de Postgres.
+--
+-- El despiste está en el código de error. La propia función usa 42501 para su
+-- "Solo el mega administrador", así que el mensaje parecía venir de dentro
+-- cuando en realidad nunca se ejecutó.
+--
+-- La línea existe desde el primer día en 0019_security_m07_smtp_vault.sql:65,
+-- pero no está en la base de datos: lo que se aplicó el 4/7/2026 no coincidía
+-- con lo que quedó en el repositorio. Se comprobó el resto de aquella tanda
+-- (revokes de las funciones de trigger y el service_role de get_smtp_password)
+-- y sí había llegado, así que era un hueco aislado, no un fallo general de las
+-- migraciones de seguridad.
+--
+-- Se repite aquí en vez de tocar la 0019 —que ya está aplicada— para que un
+-- despliegue desde cero no repita el fallo. GRANT es idempotente.
+--
+-- Dar el permiso a `authenticated` NO abre nada: la función es SECURITY
+-- DEFINER y se protege sola con `if not private.is_mega() then raise`. Quien no
+-- sea mega administrador sigue rebotando, solo que con el mensaje correcto.
+-- ===============================================================
+
+grant execute on function public.set_smtp_password(text) to authenticated;
