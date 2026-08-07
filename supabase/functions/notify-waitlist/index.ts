@@ -103,7 +103,10 @@ async function getSmtp() {
 
 async function sendMails(to: string, mails: { subject: string; html: string }[]) {
   const cfg = await getSmtp();
-  const port = cfg.smtp_port ?? 587;
+  // 465 por defecto (TLS implícito). La RFC 8314 lo prefiere frente a
+  // STARTTLS, y con 587 + smtp_secure activo la conexión falla: el puerto
+  // espera STARTTLS, no TLS directo. Solo aplica si smtp_port viene vacío.
+  const port = cfg.smtp_port ?? 465;
   const client = new SMTPClient({
     connection: {
       hostname: cfg.smtp_host,

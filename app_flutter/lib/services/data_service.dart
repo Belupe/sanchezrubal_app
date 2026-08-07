@@ -26,14 +26,27 @@ class DataService {
   // ----------------------------------------------------------------
   // Perfil propio
   // ----------------------------------------------------------------
+  /// Perfil propio, con la pertenencia aplanada. Desde la migración 0025 el
+  /// grupo y el papel dentro de él viven en `group_members`, pero se devuelven
+  /// como `family_group_id` y `group_role` para que quien lo consume no tenga
+  /// que saberlo.
   static Future<Map<String, dynamic>?> myProfile() async {
     final id = uid;
     if (id == null) return null;
-    return await supabase
+    final row = await supabase
         .from('profiles')
-        .select('id, name, email, role, family_group_id, image, ui_preferences')
+        .select('id, name, email, role, image, ui_preferences, '
+            'group_members(group_id, role)')
         .eq('id', id)
         .maybeSingle();
+    if (row == null) return null;
+    final gm = row['group_members'];
+    final miembro = gm is List ? (gm.isEmpty ? null : gm.first) : gm;
+    return {
+      ...row,
+      'family_group_id': miembro?['group_id'],
+      'group_role': miembro?['role'],
+    };
   }
 
   static Future<String?> currentRole() async =>
@@ -298,7 +311,7 @@ class DataService {
         // [2M-02] No se trae `image` en listados masivos (puede ser un blob
         // base64 grande y no se muestra); el avatar se cargaría bajo demanda.
         .select('id, name, color, owner_id, '
-            'profiles!profiles_family_group_id_fkey(id, name, email, role, family_group_id)')
+            'group_members(group_id, role, profiles(id, name, email, role))')
         .order('name');
     return (rows as List).map((e) => FamilyGroup.fromMap(e)).toList();
   }
@@ -319,19 +332,36 @@ class DataService {
     final rows = await supabase
         .from('profiles')
         // [2M-02] Sin `image` en el listado (no se muestra; evita difundir blobs).
-        .select('id, name, email, role, family_group_id')
+        .select('id, name, email, role, group_members(group_id, role)')
         .order('name');
     return (rows as List).map((e) => Profile.fromMap(e)).toList();
   }
 
-  /// Cambiar el rol de un usuario (principal, vía RLS).
+  /// Cambiar el rango GLOBAL de alguien (principal, vía RLS).
   static Future<void> setRole(String userId, String role) async {
     await supabase.from('profiles').update({'role': role}).eq('id', userId);
   }
 
-  /// Asignar / quitar de grupo (principal, vía RLS). null = sin grupo.
-  static Future<void> setMemberGroup(String userId, String? groupId) async {
-    await supabase.from('profiles').update({'family_group_id': groupId}).eq('id', userId);
+  /// Cambiar el papel de alguien DENTRO de su casa. No toca su rango global.
+  static Future<void> setGroupRole(String userId, String groupRole) async {
+    await supabase
+        .from('group_members')
+        .update({'role': groupRole}).eq('user_id', userId);
+  }
+
+  /// Meter en un grupo o sacar de él. `null` = expulsar (la cuenta sigue viva).
+  /// El `upsert` sobre `user_id` traslada de casa en un solo paso mientras siga
+  /// existiendo la restricción de un grupo por persona.
+  static Future<void> setMemberGroup(String userId, String? groupId,
+      {String groupRole = 'MEMBER'}) async {
+    if (groupId == null) {
+      await supabase.from('group_members').delete().eq('user_id', userId);
+      return;
+    }
+    await supabase.from('group_members').upsert(
+      {'user_id': userId, 'group_id': groupId, 'role': groupRole},
+      onConflict: 'user_id',
+    );
   }
 
   // ----------------------------------------------------------------

@@ -83,7 +83,7 @@ const VALID_ROLES = [
 
 // Techo de rol [A-01]: qué roles puede ASIGNAR cada llamante.
 // El mega gestiona todo; el principal, solo de FAMILY_ADMIN hacia abajo.
-function assignableRoles(callerRole: string): string[] {
+function assignableRoles(callerRole: string, callerGroupRole: string | null): string[] {
   if (callerRole === "MEGA_ADMIN") return VALID_ROLES;
   if (callerRole === "PRINCIPAL_ADMIN") {
     return ["FAMILY_ADMIN", "FAMILY_SECOND_ADMIN", "MEMBER"];
@@ -91,10 +91,19 @@ function assignableRoles(callerRole: string): string[] {
   // Un admin familiar solo reparte POR DEBAJO de sí mismo, y solo dentro de su
   // grupo (eso lo fuerza invite_user). Si pudiera nombrar a otro admin familiar
   // o ascenderse, el escalón de permisos dejaría de servir para nada.
-  if (callerRole === "FAMILY_ADMIN") {
+  if (callerGroupRole === "FAMILY_ADMIN") {
     return ["FAMILY_SECOND_ADMIN", "MEMBER"];
   }
   return [];
+}
+
+/// El cliente sigue mandando UN rol, pero desde la 0025 hay dos escalas. Se
+/// reparte: los rangos globales van a `profiles.role` y dentro de la casa esa
+/// persona es un miembro más; los de casa van a `group_members.role` y su rango
+/// global queda en USER.
+function partirRol(role: string): { global: string; grupo: string } {
+  if (PRINCIPAL.includes(role)) return { global: role, grupo: "MEMBER" };
+  return { global: "USER", grupo: role };
 }
 
 // [I-07] Origen permitido configurable (default "*" = igual que antes).
@@ -113,10 +122,35 @@ function fail(status: number, publicMsg: string, detail?: unknown) {
   return json({ error: publicMsg }, status);
 }
 
+/// Perfil + pertenencia. Desde la migración 0025 son dos tablas: `profiles.role`
+/// es el rango GLOBAL y `group_members` dice en qué casa está y con qué papel.
 async function profileByEmail(email: string) {
   const { data } = await admin.from("profiles")
-    .select("id, role, family_group_id").eq("email", email).maybeSingle();
-  return data as { id: string; role: string; family_group_id: string | null } | null;
+    .select("id, role").eq("email", email).maybeSingle();
+  if (!data) return null;
+  const m = await memberOf(data.id);
+  return {
+    id: data.id as string,
+    role: data.role as string,
+    groupId: m?.groupId ?? null,
+    groupRole: m?.groupRole ?? null,
+  };
+}
+
+async function memberOf(userId: string) {
+  const { data } = await admin.from("group_members")
+    .select("group_id, role").eq("user_id", userId).maybeSingle();
+  return data ? { groupId: data.group_id as string, groupRole: data.role as string } : null;
+}
+
+/// Mete (o mueve) a alguien en un grupo con el papel indicado. `null` lo saca.
+async function setMembership(userId: string, groupId: string | null, groupRole: string) {
+  if (groupId === null) {
+    return await admin.from("group_members").delete().eq("user_id", userId);
+  }
+  return await admin.from("group_members")
+    .upsert({ user_id: userId, group_id: groupId, role: groupRole },
+            { onConflict: "user_id" });
 }
 
 Deno.serve(async (req) => {
@@ -133,16 +167,20 @@ Deno.serve(async (req) => {
     if (!u?.user) return fail(401, "No autorizado");
 
     const { data: prof } = await userClient
-      .from("profiles").select("role, family_group_id").eq("id", u.user.id).single();
-    // Los admin familiares entran, pero SOLO para dar de alta gente en su propio
-    // grupo: create_group y delete_user siguen siendo de principal (cada acción
-    // lo vuelve a comprobar más abajo).
-    const MANAGERS = [...PRINCIPAL, "FAMILY_ADMIN"];
-    if (!prof || !MANAGERS.includes(prof.role)) {
+      .from("profiles").select("role").eq("id", u.user.id).single();
+    if (!prof) return fail(403, "Requiere administrador");
+    const callerRole = prof.role as string;
+
+    // Rango global y papel en su casa son cosas distintas desde la 0025. Un
+    // FAMILY_ADMIN entra, pero SOLO para dar de alta en su propio grupo:
+    // create_group y delete_user lo vuelven a comprobar más abajo.
+    const callerMember = await memberOf(u.user.id);
+    const callerGroup = callerMember?.groupId ?? null;
+    const callerGroupRole = callerMember?.groupRole ?? null;
+    const esFamiliar = !PRINCIPAL.includes(callerRole) && callerGroupRole === "FAMILY_ADMIN";
+    if (!PRINCIPAL.includes(callerRole) && !esFamiliar) {
       return fail(403, "Requiere administrador");
     }
-    const callerRole = prof.role as string;
-    const callerGroup = (prof.family_group_id as string | null) ?? null;
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "");
@@ -154,40 +192,42 @@ Deno.serve(async (req) => {
       // Un admin familiar solo da de alta EN SU GRUPO: el grupo que pida el
       // cliente se ignora y se impone el suyo. Sin esto, el de una casa podría
       // meter gente en otra.
-      const esFamiliar = callerRole === "FAMILY_ADMIN";
       if (esFamiliar && !callerGroup) {
         return fail(403, "No perteneces a ningún grupo");
       }
       const familyGroupId = esFamiliar ? callerGroup : (body.familyGroupId ?? null);
       if (!email || !name) return fail(400, "Faltan nombre o email");
-      if (!assignableRoles(callerRole).includes(role)) {
+      if (!assignableRoles(callerRole, callerGroupRole).includes(role)) {
         return fail(403, "No tienes permiso para asignar ese rol");
       }
+      const pedido = partirRol(role);
 
       const confirmRelink = body.confirmRelink === true;
       const existing = await profileByEmail(email);
       // Un admin familiar no puede arrancar a alguien de otro grupo para
       // llevárselo al suyo: solo vincula a quien no tiene grupo o ya está en el
-      // suyo. Tampoco puede tocar a un principal (lo cubre keepRole más abajo,
-      // pero aquí se corta antes y con un mensaje claro).
+      // suyo. Tampoco puede tocar a un principal.
       if (esFamiliar && existing) {
         if (PRINCIPAL.includes(existing.role)) {
           return fail(403, "Esa cuenta la gestiona un administrador principal");
         }
-        if (existing.family_group_id && existing.family_group_id !== callerGroup) {
+        if (existing.groupId && existing.groupId !== callerGroup) {
           return fail(403, "Esa persona ya pertenece a otro grupo");
         }
       }
       if (existing) {
         // [B-03] Ya existe una cuenta con ese email. Re-vincular puede
-        // trasladar de grupo y/o cambiar el rol de una cuenta REAL: exigir
+        // trasladar de grupo y/o cambiar el papel de una cuenta REAL: exigir
         // confirmación explícita (confirmRelink) antes de tocar nada.
-        // NO degradar a un mega/principal (su rol se conserva).
-        const keepRole = PRINCIPAL.includes(existing.role);
-        const nextRole = keepRole ? existing.role : role;
-        const roleChanges = nextRole !== existing.role;
+        // Un mega/principal NO pierde su rango global al entrar en una casa;
+        // desde la 0025 eso ya no es un apaño, es que son columnas distintas.
+        const keepGlobal = PRINCIPAL.includes(existing.role);
+        const nextGlobal = keepGlobal ? existing.role : pedido.global;
+        const nextGroupRole = pedido.grupo;
+        const roleChanges =
+          nextGlobal !== existing.role || nextGroupRole !== existing.groupRole;
         const groupChanges =
-          familyGroupId != null && familyGroupId !== existing.family_group_id;
+          familyGroupId != null && familyGroupId !== existing.groupId;
 
         if ((roleChanges || groupChanges) && !confirmRelink) {
           // Aviso interactivo, NO error: estado 200 para que invoke() del
@@ -196,9 +236,9 @@ Deno.serve(async (req) => {
             requiresConfirm: true,
             code: "relink_required",
             userId: existing.id,
-            currentRole: existing.role,
-            currentGroupId: existing.family_group_id,
-            targetRole: nextRole,
+            currentRole: existing.groupRole ?? existing.role,
+            currentGroupId: existing.groupId,
+            targetRole: role,
             targetGroupId: familyGroupId,
             message:
               "Ya existe una cuenta con ese email. Al continuar se reasignará " +
@@ -206,25 +246,33 @@ Deno.serve(async (req) => {
           });
         }
 
-        const { error } = await admin.from("profiles").update({
-          ...(keepRole ? {} : { role }),
-          ...(familyGroupId ? { family_group_id: familyGroupId } : {}),
-        }).eq("id", existing.id);
-        if (error) return fail(400, "No se pudo vincular el usuario", error);
+        if (!keepGlobal) {
+          const { error } = await admin.from("profiles")
+            .update({ role: nextGlobal }).eq("id", existing.id);
+          if (error) return fail(400, "No se pudo vincular el usuario", error);
+        }
+        if (familyGroupId) {
+          const { error } = await setMembership(existing.id, familyGroupId, nextGroupRole);
+          if (error) return fail(400, "No se pudo vincular el usuario", error);
+        }
         return json({ ok: true, userId: existing.id, relinked: true });
       }
 
-      // Nuevo: el trigger handle_new_user lo crea como MEMBER; fijamos aquí el
-      // rol ya validado (el rol NO viaja por metadata) [C-01].
+      // Nuevo: el trigger handle_new_user lo crea como USER sin grupo; aquí se
+      // fija el rango ya validado (el rol NO viaja por metadata) [C-01].
       const { userId, error } = await altaConCorreo(email, name);
       if (error || !userId) {
         return fail(400, "No se pudo invitar al usuario", error);
       }
-      const { error: upErr } = await admin.from("profiles").update({
-        role,
-        ...(familyGroupId ? { family_group_id: familyGroupId } : {}),
-      }).eq("id", userId);
-      if (upErr) return fail(400, "No se pudo asignar el rol", upErr);
+      if (pedido.global !== "USER") {
+        const { error: upErr } = await admin.from("profiles")
+          .update({ role: pedido.global }).eq("id", userId);
+        if (upErr) return fail(400, "No se pudo asignar el rol", upErr);
+      }
+      if (familyGroupId) {
+        const { error: mErr } = await setMembership(userId, familyGroupId, pedido.grupo);
+        if (mErr) return fail(400, "No se pudo asignar el grupo", mErr);
+      }
       return json({ ok: true, userId });
     }
 
@@ -244,19 +292,14 @@ Deno.serve(async (req) => {
       if (gErr) return fail(400, "No se pudo crear el grupo", gErr);
       const groupId = group.id;
 
-      // Propietario OPCIONAL (rol FAMILY_ADMIN, dentro del techo de cualquier
-      // principal). Si ya es un mega/principal, NO se degrada.
+      // Propietario OPCIONAL: entra como FAMILY_ADMIN de la casa nueva. Su rango
+      // GLOBAL no se toca — desde la 0025 son columnas distintas, así que un
+      // mega/principal puede llevar su casa sin dejar de ser lo que es.
       if (ownerEmail) {
         const existing = await profileByEmail(ownerEmail);
         let ownerId: string;
         if (existing) {
           ownerId = existing.id;
-          const keepRole = PRINCIPAL.includes(existing.role);
-          const { error } = await admin.from("profiles").update({
-            family_group_id: groupId,
-            ...(keepRole ? {} : { role: "FAMILY_ADMIN" }),
-          }).eq("id", ownerId);
-          if (error) return fail(400, "No se pudo vincular al propietario", error);
         } else {
           const { userId, error } = await altaConCorreo(
             ownerEmail,
@@ -266,12 +309,9 @@ Deno.serve(async (req) => {
             return fail(400, "No se pudo invitar al propietario", error);
           }
           ownerId = userId;
-          const { error: upErr } = await admin.from("profiles").update({
-            family_group_id: groupId,
-            role: "FAMILY_ADMIN",
-          }).eq("id", ownerId);
-          if (upErr) return fail(400, "No se pudo asignar el propietario", upErr);
         }
+        const { error: mErr } = await setMembership(ownerId, groupId, "FAMILY_ADMIN");
+        if (mErr) return fail(400, "No se pudo asignar el propietario", mErr);
         await admin.from("family_groups").update({ owner_id: ownerId }).eq("id", groupId);
       }
       return json({ ok: true, groupId });

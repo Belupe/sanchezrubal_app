@@ -129,7 +129,10 @@ async function getSmtp() {
 
 async function sendMail(to: string[], subject: string, html: string) {
   const cfg = await getSmtp();
-  const port = cfg.smtp_port ?? 587;
+  // 465 por defecto (TLS implícito). La RFC 8314 lo prefiere frente a
+  // STARTTLS, y con 587 + smtp_secure activo la conexión falla: el puerto
+  // espera STARTTLS, no TLS directo. Solo aplica si smtp_port viene vacío.
+  const port = cfg.smtp_port ?? 465;
   const client = new SMTPClient({
     connection: {
       hostname: cfg.smtp_host,
@@ -172,10 +175,21 @@ async function handleReservation(reservationId: string, type: "RESERVATION_CONFI
   };
   const recipients = creator?.email ? [creator.email] : [];
   if (type === "MAINTENANCE") {
-    // Aviso a todos los administradores con email.
-    const { data: admins } = await admin.from("profiles")
-      .select("email").in("role", [...PRINCIPAL, ...FAMILY_ADMIN]).not("email", "is", null);
-    for (const a of admins ?? []) if (a.email) recipients.push(a.email);
+    // Aviso a todos los administradores con email. Desde la migración 0025 hay
+    // que mirar en DOS sitios: el rango global está en profiles.role y el de
+    // cada casa en group_members.role.
+    const { data: globales } = await admin.from("profiles")
+      .select("email").in("role", PRINCIPAL).not("email", "is", null);
+    for (const a of globales ?? []) if (a.email) recipients.push(a.email);
+
+    const { data: jefes } = await admin.from("group_members")
+      .select("user_id").in("role", FAMILY_ADMIN);
+    const ids = (jefes ?? []).map((j) => j.user_id);
+    if (ids.length) {
+      const { data: sus } = await admin.from("profiles")
+        .select("email").in("id", ids).not("email", "is", null);
+      for (const a of sus ?? []) if (a.email) recipients.push(a.email);
+    }
   }
   const uniq = [...new Set(recipients)];
   if (uniq.length) await sendMail(uniq, fill(tpl.subject, vars), fillHtml(tpl.body, vars));
@@ -280,18 +294,22 @@ Deno.serve(async (req) => {
     if (!reservationId) return json({ error: "Falta reservationId" }, 400);
 
     const { data: prof } = await userClient.from("profiles")
-      .select("role, family_group_id").eq("id", u.user.id).single();
+      .select("role").eq("id", u.user.id).single();
+    // El rol dentro de la casa vive en group_members desde la migración 0025;
+    // `profiles.role` ya solo dice el rango GLOBAL.
+    const { data: member } = await userClient.from("group_members")
+      .select("group_id, role").eq("user_id", u.user.id).maybeSingle();
     const { data: resv } = await userClient.from("reservations")
       .select("created_by_id, family_group_id, is_maintenance").eq("id", reservationId).single();
     if (!prof || !resv) return json({ error: "Sin acceso" }, 403);
 
     const isPrincipal = PRINCIPAL.includes(prof.role);
-    // [2L-14] Un family-admin SIN grupo (family_group_id NULL) no es admin de
-    // reservas de grupo NULL: exigir grupo no nulo (espeja is_group_admin(NULL)).
+    // [2L-14] Quien no está en ninguna casa no es admin de reservas de grupo
+    // NULL: exigir pertenencia (espeja private.is_group_admin(NULL)).
     const isGroupAdmin = isPrincipal ||
-      (FAMILY_ADMIN.includes(prof.role) &&
-        prof.family_group_id != null &&
-        prof.family_group_id === resv.family_group_id);
+      (member != null &&
+        FAMILY_ADMIN.includes(member.role) &&
+        member.group_id === resv.family_group_id);
     const isCreator = resv.created_by_id === u.user.id;
 
     if (type === "reservation_confirmation") {

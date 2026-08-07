@@ -97,8 +97,13 @@ Deno.serve(async (req) => {
     if (!reservationId) return json({ error: "Falta reservationId" }, 400);
 
     const { data: profile } = await supabase
-      .from("profiles").select("role, family_group_id").eq("id", uid).single();
+      .from("profiles").select("role").eq("id", uid).single();
     if (!profile) return json({ error: "Perfil no encontrado" }, 403);
+
+    // El rol dentro de la casa vive en group_members desde la migración 0025;
+    // `profiles.role` ya solo dice el rango GLOBAL.
+    const { data: member } = await supabase
+      .from("group_members").select("group_id, role").eq("user_id", uid).maybeSingle();
 
     const { data: reservation } = await supabase
       .from("reservations").select("created_by_id, family_group_id")
@@ -106,12 +111,12 @@ Deno.serve(async (req) => {
     if (!reservation) return json({ error: "Reserva no encontrada" }, 404);
 
     const isPrincipal = PRINCIPAL.includes(profile.role);
-    // [2L-14] Un family-admin SIN grupo (family_group_id NULL) no es admin de una
-    // reserva de grupo NULL: exigir grupo no nulo (espeja is_group_admin(NULL)).
+    // [2L-14] Quien no está en ninguna casa no es admin de una reserva de grupo
+    // NULL: exigir pertenencia (espeja private.is_group_admin(NULL)).
     const isGroupAdmin = isPrincipal ||
-      (FAMILY_ADMIN.includes(profile.role) &&
-        profile.family_group_id != null &&
-        profile.family_group_id === reservation.family_group_id);
+      (member != null &&
+        FAMILY_ADMIN.includes(member.role) &&
+        member.group_id === reservation.family_group_id);
     const isCreator = reservation.created_by_id === uid;
     const canWrite = isCreator || isGroupAdmin;
     const canRead = canWrite || isPrincipal;

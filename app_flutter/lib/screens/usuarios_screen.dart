@@ -27,6 +27,10 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
   bool get _isPrincipal => _role == 'MEGA_ADMIN' || _role == 'PRINCIPAL_ADMIN';
 
+  /// Qué eres DENTRO de tu casa. Desde la migración 0025 es un dato distinto
+  /// del rango global: un mega administrador puede ser un miembro más.
+  String? get _miPapelEnCasa => _myProfile?['group_role'] as String?;
+
   @override
   void initState() {
     super.initState();
@@ -47,15 +51,14 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       final esPrincipal = role == 'MEGA_ADMIN' || role == 'PRINCIPAL_ADMIN';
       final profiles = esPrincipal ? await DataService.allProfiles() : <Profile>[];
       // Los administradores primero y, dentro de cada rango, por nombre.
+      // Primero por rango global y, a igualdad, por el papel en la casa. Son
+      // dos escalas distintas desde la migración 0025.
       profiles.sort((a, b) {
-        const orden = {
-          'MEGA_ADMIN': 0,
-          'PRINCIPAL_ADMIN': 1,
-          'FAMILY_ADMIN': 2,
-          'FAMILY_SECOND_ADMIN': 3,
-          'MEMBER': 4,
-        };
-        final c = (orden[a.role] ?? 9).compareTo(orden[b.role] ?? 9);
+        const global = {'MEGA_ADMIN': 0, 'PRINCIPAL_ADMIN': 1, 'USER': 2};
+        const casa = {'FAMILY_ADMIN': 0, 'FAMILY_SECOND_ADMIN': 1, 'MEMBER': 2};
+        var c = (global[a.role] ?? 9).compareTo(global[b.role] ?? 9);
+        if (c != 0) return c;
+        c = (casa[a.groupRole] ?? 9).compareTo(casa[b.groupRole] ?? 9);
         return c != 0 ? c : a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
       if (!mounted) return;
@@ -118,7 +121,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   /// de principal, y va por `puedeEliminarCuentas`.
   bool _gestionaGrupo(FamilyGroup g) =>
       _isPrincipal ||
-      (_role == 'FAMILY_ADMIN' &&
+      (_miPapelEnCasa == 'FAMILY_ADMIN' &&
           g.id == (_myProfile?['family_group_id'] as String?));
 
   Future<void> _openGroup(FamilyGroup g) async {
@@ -314,7 +317,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       // gente en él y gestionarla desde dentro; el resto lo ve en solo lectura.
       final myGroupId = _myProfile?['family_group_id'] as String?;
       final mine = _groups.where((g) => g.id == myGroupId).toList();
-      final esAdminFamiliar = _role == 'FAMILY_ADMIN' && mine.isNotEmpty;
+      final esAdminFamiliar = _miPapelEnCasa == 'FAMILY_ADMIN' && mine.isNotEmpty;
       return ListView(
         padding: const EdgeInsets.all(12),
         children: [
@@ -471,8 +474,12 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
             ]),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 4, children: [
-              Chip(label: Text(p.roleLabel)),
+              // Rango global: solo se enseña si es alguien que administra la
+              // app. 'Usuario' a secas no aporta nada.
+              if (p.role != 'USER') Chip(label: Text(p.roleLabel)),
               Chip(label: Text(_nombreGrupo(p.familyGroupId))),
+              if (p.groupRoleLabel != null)
+                Chip(label: Text(p.groupRoleLabel!)),
             ]),
             if (editable) ...[
               const SizedBox(height: 12),
@@ -481,30 +488,26 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                   'MEMBER',
                   'FAMILY_ADMIN',
                   'FAMILY_SECOND_ADMIN',
-                  'PRINCIPAL_ADMIN',
-                ].contains(p.role)
-                    ? p.role
+                ].contains(p.groupRole)
+                    ? p.groupRole
                     : 'MEMBER',
                 isDense: true,
                 decoration: const InputDecoration(
-                    labelText: 'Rol',
+                    labelText: 'Permiso en la casa',
                     isDense: true,
                     border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'MEMBER', child: Text('Miembro')),
                   DropdownMenuItem(
-                      value: 'FAMILY_ADMIN',
-                      child: Text('Administrador familiar')),
-                  DropdownMenuItem(
                       value: 'FAMILY_SECOND_ADMIN',
                       child: Text('Administrador secundario')),
                   DropdownMenuItem(
-                      value: 'PRINCIPAL_ADMIN',
-                      child: Text('Administrador principal')),
+                      value: 'FAMILY_ADMIN',
+                      child: Text('Administrador familiar')),
                 ],
                 onChanged: (v) {
-                  if (v != null && v != p.role) {
-                    _run(() => DataService.setRole(p.id, v));
+                  if (v != null && v != p.groupRole) {
+                    _run(() => DataService.setGroupRole(p.id, v));
                   }
                 },
               ),

@@ -20,8 +20,19 @@ class FamilyGroup {
         name: m['name'] as String,
         color: (m['color'] as String?) ?? '#3b82f6',
         ownerId: m['owner_id'] as String?,
-        members: (m['profiles'] as List?)
-                ?.map((e) => Profile.fromMap(e as Map<String, dynamic>))
+        // Desde la 0025 los miembros llegan por group_members, que trae el
+        // papel en la casa y anida el perfil. Se aplanan los dos niveles en un
+        // solo Profile para que las pantallas no vean el cambio.
+        members: (m['group_members'] as List?)
+                ?.map((e) {
+                  final fila = e as Map<String, dynamic>;
+                  final p = (fila['profiles'] as Map<String, dynamic>?) ?? {};
+                  return Profile.fromMap({
+                    ...p,
+                    'family_group_id': fila['group_id'],
+                    'group_role': fila['role'],
+                  });
+                })
                 .toList() ??
             const [],
       );

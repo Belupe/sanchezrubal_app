@@ -230,8 +230,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Widget _memberCard(Profile m) {
-    final isGlobalAdmin = m.role == 'MEGA_ADMIN' || m.role == 'PRINCIPAL_ADMIN';
-    final canManage = widget.isPrincipal && !isGlobalAdmin;
+    // Su rango global ya no impide gestionarlo aquí: lo que se toca es su papel
+    // EN ESTA CASA, que desde la 0025 es un dato aparte. Un mega administrador
+    // puede ser un miembro más de su familia sin dejar de ser lo que es.
+    final canManage = widget.isPrincipal;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -264,8 +266,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             if (canManage) ...[
               DropdownButtonFormField<String>(
                 initialValue: const ['MEMBER', 'FAMILY_ADMIN', 'FAMILY_SECOND_ADMIN']
-                        .contains(m.role)
-                    ? m.role
+                        .contains(m.groupRole)
+                    ? m.groupRole
                     : 'MEMBER',
                 isDense: true,
                 decoration: const InputDecoration(
@@ -287,8 +289,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         value: 'FAMILY_ADMIN', child: Text('Admin. familiar')),
                 ],
                 onChanged: (v) {
-                  if (v != null && v != m.role) {
-                    _run(() => DataService.setRole(m.id, v));
+                  if (v != null && v != m.groupRole) {
+                    _run(() => DataService.setGroupRole(m.id, v));
                   }
                 },
               ),
@@ -314,7 +316,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ] else
               Align(
                 alignment: Alignment.centerLeft,
-                child: Chip(label: Text(m.roleLabel)),
+                child: Chip(label: Text(m.groupRoleLabel ?? m.roleLabel)),
               ),
           ],
         ),

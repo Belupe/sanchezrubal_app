@@ -51,7 +51,10 @@ Deno.serve(async (req) => {
     }
     // [M-07] Contraseña desde Vault (service role); TLS forzado por puerto.
     const { data: pass } = await admin.rpc("get_smtp_password");
-    const port = cfg.smtp_port ?? 587;
+    // 465 por defecto (TLS implícito). La RFC 8314 lo prefiere frente a
+  // STARTTLS, y con 587 + smtp_secure activo la conexión falla: el puerto
+  // espera STARTTLS, no TLS directo. Solo aplica si smtp_port viene vacío.
+  const port = cfg.smtp_port ?? 465;
 
     const client = new SMTPClient({
       connection: {
