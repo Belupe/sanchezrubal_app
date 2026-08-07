@@ -64,22 +64,19 @@ class _ReservationFormState extends State<ReservationForm> {
     super.dispose();
   }
 
-  Future<void> _pickDate({required bool start}) async {
+  /// Solo se elige la ENTRADA: la duración es fija (una quincena), así que la
+  /// salida se calcula. Antes se podía elegir y el servidor la rechazaba después.
+  Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: start ? _start : _end,
+      initialDate: _start,
       firstDate: DateTime(2020),
       lastDate: DateTime(2035),
     );
     if (picked == null) return;
     setState(() {
-      if (start) {
-        _start = picked;
-        // Al elegir la entrada, la salida salta automáticamente al mínimo.
-        _end = _start.add(Duration(days: _minDays));
-      } else {
-        _end = picked;
-      }
+      _start = picked;
+      _end = _start.add(Duration(days: _minDays));
     });
   }
 
@@ -88,12 +85,8 @@ class _ReservationFormState extends State<ReservationForm> {
       setState(() => _error = 'No hay casas. Un administrador debe crearlas primero.');
       return;
     }
-    if (!_end.isAfter(_start)) {
-      setState(() => _error = 'La fecha de salida debe ser posterior a la de entrada.');
-      return;
-    }
-    if (_end.difference(_start).inDays < _minDays) {
-      setState(() => _error = 'La reserva debe ser de al menos $_minDays días.');
+    if (_end.difference(_start).inDays != _minDays) {
+      setState(() => _error = 'La reserva debe ser de exactamente $_minDays días.');
       return;
     }
     setState(() {
@@ -198,7 +191,7 @@ class _ReservationFormState extends State<ReservationForm> {
             title: const Text('Entrada'),
             subtitle: Text(df.format(_start)),
             trailing: const Icon(Icons.edit_calendar),
-            onTap: () => _pickDate(start: true),
+            onTap: _pickDate,
           ),
           const SizedBox(height: 8),
           ListTile(
@@ -206,9 +199,9 @@ class _ReservationFormState extends State<ReservationForm> {
                 side: BorderSide(color: Colors.grey),
                 borderRadius: BorderRadius.all(Radius.circular(4))),
             title: const Text('Salida'),
-            subtitle: Text(df.format(_end)),
-            trailing: const Icon(Icons.edit_calendar),
-            onTap: () => _pickDate(start: false),
+            subtitle: Text('${df.format(_end)}  ·  $_minDays días'),
+            trailing: const Icon(Icons.lock_outline),
+            enabled: false,
           ),
           const SizedBox(height: 16),
           Row(

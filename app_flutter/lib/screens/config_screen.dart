@@ -134,7 +134,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
   final _smtpPass = TextEditingController();
   bool _smtpSecure = false;
   final _maxDays = TextEditingController();
-  final _maxDaysCap = TextEditingController();
   bool _testing = false;
   String? _testResult;
 
@@ -176,7 +175,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         ''; // [M-07] no se descarga; en blanco = conservar la guardada.
     _smtpSecure = cfg?.smtpSecure ?? false;
     _maxDays.text = cfg?.maxReservationDays.toString() ?? '';
-    _maxDaysCap.text = cfg?.maxReservationDaysCap.toString() ?? '';
   }
 
   Future<void> _test() async {
@@ -215,29 +213,19 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpUser.dispose();
     _smtpPass.dispose();
     _maxDays.dispose();
-    _maxDaysCap.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final port = int.tryParse(_smtpPort.text.trim());
     final days = int.tryParse(_maxDays.text.trim());
-    final daysCap = int.tryParse(_maxDaysCap.text.trim());
     if (_smtpPort.text.trim().isNotEmpty && port == null) {
       setState(() => _error = 'El puerto SMTP debe ser un número.');
       return;
     }
     if (days == null || days < 1) {
       setState(
-        () => _error =
-            'Los días mínimos de reserva deben ser un número mayor o igual a 1.',
-      );
-      return;
-    }
-    if (daysCap == null || daysCap < days) {
-      setState(
-        () => _error =
-            'Los días máximos de reserva deben ser un número mayor o igual al mínimo.',
+        () => _error = 'Los días por reserva deben ser un número mayor que 0.',
       );
       return;
     }
@@ -252,7 +240,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         'smtp_user': _smtpUser.text.trim(),
         'smtp_secure': _smtpSecure,
         'max_reservation_days': days,
-        'max_reservation_days_cap': daysCap,
+        'max_reservation_days_cap': days,
       });
       // [M-07] La contraseña SMTP va a Vault por separado; solo se cambia si el
       // mega escribió algo (campo en blanco = conservar la actual).
@@ -289,20 +277,14 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
               children: [
                 Text('General', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
+                // Un único campo: la familia reserva siempre por quincenas, así
+                // que mínimo y tope son el mismo número y se escriben a la vez.
                 TextField(
                   controller: _maxDays,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Días mínimos de reserva',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _maxDaysCap,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Días máximos de reserva',
+                    labelText: 'Días por reserva',
+                    helperText: 'Todas las reservas duran exactamente estos días.',
                     border: OutlineInputBorder(),
                   ),
                 ),
