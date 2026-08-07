@@ -173,25 +173,12 @@ async function handleReservation(reservationId: string, type: "RESERVATION_CONFI
     EndDate: fmt(r.end_date),
     FormLink: `${APP_SCHEME}inspeccion/${reservationId}`,
   };
-  const recipients = creator?.email ? [creator.email] : [];
-  if (type === "MAINTENANCE") {
-    // Aviso a todos los administradores con email. Desde la migración 0025 hay
-    // que mirar en DOS sitios: el rango global está en profiles.role y el de
-    // cada casa en group_members.role.
-    const { data: globales } = await admin.from("profiles")
-      .select("email").in("role", PRINCIPAL).not("email", "is", null);
-    for (const a of globales ?? []) if (a.email) recipients.push(a.email);
-
-    const { data: jefes } = await admin.from("group_members")
-      .select("user_id").in("role", FAMILY_ADMIN);
-    const ids = (jefes ?? []).map((j) => j.user_id);
-    if (ids.length) {
-      const { data: sus } = await admin.from("profiles")
-        .select("email").in("id", ids).not("email", "is", null);
-      for (const a of sus ?? []) if (a.email) recipients.push(a.email);
-    }
-  }
-  const uniq = [...new Set(recipients)];
+  // Solo el creador. El reparto del aviso de MANTENIMIENTO (que iba a los
+  // administradores globales y a los de cada casa) se movió a la Edge Function
+  // notify-changes en la migración 0027: allí lo dispara un trigger de la BD,
+  // llega a todos menos al mega admin y va acompañado de push. Si se dejara
+  // también aquí, cada bloqueo saldría por duplicado y con la lista antigua.
+  const uniq = [...new Set(creator?.email ? [creator.email] : [])];
   if (uniq.length) await sendMail(uniq, fill(tpl.subject, vars), fillHtml(tpl.body, vars));
   return uniq.length;
 }
