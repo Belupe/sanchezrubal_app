@@ -36,7 +36,10 @@ dependencies:
   path_provider: ^2.1.6
   app_links: ^7.1.2
   crypto: ^3.0.6
-  flutter_secure_storage: ^10.3.1  # 10.x compatible con package_info_plus 10.x (win32)
+  # Guarda la sesión (JWT + refresh) cifrada en reposo [M-09]. La 10.x estaba
+  # fijada porque la 11 pedía un win32 que chocaba con package_info_plus 10.x;
+  # con win32 6.4.0 ese conflicto desapareció.
+  flutter_secure_storage: ^11.0.0
   shared_preferences: ^2.5.5       # ya transitivo; explícito para el linter y la migración [M-09]
   # Abrir la carpeta de registros (file://) y la página de descargas cuando la
   # app no puede auto-actualizarse (.deb / .tar.gz). Ya era transitivo.
