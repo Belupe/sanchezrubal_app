@@ -169,7 +169,9 @@ class _ProfileTabState extends State<ProfileTab> {
       case 'FAMILY_SECOND_ADMIN':
         return 'Administrador secundario';
       default:
-        return 'Miembro';
+        // 'USER' es el rango global de quien no administra nada; su papel en la
+        // casa, si tiene, se muestra aparte.
+        return 'Usuario';
     }
   }
 

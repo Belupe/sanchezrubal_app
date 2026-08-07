@@ -14,8 +14,11 @@ Future<void> showReservationDetail(
   final profile = await DataService.myProfile();
   final uid = DataService.uid;
   final isPrincipal = role == 'MEGA_ADMIN' || role == 'PRINCIPAL_ADMIN';
+  // El papel dentro de la casa vive en group_members desde la migración 0025;
+  // `role` ya solo dice el rango global.
+  final groupRole = profile?['group_role'] as String?;
   final isGroupAdmin = isPrincipal ||
-      ((role == 'FAMILY_ADMIN' || role == 'FAMILY_SECOND_ADMIN') &&
+      ((groupRole == 'FAMILY_ADMIN' || groupRole == 'FAMILY_SECOND_ADMIN') &&
           profile?['family_group_id'] == r.familyGroupId);
   final isCreator = r.createdById == uid;
 
