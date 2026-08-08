@@ -96,7 +96,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               tabs: [
                 Tab(text: 'SMTP y general'),
                 Tab(text: 'Plantillas'),
-                Tab(text: 'Mis notificaciones'),
+                Tab(text: 'Soporte'),
               ],
             ),
             Expanded(
@@ -104,7 +104,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 children: [
                   _SystemConfigTab(),
                   _TemplatesTab(),
-                  _NotificationsTab(),
+                  _SoporteTab(),
                 ],
               ),
             ),
@@ -113,7 +113,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
       );
     }
 
-    return const _NotificationsTab();
+    return const _SoporteTab();
   }
 }
 
@@ -624,177 +624,22 @@ class _TemplateCardState extends State<_TemplateCard> {
 }
 
 // ====================================================================
-// Mis notificaciones (cualquier rol)
+// Soporte (cualquier rol)
 // ====================================================================
-class _NotificationsTab extends StatefulWidget {
-  const _NotificationsTab();
-
-  @override
-  State<_NotificationsTab> createState() => _NotificationsTabState();
-}
-
-class _NotificationsTabState extends State<_NotificationsTab> {
-  static const _type = 'PRE_STAY';
-
-  bool _isActive = true;
-  final _customText = TextEditingController();
-
-  bool _loading = true;
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final rows = await DataService.myNotificationSettings();
-      final existing = rows.cast<Map<String, dynamic>?>().firstWhere(
-        (r) => r?['type'] == _type,
-        orElse: () => null,
-      );
-      setState(() {
-        _isActive = (existing?['is_active'] as bool?) ?? true;
-        _customText.text = (existing?['custom_text'] as String?) ?? '';
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = friendlyError(
-          e,
-          fallback: 'No se pudieron cargar tus notificaciones.',
-        );
-        _loading = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _customText.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await DataService.saveNotificationSetting(
-        _type,
-        isActive: _isActive,
-        customText: _customText.text.trim().isEmpty
-            ? null
-            : _customText.text.trim(),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notificaciones guardadas')),
-        );
-      }
-    } catch (e) {
-      setState(
-        () => _error = friendlyError(e, fallback: 'No se pudo guardar.'),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
+// Antes esto era "Mis notificaciones" y solo servía para activar o desactivar
+// el recordatorio previo a la estancia. Se retiró: ese aviso pasa a estar
+// SIEMPRE activo (send-email ya lo trataba así cuando el usuario no tenía
+// fila) y su texto se edita desde la plantilla PRE_STAY en Supabase, sin
+// recompilar. Lo que sí hacía falta era un sitio al que mandar a alguien
+// cuando algo va mal, y de ahí el cambio de nombre.
+class _SoporteTab extends StatelessWidget {
+  const _SoporteTab();
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.tonal(
-                onPressed: _load,
-                child: const Text('Reintentar'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Mis notificaciones',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 4),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Recordatorio previo a la estancia'),
-                  subtitle: const Text(
-                    'Recibe un aviso antes de tu reserva (PRE_STAY).',
-                  ),
-                  value: _isActive,
-                  onChanged: (v) => setState(() => _isActive = v),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _customText,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Texto personalizado (opcional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 12),
-          Text(_error!, style: const TextStyle(color: Colors.red)),
-        ],
-        const SizedBox(height: 20),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: _saving
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Guardar'),
-          ),
-        ),
-        // Visible para TODOS los perfiles: cualquiera puede tener que mandar
-        // el informe de un fallo.
-        const SizedBox(height: 24),
-        const _DiagnosticoCard(),
-      ],
+      children: const [_DiagnosticoCard()],
     );
   }
 }
@@ -803,9 +648,17 @@ class _NotificationsTabState extends State<_NotificationsTab> {
 // (4) Diagnóstico — registro de fallos
 // ====================================================================
 
-/// Deja a mano el informe del último fallo, para poder pedírselo al usuario.
-/// En el ordenador abre la carpeta `Logs/`; en el móvil comparte el fichero
-/// (`mailto:` no admite adjuntos, por eso va por el menú del sistema).
+/// Deja a mano el informe del último fallo para poder pedírselo al usuario.
+///
+/// El botón principal lo manda a soporte por correo con un solo toque, en las
+/// cinco plataformas: el destinatario lo fija la Edge Function `send-log`, así
+/// que nadie tiene que escribir una dirección ni acertarla. Antes esto era
+/// notablemente peor: en móvil había que pasar por el menú de compartir y
+/// elegir un cliente de correo, y en escritorio no había forma de enviarlo,
+/// solo "abrir la carpeta" y adjuntar el fichero a mano.
+///
+/// Se conservan las dos vías antiguas como respaldo, porque el envío depende
+/// del SMTP y de la red: si el correo falla, el fichero sigue estando ahí.
 class _DiagnosticoCard extends StatefulWidget {
   const _DiagnosticoCard();
 
@@ -814,6 +667,55 @@ class _DiagnosticoCard extends StatefulWidget {
 }
 
 class _DiagnosticoCardState extends State<_DiagnosticoCard> {
+  bool _enviando = false;
+  String? _resultado;
+
+  /// Manda el registro a soporte por correo. Es el camino principal.
+  ///
+  /// Se envía el informe del último fallo si lo hay y, si no, el registro de la
+  /// sesión en curso: los errores que se tragan (push, red, permisos) no
+  /// cierran la app y por tanto nunca generan un `ultimo-fallo.log`, que era
+  /// justo el caso en el que más falta hace poder mirar algo.
+  Future<void> _enviarASoporte() async {
+    final f = LogService.ultimoFallo ?? LogService.sesionActual;
+    if (f == null) {
+      setState(() => _resultado = 'No hay ningún registro que enviar.');
+      return;
+    }
+    setState(() {
+      _enviando = true;
+      _resultado = null;
+    });
+    try {
+      final esFallo = LogService.ultimoFallo != null;
+      // Segunda pasada de saneado. El registro ya se redacta al escribirse,
+      // pero esto va a salir por correo hacia fuera y la función es barata.
+      final contenido = LogService.redactar(await f.readAsString());
+      final err = await DataService.enviarRegistroASoporte(
+        registro: contenido,
+        esFallo: esFallo,
+        contexto: {
+          'Plataforma': kIsWeb ? 'web' : defaultTargetPlatform.name,
+          'Notificaciones': PushService.estado,
+          'Origen': esFallo ? 'ultimo-fallo.log' : 'sesion.log',
+        },
+      );
+      if (!mounted) return;
+      setState(
+        () => _resultado = err == null
+            ? '✅ Registro enviado a soporte. Gracias.'
+            : '❌ $err',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _resultado = '❌ ${friendlyError(e, fallback: 'No se pudo enviar el registro.')}',
+      );
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
   static bool get _esEscritorio =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
@@ -874,9 +776,9 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
             Text('Diagnóstico', style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
-              'Si la app se cierra sola o da un error raro, aquí queda un '
-              'informe técnico del último fallo. Solo hace falta si te lo '
-              'piden; no contiene tu contraseña ni tu sesión.',
+              'Si la app se cierra sola o hace algo raro, pulsa el botón: nos '
+              'llega el informe técnico y no tienes que hacer nada más. '
+              'No contiene tu contraseña ni tu sesión.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
@@ -893,6 +795,35 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
               'Notificaciones — ${PushService.estado}',
               style: theme.textTheme.bodySmall,
             ),
+            const SizedBox(height: 16),
+            // Camino principal, igual en las cinco plataformas. Siempre
+            // habilitado: si no hay fallo manda el registro de la sesión, que
+            // es el único rastro de los errores que no cierran la app.
+            FilledButton.icon(
+              onPressed: _enviando ? null : _enviarASoporte,
+              icon: _enviando
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.mail_outline),
+              label: Text(
+                _enviando ? 'Enviando…' : 'Enviar registro a soporte',
+              ),
+            ),
+            if (_resultado != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _resultado!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: _resultado!.startsWith('✅')
+                      ? null
+                      : theme.colorScheme.error,
+                ),
+              ),
+            ],
+            // Respaldos, por si el correo no sale (SMTP caído, sin red).
             if (_esEscritorio) ...[
               const SizedBox(height: 12),
               SelectableText(
@@ -908,16 +839,14 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
                 label: const Text('Abrir carpeta de registros'),
               ),
             ] else ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               OutlinedButton.icon(
-                // Siempre habilitado: si no hay fallo, envía el registro de la
-                // sesión, que es el único rastro de los errores silenciosos.
                 onPressed: _compartirInforme,
                 icon: const Icon(Icons.ios_share),
                 label: Text(
                   fallo == null
-                      ? 'Enviar registro de la sesión'
-                      : 'Enviar informe del último fallo',
+                      ? 'Compartir registro de la sesión'
+                      : 'Compartir informe del último fallo',
                 ),
               ),
             ],
