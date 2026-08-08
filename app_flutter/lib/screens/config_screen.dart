@@ -716,6 +716,20 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
     }
   }
 
+  /// Lleva a los ajustes del sistema. Si no se puede abrir —depende del
+  /// fabricante en Android—, al menos se copia la ruta a mano para que la
+  /// persona no se quede sin saber adónde ir.
+  Future<void> _abrirAjustesDeNotificaciones() async {
+    final abierto = await PushService.abrirAjustes();
+    if (abierto || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Ábrelos a mano: ${PushService.comoActivarlo}'),
+        duration: const Duration(seconds: 8),
+      ),
+    );
+  }
+
   static bool get _esEscritorio =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
@@ -795,6 +809,46 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
               'Notificaciones — ${PushService.estado}',
               style: theme.textTheme.bodySmall,
             ),
+            // Si el permiso está denegado, el texto de arriba no basta: hay que
+            // decirlo como un problema y dar el camino para arreglarlo. La
+            // ventana del sistema solo sale UNA vez, así que desde aquí ya no
+            // se puede volver a pedir: solo llevar a los ajustes.
+            if (PushService.plataformaSoportada && !PushService.permitido) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'No vas a recibir avisos en este dispositivo',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Las notificaciones están desactivadas. Seguirás recibiendo '
+                      'los avisos por correo, pero llegan con más retraso.\n\n'
+                      '${PushService.comoActivarlo}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: _abrirAjustesDeNotificaciones,
+                      icon: const Icon(Icons.settings),
+                      label: const Text('Abrir ajustes de notificaciones'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             // Camino principal, igual en las cinco plataformas. Siempre
             // habilitado: si no hay fallo manda el registro de la sesión, que
