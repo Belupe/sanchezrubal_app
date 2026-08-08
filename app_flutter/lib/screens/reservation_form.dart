@@ -94,7 +94,11 @@ class _ReservationFormState extends State<ReservationForm> {
       _error = null;
     });
     try {
-      final r = await DataService.createReservation(
+      // Los avisos (confirmación a quien reserva, aviso al administrador,
+      // difusión del mantenimiento) los dispara un trigger de la base de datos
+      // al insertar. La app ya NO pide nada: si lo hiciera, ese correo sería el
+      // único que podría perderse por cerrar la pantalla medio segundo antes.
+      await DataService.createReservation(
         propertyId: _propertyId!,
         start: _start,
         end: _end,
@@ -103,7 +107,6 @@ class _ReservationFormState extends State<ReservationForm> {
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
         isMaintenance: _maintenance,
       );
-      await DataService.sendReservationEmail(r.id, maintenance: _maintenance);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       // Si el rechazo es por solapamiento, ofrecemos la lista de espera.

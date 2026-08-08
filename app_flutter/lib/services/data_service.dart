@@ -227,16 +227,11 @@ class DataService {
     return (row?['max_reservation_days'] as int?) ?? 30;
   }
 
-  /// Pide al backend que envíe el correo (best-effort).
-  static Future<void> sendReservationEmail(String reservationId,
-      {required bool maintenance}) async {
-    try {
-      await supabase.functions.invoke('send-email', body: {
-        'type': maintenance ? 'maintenance' : 'reservation_confirmation',
-        'reservationId': reservationId,
-      });
-    } catch (_) {/* no bloquea la creación */}
-  }
+  // sendReservationEmail() se eliminó: la confirmación de la reserva la manda
+  // ahora notify-changes desde el trigger de la base de datos, igual que el
+  // resto de avisos. Lo que había aquí era la única notificación que dependía
+  // de que la app siguiera viva un instante después de crear la reserva, y
+  // fallaba en silencio (`catch (_)`) justo cuando más falta hacía.
 
   /// Envía un correo de prueba con la config SMTP (solo mega). Se envía SIEMPRE
   /// al propio correo del mega (el servidor ignora cualquier destino) [I-06].
