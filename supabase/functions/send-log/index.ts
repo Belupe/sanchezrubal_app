@@ -148,9 +148,11 @@ Deno.serve(async (req) => {
       .map(([k, v]) => `<tr><td style='padding:2px 10px 2px 0'><b>${escapeHtml(k)}</b></td><td>${escapeHtml(String(v))}</td></tr>`)
       .join("");
 
-    const asunto = esFallo
-      ? `Portal Familia — informe de fallo de ${quien}`
-      : `Portal Familia — registro de sesión de ${quien}`;
+    // "Logs de Marian Bas Villalobos". El asunto solo tiene que responder a una
+    // pregunta —de quién es esto— porque es lo que se lee en la lista del
+    // correo sin abrir nada. Si el informe es de un fallo o de una sesión
+    // normal se ve dentro, en el título y en el nombre del adjunto.
+    const asunto = `Logs de ${quien}`;
 
     const html = `<div style='font-family:sans-serif'>
 <h2>${esFallo ? "Informe de fallo" : "Registro de sesión"}</h2>
