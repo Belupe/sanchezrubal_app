@@ -14,5 +14,14 @@
 	<!-- Adjuntar imágenes/vídeos (image_picker). -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
+	<!-- SIN entitlement de push a propósito. En macOS un `aps-environment` de
+	     desarrollo obliga a firmar con certificado y perfil de DESARROLLO, y
+	     ese perfil exige tener Macs registrados como dispositivos en la cuenta
+	     de Apple. Al no haberlos, añadirlo aquí rompía `flutter build macos` y
+	     `flutter run -d macos`, que hoy se firman adhoc sin pedir nada.
+	     El push va solo en Release (ver Release.entitlements), que firma con
+	     certificado de distribución y no necesita dispositivos registrados.
+	     Consecuencia: el push de macOS no se puede probar en una compilación de
+	     depuración; hay que probarlo en una build de Release / TestFlight. -->
 </dict>
 </plist>

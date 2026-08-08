@@ -11,5 +11,12 @@
 	<!-- Adjuntar imágenes/vídeos (image_picker). -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
+	<!-- Push (APNs). La clave de macOS es `com.apple.developer.aps-environment`,
+	     no la `aps-environment` de iOS. Aquí va `production` porque este fichero
+	     solo se usa en Release, que es lo que se archiva para la Mac App Store;
+	     el valor definitivo lo impone de todos modos el perfil de aprovisiona-
+	     miento con el que Xcode firma al exportar. -->
+	<key>com.apple.developer.aps-environment</key>
+	<string>production</string>
 </dict>
 </plist>
