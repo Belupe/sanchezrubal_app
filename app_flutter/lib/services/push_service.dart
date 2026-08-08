@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import 'log_service.dart';
@@ -8,6 +9,37 @@ import 'log_service.dart';
 /// Notificaciones push (FCM). La tabla `device_tokens` guarda el token por
 /// usuario; el envío lo hace la Edge Function `send-push` (FCM HTTP v1).
 class PushService {
+  /// Abre los ajustes de notificaciones del sistema para esta app.
+  ///
+  /// Es el único camino cuando alguien ya ha dicho que no: la ventana del
+  /// sistema no se puede volver a mostrar desde la app.
+  ///
+  /// Se resuelve con `url_launcher`, que ya era dependencia, en vez de añadir
+  /// un paquete solo para esto: cualquier dependencia nueva obliga a recompilar
+  /// iOS y macOS a la vez por el Package.resolved de SPM.
+  ///
+  /// Devuelve false si no se pudo abrir; entonces solo queda [comoActivarlo].
+  static Future<bool> abrirAjustes() async {
+    final destino = switch (defaultTargetPlatform) {
+      TargetPlatform.iOS => 'app-settings:',
+      TargetPlatform.macOS =>
+        'x-apple.systempreferences:com.apple.preference.notifications',
+      // En Android no hay un esquema de URL para esto: se lanza el intent por
+      // su sintaxis textual, que url_launcher entrega al sistema tal cual.
+      TargetPlatform.android =>
+        'intent://#Intent;action=android.settings.APP_NOTIFICATION_SETTINGS;'
+            'S.android.provider.extra.APP_PACKAGE=net.sanchezrubal.portal_familia;end',
+      _ => null,
+    };
+    if (destino == null) return false;
+    try {
+      return await launchUrl(Uri.parse(destino));
+    } catch (e, t) {
+      LogService.error(e, t, 'PushService.abrirAjustes');
+      return false;
+    }
+  }
+
   /// Guarda el token de push del dispositivo para el usuario actual.
   static Future<void> saveToken(
     String token, {
@@ -32,6 +64,41 @@ class PushService {
   /// funcionando y el error solo quedaba en un registro que en móvil no se
   /// podía sacar.
   static String estado = 'Sin iniciar.';
+
+  /// Última respuesta del sistema al pedir permiso, o null si aún no se ha
+  /// preguntado (o la plataforma no admite push).
+  static AuthorizationStatus? permiso;
+
+  /// Si esta plataforma puede recibir push. En Windows y Linux, Flutter no
+  /// tiene push nativo: no hay permiso que pedir ni ventana que enseñar, así
+  /// que a esa gente solo la alcanza el correo.
+  static bool get plataformaSoportada =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
+  /// Si de verdad van a llegar avisos. `provisional` cuenta: iOS lo concede sin
+  /// preguntar y las entrega en silencio, que es mejor que nada.
+  static bool get permitido =>
+      permiso == AuthorizationStatus.authorized ||
+      permiso == AuthorizationStatus.provisional;
+
+  /// Qué hacer cuando el permiso está denegado.
+  ///
+  /// El sistema **solo enseña la ventana una vez**. A partir de ahí,
+  /// `requestPermission()` devuelve la respuesta guardada sin mostrar nada, así
+  /// que insistir desde la app no sirve de nada: el único camino son los
+  /// ajustes del sistema.
+  static String get comoActivarlo => switch (defaultTargetPlatform) {
+        TargetPlatform.iOS =>
+          'Ajustes → Portal Familia → Notificaciones → Permitir notificaciones.',
+        TargetPlatform.macOS =>
+          'Ajustes del Sistema → Notificaciones → Portal Familia → Permitir notificaciones.',
+        TargetPlatform.android =>
+          'Ajustes → Aplicaciones → Portal Familia → Notificaciones.',
+        _ => 'Esta plataforma no admite notificaciones.',
+      };
 
   /// Inicializa FCM y registra el token. Llamar tras el login.
   ///
@@ -63,8 +130,21 @@ class PushService {
     try {
       await Firebase.initializeApp();
       final messaging = FirebaseMessaging.instance;
-      final permiso = await messaging.requestPermission();
-      estado = 'Permiso: ${permiso.authorizationStatus.name}. Pidiendo token…';
+      // Esto es lo que hace salir la ventana del sistema, y solo sale UNA vez
+      // en la vida de la instalación. Se pide en cada arranque a propósito: si
+      // ya está contestada, el sistema devuelve la respuesta guardada sin
+      // molestar, y así se detecta cuando alguien la ha desactivado después
+      // desde los ajustes.
+      final resp = await messaging.requestPermission();
+      permiso = resp.authorizationStatus;
+      if (!permitido) {
+        // Sin permiso no habrá token, así que no tiene sentido seguir. Se deja
+        // dicho con claridad porque es la única pista que tendrá el usuario.
+        estado = 'Desactivadas. Los avisos llegarán por correo. $comoActivarlo';
+        LogService.evento('Push: permiso ${resp.authorizationStatus.name}');
+        return;
+      }
+      estado = 'Permiso concedido. Pidiendo token…';
 
       // El listener se registra ANTES de pedir el token, no después: si
       // getToken() falla, esta suscripción es la única vía por la que el token
