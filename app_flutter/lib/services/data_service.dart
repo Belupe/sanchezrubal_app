@@ -11,6 +11,7 @@ import '../models/reservation.dart';
 import '../models/sorteo.dart';
 import '../models/system_config.dart';
 import '../models/waitlist_entry.dart';
+import '../utils/errors.dart';
 import '../utils/password_policy.dart';
 
 /// [M-12] La contraseña ACTUAL de la reautenticación no es correcta. Se distingue
@@ -490,18 +491,31 @@ class DataService {
     );
   }
 
-  // Ajustes de notificación propios
-  static Future<List<Map<String, dynamic>>> myNotificationSettings() async {
-    final rows =
-        await supabase.from('notification_settings').select().eq('user_id', uid!);
-    return (rows as List).cast<Map<String, dynamic>>();
-  }
+  // Nota: los ajustes de notificación propios (myNotificationSettings /
+  // saveNotificationSetting) se retiraron al convertir esa pestaña en Soporte.
+  // La tabla `notification_settings` sigue existiendo y el recordatorio
+  // PRE_STAY se sigue enviando; simplemente ya no se puede desactivar desde la
+  // app. Si algún día hace falta volver a exponerlo, está en el historial.
 
-  static Future<void> saveNotificationSetting(String type,
-      {required bool isActive, String? customText}) async {
-    await supabase.from('notification_settings').upsert(
-      {'user_id': uid, 'type': type, 'is_active': isActive, 'custom_text': customText},
-      onConflict: 'user_id,type',
-    );
+  /// Manda el registro de diagnóstico a soporte. El destinatario NO viaja en la
+  /// petición: lo fija la Edge Function, para que esto no sea un relé de correo.
+  ///
+  /// Devuelve `null` si fue bien, o el mensaje de error para enseñarlo.
+  static Future<String?> enviarRegistroASoporte({
+    required String registro,
+    required bool esFallo,
+    Map<String, String> contexto = const {},
+  }) async {
+    try {
+      final res = await supabase.functions.invoke(
+        'send-log',
+        body: {'log': registro, 'esFallo': esFallo, 'contexto': contexto},
+      );
+      final data = res.data;
+      if (data is Map && data['error'] != null) return data['error'].toString();
+      return null;
+    } catch (e) {
+      return friendlyError(e, fallback: 'No se pudo enviar el registro.');
+    }
   }
 }
