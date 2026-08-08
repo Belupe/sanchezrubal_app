@@ -210,8 +210,14 @@ async function handleInspectionReminders() {
 }
 
 // [PRE_STAY] Aviso "tu estancia se acerca": reservas que empiezan dentro de
-// PRE_STAY_DAYS días. Respeta la preferencia del usuario (notification_settings
-// PRE_STAY: si is_active=false, se omite) y añade su custom_text opcional.
+// PRE_STAY_DAYS días. Va a TODO EL MUNDO.
+//
+// Antes se consultaba notification_settings para respetar un interruptor por
+// usuario y añadir su texto personalizado. Esa pantalla se retiró al convertir
+// la pestaña en Soporte, con lo que la tabla dejó de poder recibir filas
+// nuevas y su única fila decía justo lo mismo que el valor por defecto. Se
+// eliminó en la migración 0031, y con ella esta consulta: mantenerla sería una
+// llamada por reserva a una tabla que ya no existe.
 const PRE_STAY_DAYS = 3;
 async function handlePreStayReminders() {
   const from = new Date(); from.setHours(0, 0, 0, 0);
@@ -226,15 +232,10 @@ async function handlePreStayReminders() {
   for (const r of rows ?? []) {
     const creator = (r as any).profiles;
     if (!creator?.email) continue;
-    const { data: ns } = await admin.from("notification_settings")
-      .select("is_active, custom_text")
-      .eq("user_id", (r as any).created_by_id).eq("type", "PRE_STAY").maybeSingle();
-    if (ns && ns.is_active === false) continue; // el usuario lo desactivó
     const vars = {
       PropertyName: (r as any).properties?.name ?? "la casa",
       UserName: creator.name ?? "",
       StartDate: fmt(r.start_date), EndDate: fmt(r.end_date),
-      CustomText: (ns?.custom_text as string | null) ?? "",
     };
     await sendMail([creator.email], fill(tpl.subject, vars), fillHtml(tpl.body, vars));
     sent++;

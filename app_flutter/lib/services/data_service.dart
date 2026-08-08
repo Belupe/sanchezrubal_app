@@ -492,10 +492,11 @@ class DataService {
   }
 
   // Nota: los ajustes de notificación propios (myNotificationSettings /
-  // saveNotificationSetting) se retiraron al convertir esa pestaña en Soporte.
-  // La tabla `notification_settings` sigue existiendo y el recordatorio
-  // PRE_STAY se sigue enviando; simplemente ya no se puede desactivar desde la
-  // app. Si algún día hace falta volver a exponerlo, está en el historial.
+  // saveNotificationSetting) se retiraron al convertir esa pestaña en Soporte,
+  // y la tabla `notification_settings` se eliminó en la migración 0031 al
+  // quedarse sin quien la escribiera. El recordatorio PRE_STAY se sigue
+  // enviando a todo el mundo; lo que ya no existe es la forma de silenciarlo.
+  // Si algún día hace falta volver a ofrecerlo, está en el historial.
 
   /// Manda el registro de diagnóstico a soporte. El destinatario NO viaja en la
   /// petición: lo fija la Edge Function, para que esto no sea un relé de correo.

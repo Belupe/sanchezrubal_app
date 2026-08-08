@@ -1,0 +1,26 @@
+-- ===============================================================
+-- 0031_eliminar_notification_settings.sql
+--
+-- La tabla guardaba, por usuario y tipo de aviso, un `is_active` y un
+-- `custom_text`. Se diseñó genérica, pero la app solo llegó a enseñar UN
+-- interruptor —el de PRE_STAY—, así que ningún otro tipo pudo generar nunca
+-- una fila. Y al convertir esa pestaña en Soporte desapareció también ese
+-- interruptor, con lo que la tabla se quedó sin nadie que la escribiera.
+--
+-- Quedaba una sola fila, con `is_active = true` y `custom_text` nulo: es decir,
+-- exactamente lo mismo que no tener fila, porque send-email solo omitía el
+-- aviso cuando encontraba una que dijera `false`. No cambiaba ningún
+-- comportamiento y se consultaba una vez por reserva en cada recordatorio.
+--
+-- El único consumidor era handlePreStayReminders() en send-email, del que se
+-- retiró la consulta ANTES de aplicar esta migración: al revés, el recordatorio
+-- de pre-estancia se habría roto contra una tabla inexistente.
+--
+-- Se van con ella su índice, su trigger de updated_at (0001) y sus dos
+-- políticas RLS (0002). Nada más depende de la tabla.
+--
+-- Si algún día se quiere volver a dar la opción de silenciar avisos, esto es lo
+-- que hay que recuperar; el diseño era correcto, simplemente no llegó a usarse.
+-- ===============================================================
+
+drop table if exists public.notification_settings;
