@@ -32,6 +32,9 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   String? _role;
   int _selected = 0;
+  /// La franja de notificaciones se puede cerrar, pero solo hasta el siguiente
+  /// arranque: no se guarda en ningún sitio a propósito.
+  bool _avisoPushOculto = false;
 
   @override
   void initState() {
@@ -135,7 +138,92 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ),
       ),
-      body: current.screen,
+      body: Column(
+        children: [
+          _AvisoNotificaciones(
+            oculto: _avisoPushOculto,
+            onOcultar: () => setState(() => _avisoPushOculto = true),
+          ),
+          Expanded(child: current.screen),
+        ],
+      ),
+    );
+  }
+}
+
+/// Franja que aparece al abrir la app cuando las notificaciones están apagadas.
+///
+/// Vivía solo en Configuración → Soporte, donde no la veía nunca quien
+/// justamente hay que convencer: el que las tiene desactivadas no entra ahí.
+///
+/// Se puede cerrar, pero vuelve en el siguiente arranque. Es a propósito: sin
+/// permiso esa persona no recibe ningún aviso en el dispositivo, y dejarla
+/// olvidarlo para siempre con un toque haría que la franja no sirviera de nada.
+/// Tampoco se insiste más de eso, que sería acoso.
+class _AvisoNotificaciones extends StatelessWidget {
+  const _AvisoNotificaciones({required this.oculto, required this.onOcultar});
+
+  final bool oculto;
+  final VoidCallback onOcultar;
+
+  Future<void> _abrirAjustes(BuildContext context) async {
+    final abierto = await PushService.abrirAjustes();
+    if (abierto || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Ábrelos a mano: ${PushService.comoActivarlo}'),
+        duration: const Duration(seconds: 8),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // En Windows y Linux no hay push que activar, así que la franja solo sería
+    // ruido: no existe ninguna acción que esa persona pueda tomar.
+    if (oculto || !PushService.plataformaSoportada) {
+      return const SizedBox.shrink();
+    }
+    return ValueListenableBuilder<bool?>(
+      valueListenable: PushService.avisosActivos,
+      builder: (context, activos, __) {
+        // null = todavía preguntando. No se enseña nada hasta saberlo, para no
+        // dar un aviso alarmante que desaparezca medio segundo después.
+        if (activos != false) return const SizedBox.shrink();
+        final theme = Theme.of(context);
+        return Material(
+          color: theme.colorScheme.errorContainer,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+            child: Row(
+              children: [
+                Icon(Icons.notifications_off,
+                    color: theme.colorScheme.onErrorContainer),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Tienes las notificaciones desactivadas. No te avisaremos '
+                    'de reservas ni cambios en este dispositivo.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _abrirAjustes(context),
+                  child: const Text('Activar'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Ocultar hasta la próxima vez',
+                  color: theme.colorScheme.onErrorContainer,
+                  onPressed: onOcultar,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

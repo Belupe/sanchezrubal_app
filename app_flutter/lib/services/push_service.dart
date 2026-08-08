@@ -65,9 +65,17 @@ class PushService {
   /// podía sacar.
   static String estado = 'Sin iniciar.';
 
-  /// Última respuesta del sistema al pedir permiso, o null si aún no se ha
-  /// preguntado (o la plataforma no admite push).
-  static AuthorizationStatus? permiso;
+  /// Si van a llegar avisos a este dispositivo. `null` mientras no se sepa
+  /// todavía (se está preguntando, o no se ha llegado a preguntar).
+  ///
+  /// Es un ValueNotifier porque [init] se lanza sin await desde HomeShell y
+  /// termina DESPUÉS de que la pantalla se haya pintado: sin esto, la franja de
+  /// "no vas a recibir avisos" no aparecería hasta el siguiente arranque.
+  ///
+  /// Es `bool?` y no el enum de Firebase a propósito: así las pantallas no
+  /// tienen que importar firebase_messaging solo para preguntar algo tan
+  /// simple. El detalle de qué estados cuentan se queda aquí dentro.
+  static final ValueNotifier<bool?> avisosActivos = ValueNotifier(null);
 
   /// Si esta plataforma puede recibir push. En Windows y Linux, Flutter no
   /// tiene push nativo: no hay permiso que pedir ni ventana que enseñar, así
@@ -78,11 +86,7 @@ class PushService {
           defaultTargetPlatform == TargetPlatform.iOS ||
           defaultTargetPlatform == TargetPlatform.macOS);
 
-  /// Si de verdad van a llegar avisos. `provisional` cuenta: iOS lo concede sin
-  /// preguntar y las entrega en silencio, que es mejor que nada.
-  static bool get permitido =>
-      permiso == AuthorizationStatus.authorized ||
-      permiso == AuthorizationStatus.provisional;
+  static bool get permitido => avisosActivos.value == true;
 
   /// Qué hacer cuando el permiso está denegado.
   ///
@@ -136,7 +140,11 @@ class PushService {
       // molestar, y así se detecta cuando alguien la ha desactivado después
       // desde los ajustes.
       final resp = await messaging.requestPermission();
-      permiso = resp.authorizationStatus;
+      // `provisional` cuenta como permitido: iOS lo concede sin preguntar y
+      // entrega los avisos en silencio, que es mejor que nada.
+      avisosActivos.value =
+          resp.authorizationStatus == AuthorizationStatus.authorized ||
+              resp.authorizationStatus == AuthorizationStatus.provisional;
       if (!permitido) {
         // Sin permiso no habrá token, así que no tiene sentido seguir. Se deja
         // dicho con claridad porque es la única pista que tendrá el usuario.
