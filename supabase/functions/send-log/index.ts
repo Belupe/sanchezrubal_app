@@ -47,11 +47,35 @@ const cors = {
 const json = (o: unknown, s = 200) =>
   new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
-// Anti-doble-envío best-effort por isolate, en la línea del de send-email:
-// el botón puede tocarse dos veces y un registro de 500 KB duplicado es ruido
-// caro. No pretende ser un límite de seguridad, solo evitar el accidente.
-const ultimoEnvio = new Map<string, number>();
-const ENVIO_TTL_MS = 60_000;
+// Frenos de envío. Viven en la BD (tabla support_log_sends, migración 0030) y
+// NO en un Map de memoria: cada isolate tendría el suyo, y se comprobó en
+// producción que dos llamadas seguidas caen en isolates distintos y acaban
+// mandando dos correos. Con un SMTP de 1000 correos al mes y adjuntos de medio
+// mega, ese fallo se paga.
+const ENVIO_TTL_MS = 60_000; // anti-doble-toque
+const TOPE_DIARIO = 5;       // nadie manda 5 registros legítimos el mismo día
+
+/// Devuelve el motivo por el que NO se debe enviar, o null si se puede.
+async function motivoParaNoEnviar(userId: string): Promise<string | null> {
+  const desdeHace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await admin.from("support_log_sends")
+    .select("created_at")
+    .eq("user_id", userId)
+    .gte("created_at", desdeHace24h)
+    .order("created_at", { ascending: false });
+  // Si la consulta falla, se deja pasar: perder un informe de fallo por un
+  // problema del freno sería peor que mandar un correo de más.
+  if (error) return null;
+  const envios = data ?? [];
+  if (envios.length >= TOPE_DIARIO) {
+    return `Ya has enviado ${TOPE_DIARIO} registros hoy. Inténtalo mañana o escríbenos directamente.`;
+  }
+  const ultimo = envios[0]?.created_at;
+  if (ultimo && Date.now() - new Date(ultimo).getTime() < ENVIO_TTL_MS) {
+    return "Acabas de enviar un registro. Espera un minuto antes de mandar otro.";
+  }
+  return null;
+}
 
 function escapeHtml(s: string): string {
   return s
@@ -106,12 +130,8 @@ Deno.serve(async (req) => {
     const bruto = String(body.log ?? "");
     if (!bruto.trim()) return json({ error: "El registro está vacío" }, 400);
 
-    const ahora = Date.now();
-    const previo = ultimoEnvio.get(u.user.id);
-    if (previo && ahora - previo < ENVIO_TTL_MS) {
-      return json({ ok: true, deduped: true });
-    }
-    ultimoEnvio.set(u.user.id, ahora);
+    const motivo = await motivoParaNoEnviar(u.user.id);
+    if (motivo) return json({ ok: true, enviado: false, motivo });
 
     const esFallo = body.esFallo === true;
     const { texto: registro, recortado } = recortarPorElPrincipio(bruto);
@@ -175,7 +195,15 @@ ${recortado ? "<p><i>El registro se ha recortado por el principio: solo van los 
       await client.close();
     }
 
-    return json({ ok: true, recortado });
+    // Se anota DESPUÉS de enviar, no antes: si el SMTP falla, el usuario debe
+    // poder reintentar en el acto en vez de chocar contra su propio freno.
+    await admin.from("support_log_sends").insert({
+      user_id: u.user.id,
+      es_fallo: esFallo,
+      bytes: new TextEncoder().encode(registro).length,
+    });
+
+    return json({ ok: true, enviado: true, recortado });
   } catch (e) {
     console.error("send-log error:", e);
     return json({ error: "No se pudo enviar el registro" }, 500);
