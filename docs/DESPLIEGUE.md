@@ -165,7 +165,8 @@ supabase functions deploy admin-users
 supabase functions deploy test-smtp
 supabase functions deploy send-email     --no-verify-jwt
 supabase functions deploy send-push      --no-verify-jwt
-supabase functions deploy notify-waitlist --no-verify-jwt
+# notify-waitlist se eliminó el 8/8/2026: su trabajo lo absorbió notify-changes,
+# que manda UN solo aviso por la promoción en vez de tres (migración 0033).
 ```
 
 ### Paso 5 — Ajustes de Authentication (Dashboard)

@@ -1,5 +1,24 @@
 # Cola de reservas + Notificaciones (Push/Email) + Tiempo real
 
+> ## ⚠️ Documento parcialmente desactualizado (8/8/2026)
+>
+> El **funcionamiento de la cola sigue siendo el que se describe aquí**: FIFO por
+> `created_at`, promoción automática al cancelar, y un solo promovido por
+> cancelación.
+>
+> Lo que ya NO es cierto es el reparto de notificaciones:
+>
+> - **`notify-waitlist` se eliminó.** Su trabajo lo absorbió `notify-changes`,
+>   que manda **un único aviso** por la promoción en lugar de dos, y evita que
+>   el mismo hecho genere además los de "reserva cancelada" y "reserva creada"
+>   (migración `0033`).
+> - **El push es ahora el canal principal** para todo el mundo salvo el
+>   administrador principal, que recibe correo y push. El resto recibe correo
+>   solo si no tiene ningún dispositivo con push registrado.
+>
+> Para el reparto vigente, mira la cabecera de
+> `supabase/functions/notify-changes/index.ts`, que es la fuente de verdad.
+
 Guía de puesta en marcha de tres piezas que van juntas:
 
 1. **Lista de espera (cola)** de reservas con promoción automática al cancelar.

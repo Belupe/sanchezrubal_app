@@ -7,26 +7,30 @@
 // cierre, y cubre también las modificaciones y las cancelaciones, que desde
 // el cliente no se notificaban en absoluto.
 //
-// Destinatarios:
-//   reserva creada        ->  PRINCIPAL_ADMIN (correo + push)
-//                             + CONFIRMACIÓN a quien reservó (solo correo)
-//   reserva modificada    ->  PRINCIPAL_ADMIN (correo + push)
-//   reserva cancelada     ->  PRINCIPAL_ADMIN (correo + push)
-//   bloqueo de manten.    ->  todos menos MEGA_ADMIN (correo)
-//                             + PRINCIPAL_ADMIN (push)
-//   alta en lista espera  ->  PRINCIPAL_ADMIN (correo + push)
-//   informe de salida     ->  PRINCIPAL_ADMIN (correo + push)
+// REGLA DE CANAL (la de verdad, la que hay que recordar):
+//   · admin principal  -> correo Y push, siempre.
+//   · cualquier otro   -> push si tiene algún dispositivo registrado;
+//                         correo SOLO si no lo tiene.
+//   · mega admin       -> nada.
 //
-// La confirmación al que reserva vivía en el cliente (send-email, invocado por
-// la app). Se trajo aquí para que TODOS los avisos salgan del mismo sitio: uno
-// que dependía de que el móvil siguiera vivo medio segundo después era el
-// único que podía perderse en silencio, y encima el único que la persona
-// estaba esperando ver.
+// El correo dejó de ser el canal por defecto: ahora es la red de seguridad de
+// quien no puede recibir push (Windows y Linux no lo soportan, y en móvil el
+// permiso puede estar denegado). No se puede forzar el permiso: iOS, macOS y
+// Android 13+ exigen que la persona acepte.
 //
-// OJO con el rango: aquí PRINCIPAL_ADMIN significa PRINCIPAL_ADMIN y nada
-// más. En send-email la constante PRINCIPAL vale ["MEGA_ADMIN",
-// "PRINCIPAL_ADMIN"], y reutilizarla por inercia metería al mega admin en
-// todos estos avisos, que es justo lo que no se quiere.
+// QUIÉN RECIBE QUÉ:
+//   reserva creada        -> admin + confirmación a quien reservó
+//   reserva modificada    -> admin + el DUEÑO, si no fue él quien la tocó
+//   reserva cancelada     -> admin + el DUEÑO, si no fue él
+//   mantenimiento         -> admin + TODOS menos el mega admin y menos quien
+//                            lo creó
+//   alta en la cola       -> admin + quien se apunta + quien tiene esas fechas
+//   promoción de la cola  -> admin + el promovido. UN solo aviso: los tres
+//                            sucesos que ocurren a la vez (borrado, alta y
+//                            promoción) los funde la migración 0033.
+//   informe de salida     -> admin + quien lo rellenó
+//   falta el formulario   -> admin + el dueño de la reserva   (lo trae el cron)
+//   2 días antes          -> admin + el dueño                 (lo trae el cron)
 //
 // Auth: cabecera x-cron-secret == CRON_SECRET (la pone el trigger desde
 // Vault). El push se delega en la Edge Function send-push.
@@ -59,6 +63,10 @@ async function cronSecretMatches(provided: string | null): Promise<boolean> {
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+// Enlace profundo que abre la app en el formulario de salida. Lo usa la
+// plantilla INSPECTION_REMINDER en su botón.
+const APP_SCHEME = "portalfamilia://";
+
 // [I-07] Origen permitido configurable (default "*" = igual que antes).
 const ALLOWED_ORIGIN = Deno.env.get("FUNCTIONS_ALLOWED_ORIGIN") ?? "*";
 const cors = {
@@ -69,43 +77,24 @@ const cors = {
 const json = (o: unknown, s = 200) =>
   new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
-// Réplica inline de las plantillas por si la tabla no las tuviera (mismo
-// criterio que send-email y notify-waitlist: el aviso nunca se cae por una
-// plantilla que falte).
-const FALLBACK: Record<string, { subject: string; body: string }> = {
-  ADMIN_RESERVATION_CREATED: {
-    subject: "Nueva reserva — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Nueva reserva</h2><p><b>{{UserName}}</b> ha reservado <b>{{PropertyName}}</b> del {{StartDate}} al {{EndDate}}.</p><p>Personas: {{GuestCount}}</p></div>",
-  },
-  ADMIN_RESERVATION_UPDATED: {
-    subject: "Reserva modificada — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Reserva modificada</h2><p>La reserva de <b>{{UserName}}</b> en <b>{{PropertyName}}</b> ha cambiado.</p><p>Antes: del {{OldStartDate}} al {{OldEndDate}}<br>Ahora: del {{StartDate}} al {{EndDate}}</p></div>",
-  },
-  ADMIN_RESERVATION_CANCELLED: {
-    subject: "Reserva cancelada — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Reserva cancelada</h2><p><b>{{UserName}}</b> ha cancelado su reserva en <b>{{PropertyName}}</b> del {{StartDate}} al {{EndDate}}.</p></div>",
-  },
-  ADMIN_WAITLIST_JOINED: {
-    subject: "Nueva solicitud en lista de espera — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Lista de espera</h2><p><b>{{UserName}}</b> se ha apuntado a la lista de espera de <b>{{PropertyName}}</b> para el {{StartDate}} al {{EndDate}}.</p></div>",
-  },
-  ADMIN_OUT_REPORT: {
-    subject: "Formulario de salida — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Formulario de salida completado</h2><p><b>{{UserName}}</b> ha completado el formulario de salida de <b>{{PropertyName}}</b>.</p><p>Estado general: <b>{{GeneralStatus}}</b><br>Desperfectos: {{Damages}}<br>Cosas que faltan: {{MissingItems}}</p></div>",
-  },
-  RESERVATION_CONFIRMATION: {
-    subject: "Reserva confirmada — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Reserva confirmada</h2><p>Hola {{UserName}}, tu reserva en <b>{{PropertyName}}</b> del {{StartDate}} al {{EndDate}} está confirmada.</p></div>",
-  },
-  MAINTENANCE: {
-    subject: "Mantenimiento programado — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Mantenimiento</h2><p>Se ha bloqueado <b>{{PropertyName}}</b> por mantenimiento del {{StartDate}} al {{EndDate}}.</p></div>",
-  },
-  MAINTENANCE_CANCELLED: {
-    subject: "Mantenimiento levantado — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Mantenimiento levantado</h2><p>Se ha retirado el bloqueo por mantenimiento de <b>{{PropertyName}}</b> del {{StartDate}} al {{EndDate}}. Las fechas vuelven a estar libres.</p></div>",
-  },
-};
+
+// ---------------------------------------------------------------
+// Plantillas
+// ---------------------------------------------------------------
+// Antes había una réplica inline de cada plantilla por si faltaba su fila.
+// Con 4 tenía sentido; con 19 es una garantía de que acaben divergiendo del
+// texto real, que es el de la base de datos y el que se edita desde la app.
+// El respaldo pasa a ser genérico: feo pero honesto, y solo aparece si alguien
+// borra una fila de notification_templates.
+async function getTemplate(type: string) {
+  const { data } = await admin.from("notification_templates")
+    .select("subject, body").eq("type", type).maybeSingle();
+  if (data) return data;
+  return {
+    subject: "Portal Familia — {{PropertyName}}",
+    body: "<div style='font-family:sans-serif'><p>Ha habido un cambio en <b>{{PropertyName}}</b> ({{StartDate}} – {{EndDate}}).</p><p>Falta la plantilla <code>" + type + "</code> en la configuración.</p></div>",
+  };
+}
 
 function fill(tpl: string, vars: Record<string, string>) {
   let out = tpl;
@@ -113,16 +102,11 @@ function fill(tpl: string, vars: Record<string, string>) {
   return out;
 }
 
-// [M-08] Escapa HTML. Aquí importa especialmente: los desperfectos y las cosas
-// que faltan del informe de salida son texto libre escrito por un usuario y
-// acaban en un correo que se manda a OTRAS personas.
+// [M-08] Escapa HTML. Importa especialmente con los desperfectos del informe de
+// salida: texto libre de un usuario que acaba en el correo de otras personas.
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function fillHtml(tpl: string, vars: Record<string, string>) {
@@ -135,42 +119,76 @@ function fmt(d: string | null | undefined) {
   return d ? new Date(d).toLocaleDateString("es-ES") : "";
 }
 
-async function getTemplate(type: string) {
-  const { data } = await admin.from("notification_templates")
-    .select("subject, body").eq("type", type).maybeSingle();
-  return data ?? FALLBACK[type];
+// El push no admite HTML: se queda el texto plano de la plantilla.
+function aTextoPlano(html: string) {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
+
+// ---------------------------------------------------------------
+// Personas y canales
+// ---------------------------------------------------------------
+type Persona = { id: string; email: string | null; push: boolean };
+
+/// Resuelve correo y si la persona tiene ALGÚN dispositivo con push. Esa
+/// segunda parte es la que decide el canal, así que se consulta siempre.
+async function personas(ids: string[]): Promise<Persona[]> {
+  const unicos = [...new Set(ids.filter(Boolean))];
+  if (!unicos.length) return [];
+  const [{ data: perfiles }, { data: tokens }] = await Promise.all([
+    admin.from("profiles").select("id, email, role").in("id", unicos),
+    admin.from("device_tokens").select("user_id").in("user_id", unicos),
+  ]);
+  const conPush = new Set((tokens ?? []).map((t: any) => t.user_id));
+  return (perfiles ?? [])
+    // El mega admin no recibe nada, decidido al montar los avisos.
+    .filter((p: any) => p.role !== "MEGA_ADMIN")
+    .map((p: any) => ({ id: p.id, email: p.email, push: conPush.has(p.id) }));
+}
+
+async function principalAdmins(): Promise<Persona[]> {
+  // Literal: PRINCIPAL_ADMIN y nada más. En send-email la constante PRINCIPAL
+  // incluía al MEGA_ADMIN, y reutilizarla por inercia era el error fácil.
+  const { data } = await admin.from("profiles").select("id").eq("role", "PRINCIPAL_ADMIN");
+  return personas((data ?? []).map((p: any) => p.id));
+}
+
+async function todosLosDemas(): Promise<Persona[]> {
+  // Para el mantenimiento, que es el único aviso general. Las casas no están
+  // repartidas por grupos (properties no tiene family_group_id): son comunes.
+  const { data } = await admin.from("profiles").select("id").neq("role", "MEGA_ADMIN");
+  return personas((data ?? []).map((p: any) => p.id));
+}
+
+/// Un grupo de gente que recibe el MISMO texto.
+/// `siempreCorreo` distingue al admin principal, que recibe por los dos
+/// canales; para el resto el correo solo entra si no hay push.
+type Audiencia = { tipo: string; gente: Persona[]; siempreCorreo?: boolean };
+
+type Mensaje = { to: string[]; subject: string; html: string };
 
 async function getSmtp() {
   const { data } = await admin.from("system_config")
     .select("smtp_host, smtp_port, smtp_user, smtp_secure").eq("id", "global").single();
   if (!data?.smtp_host || !data?.smtp_user) throw new Error("SMTP no configurado en system_config");
-  // [M-07] La contraseña ya no vive en la tabla: se lee de Vault (service role).
+  // [M-07] La contraseña se lee de Vault (service role).
   const { data: pass } = await admin.rpc("get_smtp_password");
   return { ...data, smtp_pass: (pass as string | null) ?? "" };
 }
-
-type Mensaje = { to: string[]; subject: string; html: string };
 
 /// Manda VARIOS correos distintos por UNA sola conexión SMTP.
 ///
 /// Abrir la conversación con el servidor (saludo, autenticación, cifrado) es lo
 /// caro; mandar por ella ya es barato. Y muchos proveedores limitan las
-/// CONEXIONES por minuto antes que los mensajes, así que abrir una por correo
-/// es lo que te acerca antes a ese tope.
-///
-/// Hace falta aquí porque un mismo suceso puede generar dos avisos con textos
-/// distintos: al crear una reserva se avisa al administrador y se confirma a
-/// quien la hizo.
+/// CONEXIONES por minuto antes que los mensajes.
 async function enviarCorreos(mensajes: Mensaje[]) {
   const utiles = mensajes.filter((m) => m.to.length);
   if (!utiles.length) return 0;
   const cfg = await getSmtp();
+  // 465 por defecto (TLS implícito): la RFC 8314 lo prefiere frente a STARTTLS.
   const port = cfg.smtp_port ?? 465;
   const client = new SMTPClient({
     connection: {
-      hostname: cfg.smtp_host,
-      port,
+      hostname: cfg.smtp_host, port,
       tls: cfg.smtp_secure || port === 465,
       auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
     },
@@ -180,12 +198,7 @@ async function enviarCorreos(mensajes: Mensaje[]) {
   try {
     for (const m of utiles) {
       for (const addr of m.to) {
-        await client.send({
-          from: `Portal Familia <${cfg.smtp_user}>`,
-          to: addr,
-          subject: m.subject,
-          html: m.html,
-        });
+        await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to: addr, subject: m.subject, html: m.html });
         n++;
       }
     }
@@ -195,9 +208,10 @@ async function enviarCorreos(mensajes: Mensaje[]) {
   return n;
 }
 
-// Push best-effort vía send-push (no bloquea si falla: el correo ya cubre el
-// aviso, y en escritorio el push no existe de todas formas).
-async function sendPush(userIds: string[], title: string, body: string, data: Record<string, string>) {
+/// Push best-effort: si falla, no se cae el aviso. Para quien tiene push este
+/// es su ÚNICO canal, así que un fallo aquí sí se nota — pero bloquear la
+/// transacción del trigger por ello sería peor.
+async function enviarPush(userIds: string[], title: string, body: string, data: Record<string, string>) {
   if (!userIds.length) return;
   try {
     await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
@@ -205,26 +219,12 @@ async function sendPush(userIds: string[], title: string, body: string, data: Re
       headers: { "Content-Type": "application/json", "x-push-secret": PUSH_SECRET },
       body: JSON.stringify({ userIds, title, body, data }),
     });
-  } catch (_) { /* el correo ya cubre el aviso */ }
+  } catch (_) { /* no bloquea */ }
 }
 
-type Persona = { id: string; email: string | null };
-
-async function principalAdmins(): Promise<Persona[]> {
-  // Literal a propósito: NI MEGA_ADMIN ni roles de grupo. Ver la nota de arriba.
-  const { data } = await admin.from("profiles")
-    .select("id, email").eq("role", "PRINCIPAL_ADMIN");
-  return (data ?? []) as Persona[];
-}
-
-async function todosMenosMega(): Promise<Persona[]> {
-  // El mantenimiento afecta a una casa, y las casas no están repartidas por
-  // grupos (properties no tiene family_group_id): son comunes a todos.
-  const { data } = await admin.from("profiles")
-    .select("id, email").neq("role", "MEGA_ADMIN").not("email", "is", null);
-  return (data ?? []) as Persona[];
-}
-
+// ---------------------------------------------------------------
+// Manejador
+// ---------------------------------------------------------------
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
@@ -237,30 +237,31 @@ Deno.serve(async (req) => {
     if (!event) return json({ error: "Falta event" }, 400);
 
     const esMantenimiento = b.isMaintenance === true;
+    const actorId = b.actorId ? String(b.actorId) : null;
+    const duenoId = b.createdById ? String(b.createdById) : null;
 
-    // ---- Quién aparece como protagonista del aviso ----------------------
-    // En un informe de salida la tabla no guarda autor: se atribuye al creador
-    // de la reserva asociada (reservation_id es nullable, así que puede no
-    // haberlo y entonces el correo dirá simplemente "Alguien").
-    let sujetoId: string | null = b.createdById ? String(b.createdById) : null;
+    // Protagonista del aviso: quien creó la reserva, o el autor del informe de
+    // salida, que la tabla no guarda y hay que deducir de su reserva.
+    let sujetoId = duenoId;
     if (!sujetoId && b.reservationId) {
       const { data: r } = await admin.from("reservations")
         .select("created_by_id").eq("id", String(b.reservationId)).maybeSingle();
       sujetoId = (r as any)?.created_by_id ?? null;
     }
 
-    const [{ data: sujeto }, { data: prop }] = await Promise.all([
-      sujetoId
-        ? admin.from("profiles").select("name, email").eq("id", sujetoId).maybeSingle()
-        : Promise.resolve({ data: null }),
-      b.propertyId
-        ? admin.from("properties").select("name").eq("id", String(b.propertyId)).maybeSingle()
-        : Promise.resolve({ data: null }),
+    const [{ data: sujeto }, { data: prop }, { data: canceller }] = await Promise.all([
+      sujetoId ? admin.from("profiles").select("name").eq("id", sujetoId).maybeSingle()
+               : Promise.resolve({ data: null }),
+      b.propertyId ? admin.from("properties").select("name").eq("id", String(b.propertyId)).maybeSingle()
+                   : Promise.resolve({ data: null }),
+      b.cancelledByUserId ? admin.from("profiles").select("name").eq("id", String(b.cancelledByUserId)).maybeSingle()
+                          : Promise.resolve({ data: null }),
     ]);
 
     const vars: Record<string, string> = {
       PropertyName: (prop as any)?.name ?? "la casa",
       UserName: (sujeto as any)?.name ?? "Alguien",
+      CancelledBy: (canceller as any)?.name ?? "Otra persona",
       StartDate: fmt(b.startDate),
       EndDate: fmt(b.endDate),
       OldStartDate: fmt(b.oldStartDate),
@@ -269,87 +270,116 @@ Deno.serve(async (req) => {
       GeneralStatus: b.generalStatus ? String(b.generalStatus) : "",
       Damages: b.damages ? String(b.damages) : "ninguno",
       MissingItems: b.missingItems ? String(b.missingItems) : "ninguna",
+      FormLink: b.reservationId ? `${APP_SCHEME}inspeccion/${String(b.reservationId)}` : "",
     };
 
-    // ---- Plantilla y destinatarios según el evento -----------------------
-    // Los administradores principales se consultan UNA vez y se reutilizan: son
-    // los destinatarios del correo salvo en mantenimiento, y siempre los del
-    // push. Antes se pedían dos veces por aviso, que es una consulta de más en
-    // cada reserva que se crea, se cambia o se cancela.
     const principales = await principalAdmins();
-    let tipo: string;
-    let destinatarios: Persona[];
+    const idsPrincipales = new Set(principales.map((p) => p.id));
+    const audiencias: Audiencia[] = [];
+
+    /// Añade a una persona suelta, si existe, no es el actor cuando no debe, y
+    /// no está ya cubierta por el aviso de administrador (que es más completo).
+    const aUnaPersona = async (id: string | null, tipo: string) => {
+      if (!id || idsPrincipales.has(id)) return;
+      const p = await personas([id]);
+      if (p.length) audiencias.push({ tipo, gente: p });
+    };
 
     if (esMantenimiento) {
-      tipo = event === "reservation_cancelled" ? "MAINTENANCE_CANCELLED" : "MAINTENANCE";
-      destinatarios = await todosMenosMega();
+      const tipo = event === "reservation_cancelled" ? "MAINTENANCE_CANCELLED" : "MAINTENANCE";
+      audiencias.push({ tipo, gente: principales, siempreCorreo: true });
+      // Todos los demás, menos quien lo creó: no se avisa a alguien de su
+      // propio bloqueo.
+      const resto = (await todosLosDemas())
+        .filter((p) => !idsPrincipales.has(p.id) && p.id !== actorId);
+      audiencias.push({ tipo, gente: resto });
+    } else if (event === "reservation_created") {
+      audiencias.push({ tipo: "ADMIN_RESERVATION_CREATED", gente: principales, siempreCorreo: true });
+      // Confirmación SIEMPRE, aunque la haya hecho él mismo: es el acuse.
+      await aUnaPersona(duenoId, "USER_RESERVATION_CONFIRMED");
+    } else if (event === "reservation_updated" || event === "reservation_cancelled") {
+      const cancelada = event === "reservation_cancelled";
+      audiencias.push({
+        tipo: cancelada ? "ADMIN_RESERVATION_CANCELLED" : "ADMIN_RESERVATION_UPDATED",
+        gente: principales, siempreCorreo: true,
+      });
+      // Al DUEÑO, no a quien hizo el cambio. Si un administrador cancela mi
+      // reserva, el que necesita enterarse soy yo; y además el panel de
+      // registros no deja consultar una reserva ya borrada. Si fui yo mismo, no
+      // hace falta avisarme de lo que acabo de hacer.
+      if (duenoId !== actorId) {
+        await aUnaPersona(duenoId, cancelada ? "USER_RESERVATION_CANCELLED" : "USER_RESERVATION_UPDATED");
+      }
+    } else if (event === "waitlist_joined") {
+      audiencias.push({ tipo: "ADMIN_WAITLIST_JOINED", gente: principales, siempreCorreo: true });
+      await aUnaPersona(duenoId, "USER_WAITLIST_JOINED");
+      // Quien tiene esas fechas ahora mismo. Puede no haber nadie, o ser el
+      // mismo que se apunta si se solapa con una reserva suya.
+      const bloqueador = b.bloqueadorId ? String(b.bloqueadorId) : null;
+      if (bloqueador && bloqueador !== duenoId) {
+        await aUnaPersona(bloqueador, "USER_WAITLIST_BEHIND_YOU");
+      }
+    } else if (event === "waitlist_promoted") {
+      audiencias.push({ tipo: "ADMIN_WAITLIST_PROMOTED", gente: principales, siempreCorreo: true });
+      await aUnaPersona(duenoId, "USER_WAITLIST_PROMOTED");
+    } else if (event === "out_report_created") {
+      audiencias.push({ tipo: "ADMIN_OUT_REPORT", gente: principales, siempreCorreo: true });
+      await aUnaPersona(sujetoId, "USER_OUT_REPORT_DONE");
+    } else if (event === "inspection_missing") {
+      audiencias.push({ tipo: "ADMIN_INSPECTION_MISSING", gente: principales, siempreCorreo: true });
+      await aUnaPersona(duenoId, "INSPECTION_REMINDER");
+    } else if (event === "pre_stay") {
+      audiencias.push({ tipo: "ADMIN_PRE_STAY", gente: principales, siempreCorreo: true });
+      await aUnaPersona(duenoId, "PRE_STAY");
     } else {
-      const porEvento: Record<string, string> = {
-        reservation_created: "ADMIN_RESERVATION_CREATED",
-        reservation_updated: "ADMIN_RESERVATION_UPDATED",
-        reservation_cancelled: "ADMIN_RESERVATION_CANCELLED",
-        waitlist_joined: "ADMIN_WAITLIST_JOINED",
-        out_report_created: "ADMIN_OUT_REPORT",
-      };
-      if (!porEvento[event]) return json({ error: `Evento desconocido: ${event}` }, 400);
-      tipo = porEvento[event];
-      destinatarios = principales;
+      return json({ error: `Evento desconocido: ${event}` }, 400);
     }
 
-    // Nadie se avisa de su propio cambio. actorId puede venir null cuando el
-    // cambio lo hace el service role (p. ej. la promoción de la cola), y
-    // entonces no se excluye a nadie.
-    const actorId = b.actorId ? String(b.actorId) : null;
-    if (actorId) destinatarios = destinatarios.filter((p) => p.id !== actorId);
+    // ---- Reparto ------------------------------------------------------
+    // Aquí es donde vive la regla de canal, en un único sitio: push a quien
+    // pueda recibirlo, correo a quien no, y las dos cosas al administrador.
+    // Modo simulación: calcula el reparto y lo devuelve SIN enviar nada. Existe
+    // para poder comprobar la regla de canal contra los datos reales sin
+    // mandarle a nadie el aviso de una reserva inventada.
+    const simular = b.dryRun === true;
+    const plan: Record<string, { push: string[]; correo: string[] }> = {};
 
-    const tpl = await getTemplate(tipo);
-    if (!tpl) return json({ error: `Sin plantilla para ${tipo}` }, 500);
+    const mensajes: Mensaje[] = [];
+    let pushEnviados = 0;
+    const datosPush = {
+      type: event,
+      reservationId: b.reservationId ? String(b.reservationId) : "",
+      propertyId: b.propertyId ? String(b.propertyId) : "",
+    };
 
-    const correos = [...new Set(destinatarios.map((p) => p.email).filter(Boolean) as string[])];
-    const mensajes: Mensaje[] = [
-      { to: correos, subject: fill(tpl.subject, vars), html: fillHtml(tpl.body, vars) },
-    ];
+    for (const a of audiencias) {
+      if (!a.gente.length) continue;
+      const tpl = await getTemplate(a.tipo);
+      const asunto = fill(tpl.subject, vars);
+      const html = fillHtml(tpl.body, vars);
 
-    // Confirmación a quien acaba de reservar. Antes la pedía la propia app
-    // nada más crear la reserva, con un catch silencioso: si el móvil se
-    // cerraba o perdía la red en ese medio segundo, no salía el correo y NADIE
-    // se enteraba de que no había salido — y encima era el único que la persona
-    // estaba esperando ver. Ahora sale de aquí, como todos los demás: una sola
-    // regla que recordar.
-    if (event === "reservation_created" && !esMantenimiento) {
-      const suCorreo = (sujeto as any)?.email;
-      if (suCorreo) {
-        const conf = await getTemplate("RESERVATION_CONFIRMATION");
-        if (conf) {
-          mensajes.push({
-            to: [suCorreo],
-            subject: fill(conf.subject, vars),
-            html: fillHtml(conf.body, vars),
-          });
-        }
+      const porPush = a.gente.filter((p) => p.push).map((p) => p.id);
+      const porCorreo = a.gente
+        .filter((p) => p.email && (a.siempreCorreo || !p.push))
+        .map((p) => p.email as string);
+
+      if (simular) {
+        plan[a.tipo] = { push: porPush, correo: [...new Set(porCorreo)] };
+        continue;
+      }
+      if (porPush.length) {
+        await enviarPush(porPush, asunto, aTextoPlano(fill(tpl.body, vars)), datosPush);
+        pushEnviados += porPush.length;
+      }
+      if (porCorreo.length) {
+        mensajes.push({ to: [...new Set(porCorreo)], subject: asunto, html });
       }
     }
 
-    const enviados = await enviarCorreos(mensajes);
+    if (simular) return json({ ok: true, simulado: true, event, plan });
 
-    // El push va SIEMPRE solo al administrador principal, también en el
-    // mantenimiento: el correo de mantenimiento es un aviso general, pero
-    // nadie más necesita que le suene el móvil por esto.
-    const paraPush = principales
-      .filter((p) => p.id !== actorId)
-      .map((p) => p.id);
-    await sendPush(
-      paraPush,
-      fill(tpl.subject, vars),
-      fill(tpl.body, vars).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
-      {
-        type: event,
-        reservationId: b.reservationId ? String(b.reservationId) : "",
-        propertyId: b.propertyId ? String(b.propertyId) : "",
-      },
-    );
-
-    return json({ ok: true, event, tipo, emailsSent: enviados, pushTo: paraPush.length });
+    const correosEnviados = await enviarCorreos(mensajes);
+    return json({ ok: true, event, correos: correosEnviados, push: pushEnviados });
   } catch (e) {
     console.error("notify-changes error:", e);
     return json({ error: "Error interno al notificar el cambio" }, 500);

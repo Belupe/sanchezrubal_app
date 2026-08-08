@@ -4,7 +4,7 @@
 //
 // Auth: cabecera x-push-secret == PUSH_SECRET (secreto DEDICADO de push,
 // DISTINTO del CRON_SECRET: filtrar el CRON_SECRET ya no basta para spamear
-// push). Uso interno: lo llama notify-waitlist y otros disparadores del backend.
+// push). Uso interno: lo llama notify-changes, que es quien decide el reparto.
 //
 // Input JSON: { userIds: string[], title: string, body: string,
 //               data?: Record<string,string> }
