@@ -513,6 +513,12 @@ class DataService {
       );
       final data = res.data;
       if (data is Map && data['error'] != null) return data['error'].toString();
+      // El servidor puede aceptar la petición y aun así NO enviar: hay un
+      // anti-doble-toque y un tope diario por usuario para no gastar el cupo
+      // del SMTP. En ese caso explica por qué, y no es un fallo.
+      if (data is Map && data['enviado'] == false) {
+        return (data['motivo'] ?? 'No se envió el registro.').toString();
+      }
       return null;
     } catch (e) {
       return friendlyError(e, fallback: 'No se pudo enviar el registro.');
