@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Opciones de exportación del .pkg de macOS que se sube por Transporter.
+
+  Vivía en `build/macos/`, que es justo lo que hay que borrar antes de generar
+  los paquetes: desaparecía en cada limpieza y había que reescribirlo de
+  memoria. Aquí está versionado y no se pierde.
+
+  `signingStyle: automatic` es lo que hace que el archivado firme con
+  certificado de desarrollo y la EXPORTACIÓN lo vuelva a firmar con el de
+  distribución, volcando de paso `com.apple.developer.aps-environment` de
+  `development` a `production`. Sin eso el push de macOS no funcionaría en la
+  app publicada.
+-->
+<plist version="1.0">
+<dict>
+  <key>method</key><string>app-store-connect</string>
+  <key>teamID</key><string>5UQ6DTZ2M3</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>uploadSymbols</key><true/>
+</dict>
+</plist>
