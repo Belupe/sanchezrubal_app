@@ -210,14 +210,19 @@ async function handleInspectionReminders() {
 }
 
 // [PRE_STAY] Aviso "tu estancia se acerca": reservas que empiezan dentro de
-// PRE_STAY_DAYS días. Va a TODO EL MUNDO.
+// PRE_STAY_DAYS días.
 //
-// Antes se consultaba notification_settings para respetar un interruptor por
-// usuario y añadir su texto personalizado. Esa pantalla se retiró al convertir
-// la pestaña en Soporte, con lo que la tabla dejó de poder recibir filas
-// nuevas y su única fila decía justo lo mismo que el valor por defecto. Se
-// eliminó en la migración 0031, y con ella esta consulta: mantenerla sería una
-// llamada por reserva a una tabla que ya no existe.
+// Cada correo va A UNA SOLA PERSONA: quien creó esa reserva. No es un aviso
+// general ni lo recibe ningún administrador —de las reservas ajenas se entera
+// el PRINCIPAL_ADMIN por otra vía, los triggers de la migración 0027 y la
+// función notify-changes—. Aquí solo se avisa a cada uno de lo suyo.
+//
+// Lo que cambió al retirar notification_settings (migración 0031) es que ya no
+// se excluye a nadie: antes había un interruptor por usuario para silenciarlo
+// y un texto personalizado que se añadía al final. Esa pantalla desapareció al
+// convertir la pestaña en Soporte, la tabla se quedó sin quien la escribiera y
+// su única fila decía lo mismo que el valor por defecto, así que la consulta
+// sobraba.
 const PRE_STAY_DAYS = 3;
 async function handlePreStayReminders() {
   const from = new Date(); from.setHours(0, 0, 0, 0);
