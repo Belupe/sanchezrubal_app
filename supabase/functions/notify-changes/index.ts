@@ -8,11 +8,20 @@
 // el cliente no se notificaban en absoluto.
 //
 // Destinatarios:
-//   reserva creada/modificada/cancelada  ->  PRINCIPAL_ADMIN (correo + push)
-//   bloqueo de mantenimiento             ->  todos menos MEGA_ADMIN (correo)
-//                                            + PRINCIPAL_ADMIN (push)
-//   alta en la lista de espera           ->  PRINCIPAL_ADMIN (correo + push)
-//   informe de salida completado         ->  PRINCIPAL_ADMIN (correo + push)
+//   reserva creada        ->  PRINCIPAL_ADMIN (correo + push)
+//                             + CONFIRMACIÓN a quien reservó (solo correo)
+//   reserva modificada    ->  PRINCIPAL_ADMIN (correo + push)
+//   reserva cancelada     ->  PRINCIPAL_ADMIN (correo + push)
+//   bloqueo de manten.    ->  todos menos MEGA_ADMIN (correo)
+//                             + PRINCIPAL_ADMIN (push)
+//   alta en lista espera  ->  PRINCIPAL_ADMIN (correo + push)
+//   informe de salida     ->  PRINCIPAL_ADMIN (correo + push)
+//
+// La confirmación al que reserva vivía en el cliente (send-email, invocado por
+// la app). Se trajo aquí para que TODOS los avisos salgan del mismo sitio: uno
+// que dependía de que el móvil siguiera vivo medio segundo después era el
+// único que podía perderse en silencio, y encima el único que la persona
+// estaba esperando ver.
 //
 // OJO con el rango: aquí PRINCIPAL_ADMIN significa PRINCIPAL_ADMIN y nada
 // más. En send-email la constante PRINCIPAL vale ["MEGA_ADMIN",
@@ -84,6 +93,10 @@ const FALLBACK: Record<string, { subject: string; body: string }> = {
     subject: "Formulario de salida — {{PropertyName}}",
     body: "<div style='font-family:sans-serif'><h2>Formulario de salida completado</h2><p><b>{{UserName}}</b> ha completado el formulario de salida de <b>{{PropertyName}}</b>.</p><p>Estado general: <b>{{GeneralStatus}}</b><br>Desperfectos: {{Damages}}<br>Cosas que faltan: {{MissingItems}}</p></div>",
   },
+  RESERVATION_CONFIRMATION: {
+    subject: "Reserva confirmada — {{PropertyName}}",
+    body: "<div style='font-family:sans-serif'><h2>Reserva confirmada</h2><p>Hola {{UserName}}, tu reserva en <b>{{PropertyName}}</b> del {{StartDate}} al {{EndDate}} está confirmada.</p></div>",
+  },
   MAINTENANCE: {
     subject: "Mantenimiento programado — {{PropertyName}}",
     body: "<div style='font-family:sans-serif'><h2>Mantenimiento</h2><p>Se ha bloqueado <b>{{PropertyName}}</b> por mantenimiento del {{StartDate}} al {{EndDate}}.</p></div>",
@@ -137,12 +150,22 @@ async function getSmtp() {
   return { ...data, smtp_pass: (pass as string | null) ?? "" };
 }
 
-async function sendMail(to: string[], subject: string, html: string) {
-  if (!to.length) return 0;
+type Mensaje = { to: string[]; subject: string; html: string };
+
+/// Manda VARIOS correos distintos por UNA sola conexión SMTP.
+///
+/// Abrir la conversación con el servidor (saludo, autenticación, cifrado) es lo
+/// caro; mandar por ella ya es barato. Y muchos proveedores limitan las
+/// CONEXIONES por minuto antes que los mensajes, así que abrir una por correo
+/// es lo que te acerca antes a ese tope.
+///
+/// Hace falta aquí porque un mismo suceso puede generar dos avisos con textos
+/// distintos: al crear una reserva se avisa al administrador y se confirma a
+/// quien la hizo.
+async function enviarCorreos(mensajes: Mensaje[]) {
+  const utiles = mensajes.filter((m) => m.to.length);
+  if (!utiles.length) return 0;
   const cfg = await getSmtp();
-  // 465 por defecto (TLS implícito). La RFC 8314 lo prefiere frente a
-  // STARTTLS, y con 587 + smtp_secure activo la conexión falla: el puerto
-  // espera STARTTLS, no TLS directo. Solo aplica si smtp_port viene vacío.
   const port = cfg.smtp_port ?? 465;
   const client = new SMTPClient({
     connection: {
@@ -152,15 +175,24 @@ async function sendMail(to: string[], subject: string, html: string) {
       auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
     },
   });
-  // [2L-13] Cierra la conexión SMTP SIEMPRE, aunque send() lance.
+  let n = 0;
+  // [2L-13] Cierra la conexión SIEMPRE, aunque send() lance.
   try {
-    for (const addr of to) {
-      await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to: addr, subject, html });
+    for (const m of utiles) {
+      for (const addr of m.to) {
+        await client.send({
+          from: `Portal Familia <${cfg.smtp_user}>`,
+          to: addr,
+          subject: m.subject,
+          html: m.html,
+        });
+        n++;
+      }
     }
   } finally {
     await client.close();
   }
-  return to.length;
+  return n;
 }
 
 // Push best-effort vía send-push (no bloquea si falla: el correo ya cubre el
@@ -219,7 +251,7 @@ Deno.serve(async (req) => {
 
     const [{ data: sujeto }, { data: prop }] = await Promise.all([
       sujetoId
-        ? admin.from("profiles").select("name").eq("id", sujetoId).maybeSingle()
+        ? admin.from("profiles").select("name, email").eq("id", sujetoId).maybeSingle()
         : Promise.resolve({ data: null }),
       b.propertyId
         ? admin.from("properties").select("name").eq("id", String(b.propertyId)).maybeSingle()
@@ -274,7 +306,31 @@ Deno.serve(async (req) => {
     if (!tpl) return json({ error: `Sin plantilla para ${tipo}` }, 500);
 
     const correos = [...new Set(destinatarios.map((p) => p.email).filter(Boolean) as string[])];
-    const enviados = await sendMail(correos, fill(tpl.subject, vars), fillHtml(tpl.body, vars));
+    const mensajes: Mensaje[] = [
+      { to: correos, subject: fill(tpl.subject, vars), html: fillHtml(tpl.body, vars) },
+    ];
+
+    // Confirmación a quien acaba de reservar. Antes la pedía la propia app
+    // nada más crear la reserva, con un catch silencioso: si el móvil se
+    // cerraba o perdía la red en ese medio segundo, no salía el correo y NADIE
+    // se enteraba de que no había salido — y encima era el único que la persona
+    // estaba esperando ver. Ahora sale de aquí, como todos los demás: una sola
+    // regla que recordar.
+    if (event === "reservation_created" && !esMantenimiento) {
+      const suCorreo = (sujeto as any)?.email;
+      if (suCorreo) {
+        const conf = await getTemplate("RESERVATION_CONFIRMATION");
+        if (conf) {
+          mensajes.push({
+            to: [suCorreo],
+            subject: fill(conf.subject, vars),
+            html: fillHtml(conf.body, vars),
+          });
+        }
+      }
+    }
+
+    const enviados = await enviarCorreos(mensajes);
 
     // El push va SIEMPRE solo al administrador principal, también en el
     // mantenimiento: el correo de mantenimiento es un aviso general, pero

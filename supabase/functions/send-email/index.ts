@@ -19,7 +19,6 @@ import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 // SUPABASE_URL/ANON/SERVICE_ROLE los inyecta Supabase en runtime; aquí solo se
 // LEEN. No introduzcas credenciales en este fichero.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
@@ -48,8 +47,6 @@ const APP_SCHEME = "portalfamilia://";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-const PRINCIPAL = ["MEGA_ADMIN", "PRINCIPAL_ADMIN"];
-const FAMILY_ADMIN = ["FAMILY_ADMIN", "FAMILY_SECOND_ADMIN"];
 
 // [I-07] Origen permitido configurable (default "*" = igual que antes).
 const ALLOWED_ORIGIN = Deno.env.get("FUNCTIONS_ALLOWED_ORIGIN") ?? "*";
@@ -62,14 +59,6 @@ const json = (o: unknown, s = 200) =>
   new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
 const FALLBACK: Record<string, { subject: string; body: string }> = {
-  RESERVATION_CONFIRMATION: {
-    subject: "Reserva confirmada — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Reserva confirmada</h2><p>Hola {{UserName}}, tu reserva en <b>{{PropertyName}}</b> del {{StartDate}} al {{EndDate}} está confirmada.</p></div>",
-  },
-  MAINTENANCE: {
-    subject: "Mantenimiento programado — {{PropertyName}}",
-    body: "<div style='font-family:sans-serif'><h2>Mantenimiento</h2><p>Se ha bloqueado <b>{{PropertyName}}</b> por mantenimiento del {{StartDate}} al {{EndDate}}.</p></div>",
-  },
   INSPECTION_REMINDER: {
     subject: "Formulario de salida — {{PropertyName}}",
     body: "<div style='font-family:sans-serif'><h2>Formulario de salida</h2><p>Hola {{UserName}}, por favor completa el formulario de salida de <b>{{PropertyName}}</b> desde la app.</p><p><a href='{{FormLink}}' style='display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600'>Abrir Portal Familia</a></p></div>",
@@ -79,11 +68,6 @@ const FALLBACK: Record<string, { subject: string; body: string }> = {
     body: "<div style='font-family:sans-serif'><h2>Tu estancia se acerca</h2><p>Hola {{UserName}}, tu reserva en <b>{{PropertyName}}</b> empieza el {{StartDate}}.</p><p>{{CustomText}}</p></div>",
   },
 };
-
-// [2L-11] Anti-doble-envío del correo de confirmación (best-effort por isolate):
-// evita que un doble toque re-dispare el correo al propio creador en segundos.
-const recentConfirmations = new Map<string, number>();
-const CONFIRMATION_TTL_MS = 60_000;
 
 function fill(tpl: string, vars: Record<string, string>) {
   let out = tpl;
@@ -127,7 +111,15 @@ async function getSmtp() {
   return { ...data, smtp_pass: (pass as string | null) ?? "" };
 }
 
-async function sendMail(to: string[], subject: string, html: string) {
+/// Abre UNA conexión SMTP y devuelve con qué mandar por ella.
+///
+/// Los recordatorios recorren N reservas y mandan un correo por cada una.
+/// Antes cada envío abría su propia conversación con el servidor —saludo,
+/// autenticación, cifrado— y releía la contraseña de Vault: 10 recordatorios
+/// eran 10 conexiones y 20 consultas. Además muchos proveedores limitan las
+/// CONEXIONES por minuto antes que los mensajes, así que era el patrón que
+/// antes te acercaba al tope.
+async function abrirSmtp() {
   const cfg = await getSmtp();
   // 465 por defecto (TLS implícito). La RFC 8314 lo prefiere frente a
   // STARTTLS, y con 587 + smtp_secure activo la conexión falla: el puerto
@@ -143,44 +135,20 @@ async function sendMail(to: string[], subject: string, html: string) {
       auth: { username: cfg.smtp_user, password: cfg.smtp_pass ?? "" },
     },
   });
-  // [2L-13] Cierra la conexión SMTP SIEMPRE, aunque send() lance (evita fuga
-  // de conexión en isolates reutilizados).
-  try {
-    for (const addr of to) {
-      await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to: addr, subject, html });
-    }
-  } finally {
-    await client.close();
-  }
+  return {
+    async enviar(to: string[], subject: string, html: string) {
+      for (const addr of to) {
+        await client.send({ from: `Portal Familia <${cfg.smtp_user}>`, to: addr, subject, html });
+      }
+    },
+    async cerrar() {
+      await client.close();
+    },
+  };
 }
 
 function fmt(d: string) {
   return new Date(d).toLocaleDateString("es-ES");
-}
-
-async function handleReservation(reservationId: string, type: "RESERVATION_CONFIRMATION" | "MAINTENANCE") {
-  const { data: r } = await admin.from("reservations")
-    .select("start_date, end_date, properties(name), profiles!reservations_created_by_id_fkey(name, email)")
-    .eq("id", reservationId).single();
-  if (!r) throw new Error("Reserva no encontrada");
-  const prop = (r as any).properties?.name ?? "la casa";
-  const creator = (r as any).profiles;
-  const tpl = await getTemplate(type);
-  const vars = {
-    PropertyName: prop,
-    UserName: creator?.name ?? "",
-    StartDate: fmt(r.start_date),
-    EndDate: fmt(r.end_date),
-    FormLink: `${APP_SCHEME}inspeccion/${reservationId}`,
-  };
-  // Solo el creador. El reparto del aviso de MANTENIMIENTO (que iba a los
-  // administradores globales y a los de cada casa) se movió a la Edge Function
-  // notify-changes en la migración 0027: allí lo dispara un trigger de la BD,
-  // llega a todos menos al mega admin y va acompañado de push. Si se dejara
-  // también aquí, cada bloqueo saldría por duplicado y con la lista antigua.
-  const uniq = [...new Set(creator?.email ? [creator.email] : [])];
-  if (uniq.length) await sendMail(uniq, fill(tpl.subject, vars), fillHtml(tpl.body, vars));
-  return uniq.length;
 }
 
 async function handleInspectionReminders() {
@@ -193,6 +161,8 @@ async function handleInspectionReminders() {
     .eq("is_maintenance", false);
   const tpl = await getTemplate("INSPECTION_REMINDER");
   let sent = 0;
+  const smtp = await abrirSmtp();
+  try {
   for (const r of rows ?? []) {
     if ((r as any).out_reports?.length) continue; // ya tiene reporte
     const creator = (r as any).profiles;
@@ -203,8 +173,11 @@ async function handleInspectionReminders() {
       StartDate: fmt(r.start_date), EndDate: fmt(r.end_date),
       FormLink: `${APP_SCHEME}inspeccion/${r.id}`,
     };
-    await sendMail([creator.email], fill(tpl.subject, vars), fillHtml(tpl.body, vars));
+    await smtp.enviar([creator.email], fill(tpl.subject, vars), fillHtml(tpl.body, vars));
     sent++;
+  }
+  } finally {
+    await smtp.cerrar();
   }
   return sent;
 }
@@ -234,6 +207,8 @@ async function handlePreStayReminders() {
     .eq("is_maintenance", false);
   const tpl = await getTemplate("PRE_STAY");
   let sent = 0;
+  const smtp = await abrirSmtp();
+  try {
   for (const r of rows ?? []) {
     const creator = (r as any).profiles;
     if (!creator?.email) continue;
@@ -242,8 +217,11 @@ async function handlePreStayReminders() {
       UserName: creator.name ?? "",
       StartDate: fmt(r.start_date), EndDate: fmt(r.end_date),
     };
-    await sendMail([creator.email], fill(tpl.subject, vars), fillHtml(tpl.body, vars));
+    await smtp.enviar([creator.email], fill(tpl.subject, vars), fillHtml(tpl.body, vars));
     sent++;
+  }
+  } finally {
+    await smtp.cerrar();
   }
   return sent;
 }
@@ -274,54 +252,11 @@ Deno.serve(async (req) => {
       return json({ ok: true, sent });
     }
 
-    // --- Camino usuario (confirmación / mantenimiento) ---
-    const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader) return json({ error: "No autorizado" }, 401);
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: u } = await userClient.auth.getUser();
-    if (!u?.user) return json({ error: "No autorizado" }, 401);
-
-    const reservationId = String(body.reservationId ?? "");
-    if (!reservationId) return json({ error: "Falta reservationId" }, 400);
-
-    const { data: prof } = await userClient.from("profiles")
-      .select("role").eq("id", u.user.id).single();
-    // El rol dentro de la casa vive en group_members desde la migración 0025;
-    // `profiles.role` ya solo dice el rango GLOBAL.
-    const { data: member } = await userClient.from("group_members")
-      .select("group_id, role").eq("user_id", u.user.id).maybeSingle();
-    const { data: resv } = await userClient.from("reservations")
-      .select("created_by_id, family_group_id, is_maintenance").eq("id", reservationId).single();
-    if (!prof || !resv) return json({ error: "Sin acceso" }, 403);
-
-    const isPrincipal = PRINCIPAL.includes(prof.role);
-    // [2L-14] Quien no está en ninguna casa no es admin de reservas de grupo
-    // NULL: exigir pertenencia (espeja private.is_group_admin(NULL)).
-    const isGroupAdmin = isPrincipal ||
-      (member != null &&
-        FAMILY_ADMIN.includes(member.role) &&
-        member.group_id === resv.family_group_id);
-    const isCreator = resv.created_by_id === u.user.id;
-
-    if (type === "reservation_confirmation") {
-      if (!(isCreator || isGroupAdmin)) return json({ error: "Sin permiso" }, 403);
-      // [2L-11] Anti-doble-envío best-effort (evita re-disparo por doble toque).
-      const now = Date.now();
-      const last = recentConfirmations.get(reservationId);
-      if (last && now - last < CONFIRMATION_TTL_MS) {
-        return json({ ok: true, sent: 0, deduped: true });
-      }
-      recentConfirmations.set(reservationId, now);
-      const n = await handleReservation(reservationId, "RESERVATION_CONFIRMATION");
-      return json({ ok: true, sent: n });
-    }
-    if (type === "maintenance") {
-      if (!isPrincipal) return json({ error: "Solo admin principal" }, 403);
-      const n = await handleReservation(reservationId, "MAINTENANCE");
-      return json({ ok: true, sent: n });
-    }
+    // Ya no hay camino de USUARIO. La confirmación de reserva y el aviso de
+    // mantenimiento los manda notify-changes desde los triggers de la 0027, así
+    // que esta función solo atiende al cron. Con ello se van también la
+    // comprobación de permisos que hacía falta para fiarse del cliente y el
+    // anti-doble-envío que compensaba los dobles toques.
     return json({ error: "type no soportado" }, 400);
   } catch (e) {
     console.error("send-email error:", e);
