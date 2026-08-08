@@ -40,13 +40,26 @@ class PushService {
   /// romper la app. Requiere `flutterfire configure` y la config nativa.
   static Future<void> init() async {
     if (kIsWeb) return;
-    if (defaultTargetPlatform != TargetPlatform.android &&
-        defaultTargetPlatform != TargetPlatform.iOS) {
+    const soportadas = {
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    };
+    if (!soportadas.contains(defaultTargetPlatform)) {
       estado = 'No aplica en esta plataforma.';
-      return; // Windows/macOS/Linux: sin push nativo.
+      return; // Windows/Linux: Flutter no tiene push nativo ahí.
     }
-    final esIOS = defaultTargetPlatform == TargetPlatform.iOS;
-    final platform = esIOS ? 'ios' : 'android';
+    // iOS y macOS van los DOS por APNs, así que comparten toda la espera del
+    // token de APNs de más abajo. Es la razón de que esto sea "esApple" y no
+    // "esIOS": en macOS, sin esa espera, el primer registro se queda igual de
+    // colgado que se quedaba en el iPhone.
+    final esApple = defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+    final platform = switch (defaultTargetPlatform) {
+      TargetPlatform.iOS => 'ios',
+      TargetPlatform.macOS => 'macos',
+      _ => 'android',
+    };
     try {
       await Firebase.initializeApp();
       final messaging = FirebaseMessaging.instance;
@@ -59,16 +72,17 @@ class PushService {
       // dejaba el dispositivo sin push para siempre.
       messaging.onTokenRefresh.listen((t) => saveToken(t, platform: platform));
 
-      // iOS: FCM no puede emitir su token hasta que APNs ha entregado el suyo
-      // al dispositivo. En un PRIMER registro eso puede tardar bastante más de
-      // lo que uno espera —hasta minutos con mala cobertura—, así que se espera
-      // con margen. No bloquea nada: init() se llama sin await desde HomeShell.
+      // Apple (iOS y macOS): FCM no puede emitir su token hasta que APNs ha
+      // entregado el suyo al dispositivo. En un PRIMER registro eso puede tardar
+      // bastante más de lo que uno espera —hasta minutos con mala cobertura—,
+      // así que se espera con margen. No bloquea nada: init() se llama sin await
+      // desde HomeShell.
       //
       // Cada llamada lleva su propio timeout porque getAPNSToken() puede
       // quedarse colgada sin devolver ni token ni null: visto en un iPhone real,
       // dejaba el estado en "Pidiendo token…" para siempre y el bucle de espera
       // ni siquiera empezaba a contar.
-      if (esIOS) {
+      if (esApple) {
         String? apns;
         for (var i = 0; i < _intentosApns; i++) {
           apns = await messaging.getAPNSToken().timeout(
@@ -84,7 +98,7 @@ class PushService {
           estado =
               'APNs no entregó su token en ${_intentosApns * 2} s. Suele ser '
               'la red: APNs usa el puerto 5223 y algunas wifis lo bloquean. '
-              'Prueba con datos móviles.';
+              '${defaultTargetPlatform == TargetPlatform.iOS ? 'Prueba con datos móviles.' : 'Prueba desde otra red.'}';
           LogService.evento('Push: $estado');
           return;
         }
