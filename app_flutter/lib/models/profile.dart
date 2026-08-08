@@ -31,6 +31,12 @@ class Profile {
     // La pertenencia llega anidada cuando la consulta hace el join con
     // group_members; PostgREST la devuelve como lista o como objeto según la
     // forma de la relación, así que se admiten las dos.
+    //
+    // Solo de ahí. Antes había un respaldo a `m['family_group_id']` y
+    // `m['group_role']`, columnas de `profiles` que la migración 0025 eliminó:
+    // no podían llegar nunca y hacían creer que el grupo aún vivía en el
+    // perfil. Si el join falta, el resultado correcto es null, no un valor
+    // heredado de un esquema que ya no existe.
     final gm = m['group_members'];
     final miembro = gm is List
         ? (gm.isEmpty ? null : gm.first as Map<String, dynamic>)
@@ -40,9 +46,8 @@ class Profile {
       name: (m['name'] as String?) ?? '',
       email: m['email'] as String?,
       role: (m['role'] as String?) ?? 'USER',
-      familyGroupId:
-          (miembro?['group_id'] ?? m['family_group_id']) as String?,
-      groupRole: (miembro?['role'] ?? m['group_role']) as String?,
+      familyGroupId: miembro?['group_id'] as String?,
+      groupRole: miembro?['role'] as String?,
       image: m['image'] as String?,
     );
   }
