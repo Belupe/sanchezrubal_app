@@ -240,6 +240,11 @@ Deno.serve(async (req) => {
     };
 
     // ---- Plantilla y destinatarios según el evento -----------------------
+    // Los administradores principales se consultan UNA vez y se reutilizan: son
+    // los destinatarios del correo salvo en mantenimiento, y siempre los del
+    // push. Antes se pedían dos veces por aviso, que es una consulta de más en
+    // cada reserva que se crea, se cambia o se cancela.
+    const principales = await principalAdmins();
     let tipo: string;
     let destinatarios: Persona[];
 
@@ -256,7 +261,7 @@ Deno.serve(async (req) => {
       };
       if (!porEvento[event]) return json({ error: `Evento desconocido: ${event}` }, 400);
       tipo = porEvento[event];
-      destinatarios = await principalAdmins();
+      destinatarios = principales;
     }
 
     // Nadie se avisa de su propio cambio. actorId puede venir null cuando el
@@ -274,7 +279,7 @@ Deno.serve(async (req) => {
     // El push va SIEMPRE solo al administrador principal, también en el
     // mantenimiento: el correo de mantenimiento es un aviso general, pero
     // nadie más necesita que le suene el móvil por esto.
-    const paraPush = (await principalAdmins())
+    const paraPush = principales
       .filter((p) => p.id !== actorId)
       .map((p) => p.id);
     await sendPush(
