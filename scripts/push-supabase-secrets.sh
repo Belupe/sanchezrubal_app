@@ -17,7 +17,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Se acepta también `env` sin el punto. Es como viaja el fichero cuando se mueve
+# por un NAS o por un gestor de archivos que esconde los ocultos, y olvidarse de
+# volver a renombrarlo no daba ningún error: la build salía con los valores por
+# defecto de lib/config.dart, en silencio y sin que nadie se enterara.
 ENV_FILE="$ROOT/.env"
+[ -f "$ENV_FILE" ] || ENV_FILE="$ROOT/env"
 [ -f "$ENV_FILE" ] || { echo "No existe .env (cp .env.example .env y rellénalo)."; exit 1; }
 
 # Carga el .env (ignora comentarios). Las claves quedan como variables.

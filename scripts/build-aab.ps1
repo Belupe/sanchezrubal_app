@@ -13,7 +13,13 @@ $ErrorActionPreference = 'Stop'
 $scripts = $PSScriptRoot
 $root    = Split-Path $scripts -Parent
 $app     = Join-Path $root 'app_flutter'
-$envFile = Join-Path $root '.env'
+# Se acepta también `env` sin el punto. Es como viaja el fichero cuando se mueve
+# por un NAS o por un gestor de archivos que esconde los ocultos, y olvidarse de
+# volver a renombrarlo no daba ningún error: la build salía con los valores por
+# defecto de lib/config.dart, en silencio y sin que nadie se enterara.
+$envFile = @((Join-Path $root '.env'), (Join-Path $root 'env')) |
+  Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $envFile) { $envFile = Join-Path $root '.env' }
 
 function Read-DotEnv($path) {
   $h = @{}
