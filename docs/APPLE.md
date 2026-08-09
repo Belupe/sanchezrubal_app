@@ -50,6 +50,33 @@ familia.
    > instantánea el día 1. (TestFlight queda como herramienta opcional de pruebas internas antes de
    > publicar, no como canal de distribución.)
 
+## Capturas de pantalla para la ficha
+
+La ficha de App Store Connect no se puede enviar sin capturas, y Apple las exige en **la
+resolución exacta** de dos tamaños: **iPhone de 6,9"** e **iPad de 13"** (del resto de modelos se
+encarga él reescalando). Ya están hechas, en [appstore/capturas/](appstore/capturas/):
+
+| Carpeta | Súbela en el tamaño | Resolución |
+|---------|--------------------|-----------|
+| `appstore/capturas/iphone-6.9/` | iPhone 6,9" | 1290 × 2796 |
+| `appstore/capturas/ipad-13/` | iPad 13" | 2048 × 2732 |
+
+Van numeradas (`01-…`, `02-…`): ese es el orden en que se enseñan, y **la primera es la que sale
+en los resultados de búsqueda**.
+
+Para regenerarlas (al cambiar la interfaz, o para enseñar otras pantallas) **no hace falta un Mac
+ni el simulador**:
+
+```bash
+./scripts/screenshots/run.sh
+```
+
+Compila la app de verdad para web, la ejecuta en Chromium emulando el iPhone y el iPad
+(resolución, zonas seguras, `TargetPlatform.iOS`) y la recorre pantalla por pantalla. Los datos que
+salen son de una familia inventada, servidos por un Supabase simulado: **en las capturas públicas
+no aparece ni un nombre ni una reserva reales**. Detalles y opciones en
+[../scripts/screenshots/README.md](../scripts/screenshots/README.md).
+
 ## Actualizaciones de iOS
 - Subes una build nueva a App Store Connect → pasa revisión → los dispositivos **auto-actualizan**
   desde el App Store. No caduca (a diferencia de TestFlight).
