@@ -9,7 +9,13 @@ $ErrorActionPreference = 'Stop'
 $scripts = $PSScriptRoot
 $root    = Split-Path $scripts -Parent
 $app     = Join-Path $root 'app_flutter'
-$envFile = Join-Path $root '.env'
+# Se acepta también `env` sin el punto. Es como viaja el fichero cuando se mueve
+# por un NAS o por un gestor de archivos que esconde los ocultos, y olvidarse de
+# volver a renombrarlo no daba ningún error: la build salía con los valores por
+# defecto de lib/config.dart, en silencio y sin que nadie se enterara.
+$envFile = @((Join-Path $root '.env'), (Join-Path $root 'env')) |
+  Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $envFile) { $envFile = Join-Path $root '.env' }
 
 function Read-DotEnv($path) {
   $h = @{}
@@ -26,6 +32,14 @@ function Read-DotEnv($path) {
 }
 
 $envv = Read-DotEnv $envFile
+# Avisar es importante aquí: si no hay fichero, la app NO falla, se compila con
+# los valores por defecto de lib/config.dart. Hoy coinciden con producción, así
+# que el instalador funcionaría igual y nadie notaría nada... hasta el día en
+# que alguien cambie el .env y no entienda por qué el ejecutable sigue
+# apuntando a lo de antes. build-aab.ps1 ya lo avisaba; esto lo iguala.
+if (-not (Test-Path $envFile)) {
+  Write-Warning "No se encontró .env ni env: se compila con los valores por defecto de lib/config.dart."
+}
 $defines = @()
 # MEDIA_PUBLIC_URL no se hornea: el cliente no lo usa (las URLs de las fotos
 # las firma la Edge Function media-sign). Sigue haciendo falta en el servidor.
