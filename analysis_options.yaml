@@ -1,0 +1,21 @@
+# Opciones del analizador para la RAÍZ del repositorio.
+#
+# La app tiene las suyas en `app_flutter/analysis_options.yaml`, que mandan
+# sobre todo lo que cuelga de ahí. Este fichero solo existe para lo que queda
+# fuera de la app.
+#
+# Ahora mismo, para una cosa: `scripts/screenshots/overlay/` guarda versiones
+# alternativas de cuatro servicios y de `main`, que `run.sh` COPIA dentro de una
+# copia temporal de la app antes de generar las capturas de la App Store. Allí
+# tienen Flutter y compilan igual que los originales.
+#
+# En su sitio de reposo, en cambio, están fuera de cualquier paquete Dart: no
+# hay pubspec ni .dart_tool que los respalde, así que `package:flutter/...` no
+# se puede resolver y el analizador marca en rojo cada línea que lo use. Eran
+# 103 errores que no significan nada, y que tapan los que sí importan.
+#
+# No se mueven dentro de app_flutter/ porque chocarían con los servicios de
+# verdad: se llaman igual a propósito, ya que su función es sustituirlos.
+analyzer:
+  exclude:
+    - scripts/screenshots/overlay/**
