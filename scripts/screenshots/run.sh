@@ -24,7 +24,7 @@ set -euo pipefail
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RAIZ="$(cd "$AQUI/../.." && pwd)"
 
-SALIDA="$RAIZ/docs/appstore/capturas"
+SALIDA="$RAIZ/docs/capturas"
 DISPOSITIVO="todos"
 PUERTO="8787"
 

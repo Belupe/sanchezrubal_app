@@ -7,7 +7,7 @@ Genera las capturas de pantalla que pide **App Store Connect**, emulando un
 ./scripts/screenshots/run.sh
 ```
 
-Las deja en **`docs/appstore/capturas/`**:
+Las deja en **`docs/capturas/`**:
 
 | Carpeta | Dispositivo | Resolución | Obligatoria en App Store Connect |
 |---|---|---|---|
