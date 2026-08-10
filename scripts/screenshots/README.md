@@ -1,7 +1,8 @@
 # Capturas para la App Store
 
 Genera las capturas de pantalla que pide **App Store Connect**, emulando un
-**iPhone** y un **iPad**, sin necesidad de un Mac ni del simulador de Xcode.
+**iPhone**, un **iPad** y un **Mac**, sin necesidad de un Mac de verdad ni del
+simulador de Xcode.
 
 ```bash
 ./scripts/screenshots/run.sh
@@ -13,10 +14,12 @@ Las deja en **`docs/capturas/`**:
 |---|---|---|---|
 | `iphone-6.5/` | iPhone 6,5" (12/13 Pro Max, 14 Plus) | **1284 × 2778** | sí |
 | `ipad-13/` | iPad Pro 13" | **2048 × 2732** | sí, porque la app también se publica para iPad |
+| `macos/` | Mac (Retina, 1440 × 900 a ×2) | **2880 × 1800** | sí, para la ficha de macOS |
 
-Apple acepta hasta 10 capturas por tamaño; aquí se generan 9. Esos dos tamaños
-son los únicos que hay que subir: **App Store Connect reescala** el resto de
-modelos a partir de ellos.
+Apple acepta hasta 10 capturas por tamaño; aquí se generan 9 de cada. En el
+iPhone y el iPad esos son los únicos tamaños que hay que subir: **App Store
+Connect reescala** el resto de modelos a partir de ellos. En el Mac acepta
+1280 × 800, 1440 × 900, 2560 × 1600 o **2880 × 1800**, y se usa la mayor.
 
 ## Qué se está fotografiando exactamente
 
@@ -43,9 +46,15 @@ Cambian solo dos cosas, y ninguna toca `app_flutter/`:
   `navigator.platform` de iOS, así que `defaultTargetPlatform` vale
   `TargetPlatform.iOS` y la app se comporta como en el dispositivo (transiciones,
   física del scroll, `Theme.of(context).platform`).
-- **Zonas seguras**: `main_shots.dart` inyecta por `MediaQuery` el recorte de la
-  isla dinámica (59 pt) y el del indicador de inicio (34 pt), de modo que la
-  AppBar pinta su fondo bajo la barra de estado igual que en el móvil.
+- **Zonas seguras** (móvil): `main_shots.dart` inyecta por `MediaQuery` el
+  recorte de arriba (47 pt de muesca en el iPhone de 6,5") y el del indicador
+  de inicio (34 pt), de modo que la AppBar pinta su fondo bajo la barra de
+  estado igual que en el móvil.
+- **Ventana** (Mac): ahí no hay zonas seguras, hay una **ventana**. La barra de
+  título la pinta el sistema *por encima* de la vista de Flutter, no por
+  debajo, así que con `?chrome=macos` se dibuja arriba (semáforo y el nombre
+  de la app, que es el `PRODUCT_NAME` del proyecto macOS) y la app se desplaza
+  de verdad. Y sin pantalla táctil: allí se pulsa con el ratón.
 - **Barra de estado**: se dibuja encima (hora 9:41, cobertura, wifi, batería),
   como en las capturas del simulador de Xcode. Es decoración del dispositivo,
   no interfaz de la app; se quita con `?statusbar=0`.
@@ -69,6 +78,7 @@ proceso funciona sin red.
 ```bash
 ./scripts/screenshots/run.sh --dispositivo=iphone    # solo iPhone
 ./scripts/screenshots/run.sh --dispositivo=ipad      # solo iPad
+./scripts/screenshots/run.sh --dispositivo=macos     # solo Mac
 ./scripts/screenshots/run.sh --salida=/tmp/capturas  # otra carpeta
 ./scripts/screenshots/run.sh --puerto=9000           # si el 8787 está ocupado
 ```
@@ -107,8 +117,8 @@ overlay/            lo que se superpone a app_flutter SOLO para esta compilació
 ## Después de generarlas
 
 En **App Store Connect** → tu app → la versión → *Vista previa de la App Store y
-capturas de pantalla*: se sube la carpeta `iphone-6.5/` en el tamaño de 6,5" y
-`ipad-13/` en el de 13".
+capturas de pantalla*: se sube la carpeta `iphone-6.5/` en el tamaño de 6,5",
+`ipad-13/` en el de 13" y `macos/` en la ficha de macOS.
 
 > **Ojo con la ranura del iPhone.** App Store Connect enseña la que corresponde
 > a la ficha, y la de esta app es la de **6,5"**: acepta 1284 × 2778 o

@@ -53,13 +53,15 @@ familia.
 ## Capturas de pantalla para la ficha
 
 La ficha de App Store Connect no se puede enviar sin capturas, y Apple las exige en **la
-resolución exacta** de dos tamaños: **iPhone de 6,5"** e **iPad de 13"** (del resto de modelos se
-encarga él reescalando). Ya están hechas, en [capturas/](capturas/):
+resolución exacta**: **iPhone de 6,5"**, **iPad de 13"** y, si publicas también la app de
+macOS, **Mac** (del resto de modelos de iPhone e iPad se encarga él reescalando). Ya están
+hechas, en [capturas/](capturas/):
 
 | Carpeta | Súbela en el tamaño | Resolución |
 |---------|--------------------|-----------|
 | `capturas/iphone-6.5/` | iPhone 6,5" | 1284 × 2778 |
 | `capturas/ipad-13/` | iPad 13" | 2048 × 2732 |
+| `capturas/macos/` | Mac | 2880 × 1800 |
 
 Van numeradas (`01-…`, `02-…`): ese es el orden en que se enseñan, y **la primera es la que sale
 en los resultados de búsqueda**.
@@ -71,8 +73,8 @@ ni el simulador**:
 ./scripts/screenshots/run.sh
 ```
 
-Compila la app de verdad para web, la ejecuta en Chromium emulando el iPhone y el iPad
-(resolución, zonas seguras, `TargetPlatform.iOS`) y la recorre pantalla por pantalla. Los datos que
+Compila la app de verdad para web, la ejecuta en Chromium emulando el iPhone, el iPad y el Mac
+(resolución, zonas seguras o ventana, y `TargetPlatform` correcto en cada uno) y la recorre pantalla por pantalla. Los datos que
 salen son de una familia inventada, servidos por un Supabase simulado: **en las capturas públicas
 no aparece ni un nombre ni una reserva reales**. Detalles y opciones en
 [../scripts/screenshots/README.md](../scripts/screenshots/README.md).

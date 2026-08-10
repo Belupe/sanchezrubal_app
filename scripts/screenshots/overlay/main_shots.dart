@@ -73,6 +73,7 @@ Future<void> _arrancar() async {
   final bottom = double.tryParse(q['bottom'] ?? '') ?? 0;
   final conBarra = q['statusbar'] != '0';
   final soloLogin = q['login'] == '1';
+  final ventanaMac = q['chrome'] == 'macos';
 
   themeNotifier.value = q['dark'] == '1' ? ThemeMode.dark : ThemeMode.light;
 
@@ -94,12 +95,104 @@ Future<void> _arrancar() async {
   }
 
   _paso('runApp');
-  runApp(_MarcoDispositivo(
-    top: top,
-    bottom: bottom,
-    barraDeEstado: conBarra,
-    child: const PortalFamiliaApp(),
-  ));
+  runApp(
+    ventanaMac
+        ? const _VentanaMac(child: PortalFamiliaApp())
+        : _MarcoDispositivo(
+            top: top,
+            bottom: bottom,
+            barraDeEstado: conBarra,
+            child: const PortalFamiliaApp(),
+          ),
+  );
+}
+
+/// Ventana de macOS maximizada: barra de título del sistema arriba y la app
+/// justo debajo.
+///
+/// No se usa el mecanismo de zonas seguras del móvil porque en macOS la barra
+/// de título **no** es parte de la vista de Flutter: la pinta el sistema y la
+/// app empieza por debajo. Por eso aquí la app se desplaza de verdad en un
+/// Column, en vez de dejar que la AppBar se meta bajo el recorte.
+class _VentanaMac extends StatelessWidget {
+  const _VentanaMac({required this.child});
+
+  /// Alto de la barra de título estándar de macOS, en puntos.
+  static const double alto = 28;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Column(
+        // Sin esto la barra de título se encogería al ancho de su texto: el
+        // Column centra por defecto y no estira a sus hijos.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _BarraDeTitulo(),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+/// Barra de título con los tres botones de semáforo y el nombre de la app,
+/// que en macOS es el `PRODUCT_NAME` de `AppInfo.xcconfig`: "Portal Familia".
+///
+/// Es cromo del sistema, no interfaz de la app, igual que la barra de estado
+/// de iOS: sale así en cualquier captura de una ventana de Mac.
+class _BarraDeTitulo extends StatelessWidget {
+  const _BarraDeTitulo();
+
+  @override
+  Widget build(BuildContext context) {
+    const semaforo = [
+      Color(0xFFFF5F57), // cerrar
+      Color(0xFFFEBC2E), // minimizar
+      Color(0xFF28C840), // pantalla completa
+    ];
+
+    return Container(
+      height: _VentanaMac.alto,
+      decoration: const BoxDecoration(
+        color: Color(0xFFECECEC),
+        border: Border(bottom: BorderSide(color: Color(0xFFD3D3D3))),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const Text(
+            'Portal Familia',
+            style: TextStyle(
+              color: Color(0xFF41424A),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Positioned(
+            left: 13,
+            child: Row(
+              children: [
+                for (final color in semaforo)
+                  Container(
+                    width: 12,
+                    height: 12,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Envuelve la app con las zonas seguras del dispositivo y, encima de todo, la

@@ -1,10 +1,10 @@
-// Capturas de la App Store: recorre la app emulando un iPhone y un iPad.
+// Capturas de la App Store: recorre la app emulando un iPhone, un iPad y un Mac.
 //
 // La app corre de verdad en Chromium (compilada a web, servida por
 // `mock_backend.mjs`). Aquí solo se emula el dispositivo y se navega:
 //
 //   · viewport en puntos + `deviceScaleFactor` = resolución exacta que pide
-//     App Store Connect (1284x2778 en iPhone, 2048x2732 en iPad).
+//     App Store Connect (1284x2778 iPhone, 2048x2732 iPad, 2880x1800 Mac).
 //   · user agent y `navigator.platform` de iOS, para que Flutter resuelva
 //     `defaultTargetPlatform == TargetPlatform.iOS` y la app se comporte como
 //     en el dispositivo.
@@ -61,6 +61,9 @@ const UA_IPHONE =
 const UA_IPAD =
   'Mozilla/5.0 (iPad; CPU OS 18_5 like Mac OS X) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
+const UA_MACOS =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+  + '(KHTML, like Gecko) Version/18.5 Safari/605.1.15';
 
 const DISPOSITIVOS = {
   iphone: {
@@ -111,6 +114,27 @@ const DISPOSITIVOS = {
     ua: UA_IPAD,
     plataforma: 'iPad',
     movil: false,
+  },
+  macos: {
+    // Mac con pantalla Retina: 1440 x 900 a x2. De las cuatro medidas que
+    // acepta App Store Connect (1280x800, 1440x900, 2560x1600, 2880x1800) es
+    // la mayor, así que se ve nítida en cualquier sitio.
+    //
+    // Aquí no hay zonas seguras: lo que hay es una VENTANA. La barra de título
+    // la pinta el sistema por encima de la vista de Flutter, no por debajo,
+    // así que se dibuja con `chrome=macos` y la app se desplaza de verdad.
+    carpeta: 'macos',
+    etiqueta: 'Mac',
+    ancho: 1440,
+    alto: 900,
+    escala: 2,
+    seguraArriba: 0,
+    seguraAbajo: 0,
+    ua: UA_MACOS,
+    plataforma: 'MacIntel',
+    movil: false,
+    tactil: false,
+    ventana: 'macos',
   },
 };
 
@@ -222,13 +246,21 @@ const etiquetasVisibles = (page) =>
       .filter((t) => t && t.length < 40),
   );
 
-/// Toca un elemento por su etiqueta accesible, esperando a que aparezca.
+/// En el Mac no hay pantalla táctil: allí se pulsa con el ratón. Lo fija
+/// `capturarDispositivo` antes de empezar con cada dispositivo.
+let usarToque = true;
+
+/// Toca (o hace clic en) un elemento por su etiqueta accesible, esperando a
+/// que aparezca.
 async function pulsar(page, etiqueta, { intentos = 40 } = {}) {
   for (let i = 0; i < intentos; i++) {
     const punto = await buscar(page, etiqueta);
     if (punto) {
-      // Toque real: el contexto tiene `hasTouch`, igual que el dispositivo.
-      await page.touchscreen.tap(punto.x, punto.y);
+      if (usarToque) {
+        await page.touchscreen.tap(punto.x, punto.y);
+      } else {
+        await page.mouse.click(punto.x, punto.y);
+      }
       return;
     }
     await page.waitForTimeout(250);
@@ -328,7 +360,7 @@ async function capturarDispositivo(navegador, disp) {
     viewport: { width: disp.ancho, height: disp.alto },
     deviceScaleFactor: disp.escala,
     isMobile: disp.movil,
-    hasTouch: true,
+    hasTouch: disp.tactil ?? true,
     userAgent: disp.ua,
     locale: 'es-ES',
     timezoneId: 'Europe/Madrid',
@@ -338,16 +370,32 @@ async function capturarDispositivo(navegador, disp) {
 
   // Playwright emula el user agent pero no `navigator.platform`, y Flutter mira
   // las dos cosas para decidir en qué sistema cree que está.
-  await contexto.addInitScript((plataforma) => {
-    Object.defineProperty(navigator, 'platform', { get: () => plataforma });
-    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
-  }, disp.plataforma);
+  await contexto.addInitScript((d) => {
+    Object.defineProperty(navigator, 'platform', { get: () => d.plataforma });
+    // Ojo: Flutter identifica un iPad como "MacIntel" CON puntos táctiles. En
+    // el Mac tienen que ser 0 o la app se creería que está en un iPad.
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => d.toques });
+  }, { plataforma: disp.plataforma, toques: (disp.tactil ?? true) ? 5 : 0 });
+
+  usarToque = disp.tactil ?? true;
 
   const page = await contexto.newPage();
   const fallos = [];
   page.on('pageerror', (e) => fallos.push(String(e.message ?? e).slice(0, 200)));
 
-  const url = `${URL_BASE}/?top=${disp.seguraArriba}&bottom=${disp.seguraAbajo}`;
+  // La app anuncia por consola qué sistema ha deducido del navegador. Si se
+  // equivocara (un Mac tomado por iPad, por ejemplo) las capturas saldrían mal
+  // sin avisar, así que se comprueba en voz alta.
+  let plataformaVista = null;
+  page.on('console', (m) => {
+    const t = m.text();
+    if (t.includes('plataforma detectada')) {
+      plataformaVista ??= t.split('plataforma detectada:').pop().trim();
+    }
+  });
+
+  const url = `${URL_BASE}/?top=${disp.seguraArriba}&bottom=${disp.seguraAbajo}`
+    + (disp.ventana ? `&chrome=${disp.ventana}` : '');
   const hechas = [];
 
   for (const escena of GUION) {
@@ -382,6 +430,7 @@ async function capturarDispositivo(navegador, disp) {
     'utf8',
   );
 
+  console.log(`  · la app se ve en: ${plataformaVista ?? '(no lo dijo)'}`);
   if (fallos.length) {
     console.log(`  · avisos de la app: ${[...new Set(fallos)].join(' | ')}`);
   }

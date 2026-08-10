@@ -2,7 +2,7 @@
 #
 # Genera las capturas de pantalla para App Store Connect.
 #
-#   ./scripts/screenshots/run.sh                  # iPhone 6,5" + iPad 13"
+#   ./scripts/screenshots/run.sh                  # iPhone 6,5" + iPad 13" + Mac
 #   ./scripts/screenshots/run.sh --dispositivo=iphone
 #   ./scripts/screenshots/run.sh --salida=/tmp/capturas
 #
@@ -14,8 +14,8 @@
 #   3. Compila la app en release contra un backend local.
 #   4. Levanta `mock_backend.mjs`, que sirve la app Y hace de Supabase con datos
 #      de demostración.
-#   5. Recorre la app con Chromium emulando iPhone y iPad, y guarda los PNG en
-#      la resolución exacta que exige Apple.
+#   5. Recorre la app con Chromium emulando iPhone, iPad y Mac, y guarda los PNG
+#      en la resolución exacta que exige Apple.
 #
 # NADA de esto toca `app_flutter/`: la copia es aparte y el repositorio queda
 # igual. Ver README.md.
