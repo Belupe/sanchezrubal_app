@@ -79,15 +79,20 @@ const DISPOSITIVOS = {
     movil: true,
   },
   'iphone-6.9': {
-    // iPhone 16/15 Pro Max. NO entra en `--dispositivo=todos`: la ficha de esta
+    // iPhone 16 Pro Max. NO entra en `--dispositivo=todos`: la ficha de esta
     // app pide el de 6,5". Se genera a mano con `--dispositivo=iphone-6.9` si
     // algún día App Store Connect enseña esa ranura.
+    //
+    // OJO: antes ponía 430 x 932, que es el iPhone 15 Pro Max y a escala 3 da
+    // 1290 x 2796 — el tamaño de 6,7", no el de 6,9". El nombre prometía una
+    // cosa y salía otra. Los 6,9" son 440 x 956, que dan los 1320 x 2868 que
+    // espera App Store Connect.
     carpeta: 'iphone-6.9',
     etiqueta: 'iPhone 6,9"',
-    ancho: 430,
-    alto: 932,
+    ancho: 440,
+    alto: 956,
     escala: 3,
-    seguraArriba: 59,
+    seguraArriba: 62,
     seguraAbajo: 34,
     ua: UA_IPHONE,
     plataforma: 'iPhone',

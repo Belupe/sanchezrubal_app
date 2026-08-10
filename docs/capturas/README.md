@@ -41,10 +41,10 @@ calendario-windows.png
 
 ## Las de la App Store van aparte, en subcarpetas
 
-`iphone-6.9/` y `ipad-13/` se saltan la norma de arriba a propósito:
+`iphone-6.5/` y `ipad-13/` se saltan la norma de arriba a propósito:
 
 - **Dos carpetas**, porque son los dos tamaños que App Store Connect sube por
-  separado (1290 × 2796 y 2048 × 2732). La carpeta ya dice la plataforma, así
+  separado (1284 × 2778 y 2048 × 2732). La carpeta ya dice la plataforma, así
   que el nombre del fichero no la repite.
 - **Numeradas** (`01-…`, `02-…`), porque ese es el orden en que la ficha las
   enseña y **la primera es la que sale en los resultados de búsqueda**. El
