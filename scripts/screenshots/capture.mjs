@@ -4,7 +4,7 @@
 // `mock_backend.mjs`). Aquí solo se emula el dispositivo y se navega:
 //
 //   · viewport en puntos + `deviceScaleFactor` = resolución exacta que pide
-//     App Store Connect (1290x2796 en iPhone, 2048x2732 en iPad).
+//     App Store Connect (1284x2778 en iPhone, 2048x2732 en iPad).
 //   · user agent y `navigator.platform` de iOS, para que Flutter resuelva
 //     `defaultTargetPlatform == TargetPlatform.iOS` y la app se comporte como
 //     en el dispositivo.
@@ -64,7 +64,24 @@ const UA_IPAD =
 
 const DISPOSITIVOS = {
   iphone: {
-    // iPhone 16 Pro Max / 15 Pro Max — pantalla de 6,9". Obligatorio.
+    // iPhone 12/13 Pro Max, 14 Plus — pantalla de 6,5". Es el tamaño que pide
+    // la ficha de esta app; App Store Connect también acepta 1242 x 2688
+    // (iPhone 11 Pro Max, 414 x 896). Muesca de 47 pt, no isla dinámica.
+    carpeta: 'iphone-6.5',
+    etiqueta: 'iPhone 6,5"',
+    ancho: 428,
+    alto: 926,
+    escala: 3,
+    seguraArriba: 47,
+    seguraAbajo: 34,
+    ua: UA_IPHONE,
+    plataforma: 'iPhone',
+    movil: true,
+  },
+  'iphone-6.9': {
+    // iPhone 16/15 Pro Max. NO entra en `--dispositivo=todos`: la ficha de esta
+    // app pide el de 6,5". Se genera a mano con `--dispositivo=iphone-6.9` si
+    // algún día App Store Connect enseña esa ranura.
     carpeta: 'iphone-6.9',
     etiqueta: 'iPhone 6,9"',
     ancho: 430,
@@ -75,6 +92,7 @@ const DISPOSITIVOS = {
     ua: UA_IPHONE,
     plataforma: 'iPhone',
     movil: true,
+    aparte: true,
   },
   ipad: {
     // iPad Pro de 13". Obligatorio si la app se publica también para iPad.
@@ -367,10 +385,15 @@ async function capturarDispositivo(navegador, disp) {
 
 // ---------------------------------------------------------------------------
 const elegidos =
-  QUE === 'todos' ? Object.values(DISPOSITIVOS) : [DISPOSITIVOS[QUE]].filter(Boolean);
+  QUE === 'todos'
+    ? Object.values(DISPOSITIVOS).filter((d) => !d.aparte)
+    : [DISPOSITIVOS[QUE]].filter(Boolean);
 
 if (elegidos.length === 0) {
-  console.error(`Dispositivo desconocido: ${QUE} (usa iphone, ipad o todos)`);
+  console.error(
+    `Dispositivo desconocido: ${QUE}\n`
+    + `  Usa: ${Object.keys(DISPOSITIVOS).join(', ')} o todos`,
+  );
   process.exit(1);
 }
 
