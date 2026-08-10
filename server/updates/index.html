@@ -36,6 +36,14 @@
     ol { padding-left: 20px; margin: 0; }
     .step { background: #f9fafb; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
     .note { font-size: .85rem; opacity: .65; margin-top: 16px; }
+    .pie {
+      margin-top: 20px; padding-top: 16px; text-align: center;
+      border-top: 1px solid rgba(128,128,128,.25);
+    }
+    .pie a {
+      font-size: .9rem; color: #2563eb; text-decoration: none; font-weight: 600;
+    }
+    .pie a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -88,6 +96,13 @@
     <p class="note">Android e iPhone/iPad se instalan y actualizan solos desde su tienda
     (<b>Google Play</b> / <b>App Store</b>) y son <b>privados / por invitación</b>: solo se acceden con
     los enlaces de arriba. <b>Windows</b> y <b>Linux</b> se actualizan desde dentro de la app.</p>
+
+    <!-- Ruta RELATIVA a propósito: privacidad.html se sirve desde esta misma
+         carpeta, así que el enlace funciona sea cual sea el dominio y no hay que
+         hornear nada desde el .env. Google Play exige que esta política sea
+         accesible públicamente; tenerla enlazada desde aquí es además lo que
+         espera cualquiera que llegue a la página. -->
+    <p class="pie"><a href="privacidad.html">Política de privacidad</a></p>
   </main>
 </body>
 </html>

@@ -137,6 +137,11 @@ if ($dataDir -and (Test-Path $dataDir)) {
               Replace('{{DOWNLOAD_LINUX_DEB_URL}}', (Html-Attr $linuxDebUrl)).
               Replace('{{DOWNLOAD_IOS_URL}}', (Html-Attr $iosUrl))
   Set-Content (Join-Path $dataDir 'index.html') $tpl -Encoding UTF8
+  # privacidad.html: se publica TAL CUAL, sin plantilla, porque no hornea nada
+  # del .env. Va aquí y no a mano porque Google Play tiene esa URL registrada:
+  # si se recreara la carpeta del servidor y nadie se acordara de volver a
+  # subirla, la ficha quedaría apuntando a un 404 con la app ya publicada.
+  Copy-Item (Join-Path $root 'server\updates\privacidad.html') $dataDir -Force
   Write-Host "`nPublicado en UPDATES_DATA_DIR: $dataDir  →  las apps se actualizarán solas." -ForegroundColor Green
 } else {
   Write-Host "`nSiguiente paso: sube el contenido de '$dist' (windows/ e index.html la 1ª vez)" -ForegroundColor Yellow
