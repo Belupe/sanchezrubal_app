@@ -2,7 +2,7 @@
 #
 # Genera las capturas de pantalla para App Store Connect.
 #
-#   ./scripts/screenshots/run.sh                  # iPhone 6,9" + iPad 13"
+#   ./scripts/screenshots/run.sh                  # iPhone 6,5" + iPad 13"
 #   ./scripts/screenshots/run.sh --dispositivo=iphone
 #   ./scripts/screenshots/run.sh --salida=/tmp/capturas
 #

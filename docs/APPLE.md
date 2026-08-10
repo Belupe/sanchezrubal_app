@@ -53,12 +53,12 @@ familia.
 ## Capturas de pantalla para la ficha
 
 La ficha de App Store Connect no se puede enviar sin capturas, y Apple las exige en **la
-resolución exacta** de dos tamaños: **iPhone de 6,9"** e **iPad de 13"** (del resto de modelos se
+resolución exacta** de dos tamaños: **iPhone de 6,5"** e **iPad de 13"** (del resto de modelos se
 encarga él reescalando). Ya están hechas, en [capturas/](capturas/):
 
 | Carpeta | Súbela en el tamaño | Resolución |
 |---------|--------------------|-----------|
-| `capturas/iphone-6.9/` | iPhone 6,9" | 1290 × 2796 |
+| `capturas/iphone-6.5/` | iPhone 6,5" | 1284 × 2778 |
 | `capturas/ipad-13/` | iPad 13" | 2048 × 2732 |
 
 Van numeradas (`01-…`, `02-…`): ese es el orden en que se enseñan, y **la primera es la que sale

@@ -11,7 +11,7 @@ Las deja en **`docs/capturas/`**:
 
 | Carpeta | Dispositivo | Resolución | Obligatoria en App Store Connect |
 |---|---|---|---|
-| `iphone-6.9/` | iPhone 6,9" (16/15 Pro Max) | **1290 × 2796** | sí |
+| `iphone-6.5/` | iPhone 6,5" (12/13 Pro Max, 14 Plus) | **1284 × 2778** | sí |
 | `ipad-13/` | iPad Pro 13" | **2048 × 2732** | sí, porque la app también se publica para iPad |
 
 Apple acepta hasta 10 capturas por tamaño; aquí se generan 9. Esos dos tamaños
@@ -81,9 +81,12 @@ proceso funciona sin red.
 - **Qué pantallas se fotografían y en qué orden**: la constante `GUION` de
   `capture.mjs`. Cada escena dice cómo llegar (`ir`), cómo saber que ya ha
   llegado (`esperarTitulo` / `esperar`) y si hay que desplazar (`desplazarHasta`).
-- **Los dispositivos**: la constante `DISPOSITIVOS` de `capture.mjs`. Para el
-  otro tamaño que acepta Apple en el iPhone (1320 × 2868) basta con poner
-  `ancho: 440, alto: 956`.
+- **Los dispositivos**: la constante `DISPOSITIVOS` de `capture.mjs`. Ahí está
+  también el iPhone de 6,9" (1290 × 2796), que **no** entra en `todos` porque la
+  ficha de esta app pide el de 6,5"; se genera a mano con
+  `--dispositivo=iphone-6.9`. Para el otro tamaño de 6,5" que Apple acepta
+  (1242 × 2688, iPhone 11 Pro Max) basta con poner `ancho: 414, alto: 896` y
+  `seguraArriba: 44`.
 
 ## Ficheros
 
@@ -104,7 +107,12 @@ overlay/            lo que se superpone a app_flutter SOLO para esta compilació
 ## Después de generarlas
 
 En **App Store Connect** → tu app → la versión → *Vista previa de la App Store y
-capturas de pantalla*: se sube la carpeta `iphone-6.9/` en el tamaño de 6,9" y
-`ipad-13/` en el de 13". El orden de los ficheros (`01-…`, `02-…`) es el orden
+capturas de pantalla*: se sube la carpeta `iphone-6.5/` en el tamaño de 6,5" y
+`ipad-13/` en el de 13".
+
+> **Ojo con la ranura del iPhone.** App Store Connect enseña la que corresponde
+> a la ficha, y la de esta app es la de **6,5"**: acepta 1284 × 2778 o
+> 1242 × 2688, y rechaza los 1290 × 2796 de 6,9". Si algún día cambia, mira qué
+> medidas pide la propia interfaz antes de generarlas. El orden de los ficheros (`01-…`, `02-…`) es el orden
 en que se enseñan en la ficha, y el **primero es el que se ve en los resultados
 de búsqueda**.
