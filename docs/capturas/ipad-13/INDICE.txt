@@ -1,0 +1,13 @@
+iPad 13" — 2048 x 2732 px
+
+01-anuncios.png  Tablón de anuncios de la familia
+02-domicilios.png  Las casas de la familia
+03-calendario.png  Calendario de ocupación de una casa
+04-inspecciones.png  Partes de salida con fotos y valoración
+05-sorteos.png  Reparto de quincenas por sorteo
+06-grupos-y-usuarios.png  Familias, miembros y permisos
+07-usuarios.png  Las personas de la familia y su rango
+08-registros.png  Quién ha creado, cambiado o borrado cada reserva
+09-menu.png  Menú de navegación desplegado
+
+Generado por scripts/screenshots/run.sh
