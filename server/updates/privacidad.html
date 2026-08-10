@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<!--
+  Política de privacidad de Portal Familia.
+
+  Existe porque Google Play la EXIGE para publicar, aunque la app sea privada y
+  se reparta solo por una pista de prueba interna. Apple también pide una URL.
+
+  Se sirve desde el mismo nginx que la página de descargas (`try_files $uri`),
+  así que basta con subirla por SFTP junto a index.html; no hay que tocar la
+  configuración del servidor.
+
+      https://app.sanchezrubal.net/privacidad.html
+
+  Está escrita a partir de lo que la app hace DE VERDAD, leyendo el esquema y el
+  código, no de una plantilla genérica. Si cambia lo que se recoge, hay que
+  actualizarla: las respuestas del formulario "Seguridad de los datos" de Play
+  tienen que seguir cuadrando con lo que dice aquí.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portal Familia — Política de privacidad</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: start center;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #f3f4f6; color: #111827; padding: 24px;
+      line-height: 1.55;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0b1220; color: #e5e7eb; }
+      .card { background: #111827 !important; }
+      .dato { background: #0b1220 !important; }
+    }
+    .card {
+      background: #fff; max-width: 720px; width: 100%; border-radius: 16px;
+      padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,.12);
+    }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    p.sub { margin: 0 0 24px; opacity: .7; font-size: .95rem; }
+    h2 { font-size: 1.1rem; margin: 28px 0 10px; }
+    .dato {
+      background: #f9fafb; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+    }
+    .dato b { display: block; margin-bottom: 2px; }
+    .dato span { font-size: .9rem; opacity: .8; }
+    ul { padding-left: 20px; }
+    .destacado {
+      border-left: 3px solid #2563eb; padding-left: 14px; margin: 20px 0;
+    }
+    .pie { font-size: .85rem; opacity: .65; margin-top: 28px; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Política de privacidad</h1>
+    <p class="sub">Portal Familia · actualizada el 10 de agosto de 2026</p>
+
+    <p>
+      Portal Familia es una aplicación <b>privada de uso familiar</b>. Sirve para
+      que los miembros de la familia Sánchez Rubal gestionen entre ellos las
+      reservas de los domicilios comunes. No está abierta al público: solo entra
+      quien recibe una invitación.
+    </p>
+
+    <div class="destacado">
+      <b>Lo esencial, en tres frases.</b> Los datos se guardan para que la app
+      funcione y no se usan para nada más. <b>No hay publicidad, no hay
+      analítica y no se venden ni se ceden datos a terceros.</b> Solo los ve la
+      propia familia y quien administra la aplicación.
+    </div>
+
+    <h2>Qué datos se recogen</h2>
+
+    <div class="dato">
+      <b>Nombre y correo electrónico</b>
+      <span>Para identificarte dentro de la app y enviarte los avisos. El correo
+      es además la forma de entrar.</span>
+    </div>
+    <div class="dato">
+      <b>Foto de perfil</b>
+      <span>Opcional. Si no subes ninguna, no se guarda nada.</span>
+    </div>
+    <div class="dato">
+      <b>Reservas</b>
+      <span>Domicilio, fechas, número de personas y, si los escribes, la lista de
+      acompañantes y tus notas.</span>
+    </div>
+    <div class="dato">
+      <b>Formularios de salida</b>
+      <span>El estado en que queda la casa, junto con las fotos y vídeos que
+      adjuntes y los comentarios que escribas.</span>
+    </div>
+    <div class="dato">
+      <b>Identificador de notificaciones</b>
+      <span>Un código que genera tu dispositivo para poder recibir avisos. No
+      identifica a la persona ni permite rastrearla fuera de la app.</span>
+    </div>
+    <div class="dato">
+      <b>Registro de cambios</b>
+      <span>Quién crea, modifica o cancela cada reserva, y cuándo. Sirve para
+      resolver dudas del tipo «¿quién cambió estas fechas?».</span>
+    </div>
+    <div class="dato">
+      <b>Informe de diagnóstico</b>
+      <span><b>Solo si pulsas el botón de enviarlo</b> desde Configuración →
+      Soporte. Contiene qué estaba haciendo la app cuando falló. Se limpia antes
+      de enviarse: no lleva tu contraseña ni tu sesión.</span>
+    </div>
+
+    <h2>Qué NO se recoge</h2>
+    <ul>
+      <li>No se registra tu <b>ubicación</b>.</li>
+      <li>No se accede a tus <b>contactos</b>, ni a tu agenda, ni a tus mensajes.</li>
+      <li>No hay <b>publicidad</b> ni identificadores publicitarios.</li>
+      <li>No hay <b>analítica</b> ni seguimiento del uso.</li>
+      <li>La app <b>no accede a tu galería</b>: cuando adjuntas una foto, la eliges
+        tú en el selector del sistema y solo se envía esa.</li>
+    </ul>
+
+    <h2>Quién puede ver tus datos</h2>
+    <p>
+      Los miembros de la familia ven el calendario de ocupación de las casas: qué
+      fechas están cogidas y por qué familia. <b>Las notas y la lista de
+      acompañantes de una reserva no son visibles para los demás</b>; solo las ve
+      quien la creó y quien administra su grupo.
+    </p>
+    <p>
+      Quien administra la aplicación puede ver todas las reservas y el registro de
+      cambios, porque es quien coordina los domicilios.
+    </p>
+
+    <h2>Dónde se guardan</h2>
+    <p>
+      Los datos se almacenan en <b>Supabase</b> (servidores en la Unión Europea) y
+      las fotos y vídeos en un <b>servidor propio de la familia</b>. Las
+      notificaciones se entregan a través de <b>Firebase Cloud Messaging</b>, de
+      Google, que es lo que permite que un aviso llegue a tu móvil.
+    </p>
+    <p>
+      Estos proveedores procesan los datos <b>por cuenta nuestra y solo para que
+      el servicio funcione</b>. No se les entrega información para sus propios
+      fines.
+    </p>
+
+    <h2>Cuánto tiempo se conservan</h2>
+    <p>
+      Mientras la app siga en uso. Si te das de baja se elimina tu cuenta y con
+      ella tu perfil, tus fotos y tus solicitudes. <b>Las reservas que ya hiciste
+      se conservan</b> como parte del historial de ocupación de las casas, porque
+      forman parte de la organización de la familia.
+    </p>
+
+    <h2>Tus derechos</h2>
+    <p>
+      Puedes pedir en cualquier momento acceder a tus datos, corregirlos o
+      eliminarlos, escribiendo a
+      <a href="mailto:ignacio@sanchezbas.com">ignacio@sanchezbas.com</a>.
+      Buena parte se puede hacer desde la propia app: el perfil se edita y las
+      reservas se cancelan sin pedir permiso a nadie.
+    </p>
+
+    <h2>Menores</h2>
+    <p>
+      La app la usan miembros adultos de la familia. No está dirigida a menores ni
+      recoge datos de ellos de forma deliberada; si un menor aparece como
+      acompañante en una reserva, es porque un adulto ha escrito su nombre.
+    </p>
+
+    <h2>Cambios en esta política</h2>
+    <p>
+      Si cambia lo que se recoge, esta página se actualizará y cambiará la fecha
+      de arriba.
+    </p>
+
+    <p class="pie">
+      Responsable del tratamiento: Ignacio Sánchez Bas, en nombre de la familia
+      Sánchez Rubal · Contacto:
+      <a href="mailto:ignacio@sanchezbas.com">ignacio@sanchezbas.com</a>
+    </p>
+  </div>
+</body>
+</html>

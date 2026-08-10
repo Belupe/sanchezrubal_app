@@ -58,6 +58,9 @@ const QUE = arg('dispositivo', 'todos');
 const UA_IPHONE =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
+const UA_ANDROID =
+  'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 '
+  + '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 const UA_IPAD =
   'Mozilla/5.0 (iPad; CPU OS 18_5 like Mac OS X) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
@@ -101,6 +104,28 @@ const DISPOSITIVOS = {
     plataforma: 'iPhone',
     movil: true,
     aparte: true,
+  },
+  android: {
+    // Google Play, capturas de teléfono. 1080 x 1920 es la medida recomendada,
+    // y no es una elección estética: Play RECHAZA cualquier captura cuyo lado
+    // largo pase del DOBLE del corto. Un móvil moderno es 9:19,5 —o sea
+    // 2,17:1— así que la proporción real de un Pixel no vale y hay que ir a
+    // 9:16. De ahí 360 x 640 a escala 3.
+    //
+    // seguraArriba en 0 A PROPÓSITO: la barra de estado que dibuja el overlay
+    // es la de iOS (hora 9:41 a la izquierda, iconos de Apple). En una ficha de
+    // Play cantaría. Sin barra, la captura es la app y ya está, que es lo
+    // habitual en la tienda de Android.
+    carpeta: 'android',
+    etiqueta: 'Android (teléfono)',
+    ancho: 360,
+    alto: 640,
+    escala: 3,
+    seguraArriba: 0,
+    seguraAbajo: 0,
+    ua: UA_ANDROID,
+    plataforma: 'Linux armv8l',
+    movil: true,
   },
   ipad: {
     // iPad Pro de 13". Obligatorio si la app se publica también para iPad.

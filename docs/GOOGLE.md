@@ -52,6 +52,70 @@ casi instantánea) o **cerrada**. Producción = público en la tienda.
    Play"**. Google Play es el **único canal de Android** en la página (ya no se ofrece APK de descarga
    directa). Si dejas `DOWNLOAD_ANDROID_PLAY_URL` vacío, el botón de Android no aparece.
 
+
+## Política de privacidad
+
+Play la exige **aunque la app sea privada**. Está escrita y vive en
+`server/updates/privacidad.html`; se sube por SFTP junto a `index.html` y el
+nginx ya la sirve (`try_files $uri`), sin tocar la configuración:
+
+    https://app.sanchezrubal.net/privacidad.html
+
+Está redactada a partir de lo que la app hace **de verdad** (esquema + código),
+no de una plantilla. Si cambia lo que se recoge, hay que actualizarla: sus
+afirmaciones y el formulario de abajo tienen que seguir cuadrando, porque Play
+compara y una contradicción es motivo de rechazo.
+
+## Seguridad de los datos — qué marcar
+
+El formulario más largo y el que más gente rellena mal, casi siempre por
+omisión. Esto sale de leer qué guarda cada tabla y qué sube la app.
+
+**Preguntas de cabecera**
+
+| Pregunta | Respuesta |
+|---|---|
+| ¿Recopila o comparte datos de usuario? | **Sí** |
+| ¿Se cifran en tránsito? | **Sí** (todo va por HTTPS) |
+| ¿Se pueden solicitar la eliminación? | **Sí** (por correo, y el perfil se edita en la app) |
+| ¿Está dirigida a menores? | **No** |
+
+**Tipos de datos: RECOPILADOS y no compartidos.** Ninguno es opcional salvo
+donde se indica; ninguno se usa para publicidad ni para seguimiento.
+
+| Categoría | Tipo | Motivo |
+|---|---|---|
+| Información personal | Nombre | Funciones de la app |
+| Información personal | Dirección de correo | Funciones de la app · Gestión de la cuenta |
+| Fotos y vídeos | Fotos | Funciones de la app *(opcional: avatar e informes de salida)* |
+| Fotos y vídeos | Vídeos | Funciones de la app *(opcional: informes de salida)* |
+| Actividad en la app | Otras acciones generadas por el usuario | Funciones de la app *(reservas, cola, informes)* |
+| ID de dispositivo | ID de dispositivo o de otro tipo | Funciones de la app *(token de push)* |
+
+**Lo que hay que dejar SIN marcar**, aunque el formulario invite a ello:
+
+- **Ubicación** — no se pide ni se deduce.
+- **Contactos**, **agenda**, **SMS**, **archivos y documentos** — la app no accede.
+- **Información financiera** — no hay pagos.
+- **Publicidad** o **Analíticas** como motivo — no existe ninguna de las dos.
+- **Compartido con terceros** — Supabase, el servidor propio y Firebase son
+  *encargados del tratamiento*, no terceros con quienes se comparta. Play
+  distingue "recopilar" de "compartir"; marcar "compartir" aquí sería falso.
+
+**Sobre los permisos de Android:** el manifiesto solo declara `INTERNET`;
+`POST_NOTIFICATIONS` lo aporta el manifiesto de `firebase_messaging` al
+fusionarse. **No hay permiso de cámara ni de galería**: `image_picker` usa el
+selector del sistema, que devuelve solo el fichero elegido. Conviene saberlo
+porque Play cruza los permisos declarados con lo que dices recopilar.
+
+## Clasificación del contenido (content rating)
+
+Cuestionario corto. Para esta app: sin violencia, sin contenido sexual, sin
+lenguaje soez, sin sustancias, sin juegos de azar. **Sí** hay interacción entre
+usuarios (tablón de anuncios y notas de reserva) y **sí** se comparte
+información personal entre ellos (nombres y fechas), que es lo que hay que
+declarar con honestidad. Resultado esperable: apto para todos los públicos.
+
 ## Actualizaciones
 
 Sube el `+N` en `pubspec.yaml`, ejecuta `./scripts/build-aab.ps1`, crea un *release* nuevo en la misma

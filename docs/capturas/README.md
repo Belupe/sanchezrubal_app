@@ -41,11 +41,16 @@ calendario-windows.png
 
 ## Las de la App Store van aparte, en subcarpetas
 
-`iphone-6.5/`, `ipad-13/` y `macos/` se saltan la norma de arriba a propósito:
+`iphone-6.5/`, `ipad-13/`, `macos/` y `android/` se saltan la norma de arriba a
+propósito:
 
-- **Una carpeta por ficha**, porque son los tres tamaños que App Store Connect
-  sube por separado (1284 × 2778, 2048 × 2732 y 2880 × 1800). La carpeta ya dice
-  la plataforma, así que el nombre del fichero no la repite.
+- **Una carpeta por ficha**, porque cada tienda las sube por separado y con su
+  medida: 1284 × 2778, 2048 × 2732 y 2880 × 1800 en App Store Connect, y
+  1080 × 1920 en Google Play. La carpeta ya dice la plataforma, así que el
+  nombre del fichero no la repite.
+- **Android no usa la proporción de un móvil real.** Play rechaza toda captura
+  cuyo lado largo pase del **doble** del corto, y un teléfono actual es 9:19,5
+  (2,17:1). Por eso va en 9:16, que es además la medida que recomienda Google.
 - **Numeradas** (`01-…`, `02-…`), porque ese es el orden en que la ficha las
   enseña y **la primera es la que sale en los resultados de búsqueda**. El
   número es información, no decoración.
