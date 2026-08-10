@@ -39,6 +39,23 @@ soporte-macos.png
 calendario-windows.png
 ```
 
+## Las de la App Store van aparte, en subcarpetas
+
+`iphone-6.9/` y `ipad-13/` se saltan la norma de arriba a propósito:
+
+- **Dos carpetas**, porque son los dos tamaños que App Store Connect sube por
+  separado (1290 × 2796 y 2048 × 2732). La carpeta ya dice la plataforma, así
+  que el nombre del fichero no la repite.
+- **Numeradas** (`01-…`, `02-…`), porque ese es el orden en que la ficha las
+  enseña y **la primera es la que sale en los resultados de búsqueda**. El
+  número es información, no decoración.
+
+Las genera [`scripts/screenshots/run.sh`](../../scripts/screenshots/run.sh) con
+datos de una familia inventada, que es justo lo que pide el aviso de arriba: la
+app se compila apuntando a un Supabase simulado, así que ni tocan la base de
+datos ni pueden colarse nombres o fechas reales. Si cambias la interfaz, vuelve
+a lanzarlo en lugar de retocarlas a mano.
+
 ## Peso
 
 Son binarios y se quedan en el historial para siempre, así que conviene que
