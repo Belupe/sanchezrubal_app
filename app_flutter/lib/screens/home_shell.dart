@@ -10,6 +10,7 @@ import 'anuncios_screen.dart';
 import 'casas_screen.dart';
 import 'config_screen.dart';
 import 'inspecciones_screen.dart';
+import 'intercambios_screen.dart';
 import 'mfa_screen.dart';
 import 'registros_screen.dart';
 import 'sorteos_screen.dart';
@@ -65,6 +66,7 @@ class _HomeShellState extends State<HomeShell> {
         if (_isPrincipal)
           const _NavItem('Inspecciones', Icons.fact_check, InspeccionesScreen()),
         const _NavItem('Registros', Icons.history, RegistrosScreen()),
+        const _NavItem('Intercambios', Icons.swap_horiz, IntercambiosScreen()),
         if (_isPrincipal)
           const _NavItem('Sorteos', Icons.casino, SorteosScreen()),
         const _NavItem('Grupos y usuarios', Icons.group, UsuariosScreen()),

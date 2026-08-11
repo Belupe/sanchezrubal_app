@@ -12,6 +12,7 @@ import '../models/reservation.dart';
 import '../models/sorteo.dart';
 import '../models/system_config.dart';
 import '../models/waitlist_entry.dart';
+import '../models/reservation_swap.dart';
 import '../utils/errors.dart';
 import '../utils/password_policy.dart';
 
@@ -249,6 +250,54 @@ class DataService {
 
   static Future<void> cancelWaitlistEntry(String id) async {
     await supabase.from('reservation_waitlist').delete().eq('id', id);
+  }
+
+  // ---------------------------------------------------------------
+  // Intercambios y reservas fijas
+  // ---------------------------------------------------------------
+  /// Marca (o desmarca) una reserva como fija. Solo admin; el servidor valida.
+  static Future<void> setReservationFixed(String reservationId, bool fixed) async {
+    await supabase.rpc('set_reservation_fixed',
+        params: {'p_reservation_id': reservationId, 'p_fixed': fixed});
+  }
+
+  /// Propone un intercambio: ofrezco un tramo de una reserva mía y pido el tramo
+  /// (casa + fechas) que ocupa la reserva de otra persona.
+  static Future<void> proposeSwap({
+    required String offerProperty,
+    required DateTime offerStart,
+    required DateTime offerEnd,
+    required String wantProperty,
+    required DateTime wantStart,
+    required DateTime wantEnd,
+  }) async {
+    await supabase.rpc('propose_swap', params: {
+      'p_offer_property': offerProperty,
+      'p_offer_start': offerStart.toIso8601String(),
+      'p_offer_end': offerEnd.toIso8601String(),
+      'p_want_property': wantProperty,
+      'p_want_start': wantStart.toIso8601String(),
+      'p_want_end': wantEnd.toIso8601String(),
+    });
+  }
+
+  static Future<void> respondSwap(String swapId, bool accept) async {
+    await supabase
+        .rpc('respond_swap', params: {'p_swap_id': swapId, 'p_accept': accept});
+  }
+
+  /// Mis intercambios (propuestos por mí o hacia mí), con nombres y casas.
+  static Future<List<ReservationSwap>> mySwaps() async {
+    final rows = await supabase
+        .from('reservation_swaps')
+        .select('*, proposer:profiles!proposer_id(name), '
+            'target:profiles!target_id(name), '
+            'offer_property:properties!offer_property_id(name), '
+            'want_property:properties!want_property_id(name)')
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((e) => ReservationSwap.fromMap(e as Map<String, dynamic>))
+        .toList();
   }
 
   static Future<List<FamilyGroup>> familyGroups() async {

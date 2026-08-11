@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../models/property.dart';
 import '../models/reservation.dart';
 import '../services/data_service.dart';
 import '../utils/errors.dart';
@@ -38,6 +39,8 @@ Future<void> showReservationDetail(
         canEditDates: isGroupAdmin,
         canEditDetails: isCreator || isGroupAdmin,
         canDelete: isCreator || isGroupAdmin,
+        canFix: isGroupAdmin,
+        isOwner: isCreator,
         onChanged: onChanged,
       ),
     ),
@@ -49,6 +52,8 @@ class _ReservationDetailSheet extends StatefulWidget {
   final bool canEditDates;
   final bool canEditDetails;
   final bool canDelete;
+  final bool canFix;
+  final bool isOwner;
   final VoidCallback onChanged;
 
   const _ReservationDetailSheet({
@@ -56,6 +61,8 @@ class _ReservationDetailSheet extends StatefulWidget {
     required this.canEditDates,
     required this.canEditDetails,
     required this.canDelete,
+    required this.canFix,
+    required this.isOwner,
     required this.onChanged,
   });
 
@@ -68,6 +75,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   late final _notes = TextEditingController(text: widget.r.notes ?? '');
   late DateTime _start = widget.r.startDate;
   late DateTime _end = widget.r.endDate;
+  late bool _isFixed = widget.r.isFixed;
   bool _busy = false;
 
   @override
@@ -109,6 +117,39 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
     }
   }
 
+  Future<void> _toggleFix(bool value) async {
+    setState(() => _busy = true);
+    try {
+      await DataService.setReservationFixed(widget.r.id, value);
+      if (mounted) setState(() => _isFixed = value);
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e, fallback: 'No se pudo cambiar.'))));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _proposeSwap() async {
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: _ProposeSwapSheet(reservation: widget.r),
+      ),
+    );
+    if (ok == true && mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Propuesta enviada. La otra persona debe aceptarla.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('EEE d MMM yyyy', 'es');
@@ -125,6 +166,17 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           const SizedBox(height: 4),
           Text(r.isMaintenance ? 'Bloqueo de mantenimiento' : 'Reserva familiar',
               style: TextStyle(color: Theme.of(context).hintColor)),
+          if (_isFixed) ...[
+            const SizedBox(height: 8),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Chip(
+                avatar: Icon(Icons.push_pin, size: 16),
+                label: Text('Reserva fija'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
           if (!r.isMaintenance && (r.totalPrice ?? 0) > 0) ...[
             const SizedBox(height: 8),
             Row(children: [
@@ -233,7 +285,30 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
                     },
             ),
           ],
-          if (widget.canDelete) ...[
+
+          if (widget.isOwner && !r.isMaintenance) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.swap_horiz),
+              label: const Text('Proponer intercambio'),
+              onPressed: _busy ? null : _proposeSwap,
+            ),
+          ],
+
+          if (widget.canFix && !r.isMaintenance) ...[
+            const SizedBox(height: 4),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.push_pin_outlined),
+              title: const Text('Reserva fija'),
+              subtitle: const Text(
+                  'Solo se puede mover por intercambio; el dueño no la cancela.'),
+              value: _isFixed,
+              onChanged: _busy ? null : _toggleFix,
+            ),
+          ],
+
+          if (widget.canDelete && !(_isFixed && !widget.canFix)) ...[
             const Divider(height: 24),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
@@ -266,6 +341,182 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           ],
         ],
       ),
+    );
+  }
+}
+
+// Formulario para proponer un intercambio. Se ofrece un tramo de la reserva
+// propia y se pide el tramo (casa + fechas) que ocupa la reserva de otra
+// persona, acordado de palabra. El servidor localiza al dueño y le avisa.
+class _ProposeSwapSheet extends StatefulWidget {
+  final Reservation reservation;
+  const _ProposeSwapSheet({required this.reservation});
+
+  @override
+  State<_ProposeSwapSheet> createState() => _ProposeSwapSheetState();
+}
+
+class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
+  late DateTime _offerStart = widget.reservation.startDate;
+  late DateTime _offerEnd = widget.reservation.endDate;
+  List<Property> _properties = [];
+  String? _wantProperty;
+  late DateTime _wantStart = DateTime.now();
+  late DateTime _wantEnd = DateTime.now().add(const Duration(days: 7));
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    final props = await DataService.properties();
+    if (!mounted) return;
+    setState(() {
+      _properties = props;
+      _wantProperty = props.isNotEmpty ? props.first.id : null;
+      _loading = false;
+    });
+  }
+
+  Future<void> _pick(DateTime initial, DateTime first, DateTime last,
+      ValueChanged<DateTime> onPicked) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: first,
+      lastDate: last,
+    );
+    if (picked != null) setState(() => onPicked(picked));
+  }
+
+  Future<void> _submit() async {
+    if (_wantProperty == null) {
+      setState(() => _error = 'Elige la casa que quieres.');
+      return;
+    }
+    if (!_offerEnd.isAfter(_offerStart) || !_wantEnd.isAfter(_wantStart)) {
+      setState(() => _error = 'Las fechas no son válidas.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await DataService.proposeSwap(
+        offerProperty: widget.reservation.propertyId,
+        offerStart: _offerStart,
+        offerEnd: _offerEnd,
+        wantProperty: _wantProperty!,
+        wantStart: _wantStart,
+        wantEnd: _wantEnd,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      setState(() => _error =
+          friendlyError(e, fallback: 'No se pudo proponer el intercambio.'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('EEE d MMM yyyy', 'es');
+    final r = widget.reservation;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: _loading
+          ? const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()))
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Proponer intercambio',
+                    style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                Text('Ofreces (de tu reserva en ${r.propertyName ?? 'tu casa'})',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pick(_offerStart, r.startDate, r.endDate,
+                          (d) => _offerStart = d),
+                      child: Text(df.format(_offerStart)),
+                    ),
+                  ),
+                  const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(Icons.arrow_forward, size: 16)),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pick(_offerEnd, r.startDate, r.endDate,
+                          (d) => _offerEnd = d),
+                      child: Text(df.format(_offerEnd)),
+                    ),
+                  ),
+                ]),
+                const Divider(height: 28),
+                Text('Quieres (fechas acordadas con la otra persona)',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _wantProperty,
+                  decoration: const InputDecoration(
+                      labelText: 'Casa', border: OutlineInputBorder()),
+                  items: _properties
+                      .map((p) =>
+                          DropdownMenuItem(value: p.id, child: Text(p.name)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _wantProperty = v),
+                ),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pick(_wantStart, DateTime(2020),
+                          DateTime(2035), (d) => _wantStart = d),
+                      child: Text(df.format(_wantStart)),
+                    ),
+                  ),
+                  const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(Icons.arrow_forward, size: 16)),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pick(_wantEnd, DateTime(2020),
+                          DateTime(2035), (d) => _wantEnd = d),
+                      child: Text(df.format(_wantEnd)),
+                    ),
+                  ),
+                ]),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                ],
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: _saving ? null : _submit,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: _saving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Enviar propuesta'),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

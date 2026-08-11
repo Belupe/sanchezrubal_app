@@ -13,6 +13,7 @@ class Reservation {
   final String? familyColor;
   final double? pricePerNight;
   final double? totalPrice;
+  final bool isFixed;
 
   Reservation({
     required this.id,
@@ -29,6 +30,7 @@ class Reservation {
     this.familyColor,
     this.pricePerNight,
     this.totalPrice,
+    this.isFixed = false,
   });
 
   int get nights => endDate.difference(startDate).inDays;
@@ -48,5 +50,6 @@ class Reservation {
         familyColor: m['family_groups'] is Map ? m['family_groups']['color'] as String? : null,
         pricePerNight: (m['price_per_night'] as num?)?.toDouble(),
         totalPrice: (m['total_price'] as num?)?.toDouble(),
+        isFixed: (m['is_fixed'] as bool?) ?? false,
       );
 }
