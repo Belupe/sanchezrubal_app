@@ -70,12 +70,10 @@ class _HomeShellState extends State<HomeShell> {
     final propertyId = (data['propertyId'] ?? '').toString();
     final reservationId = (data['reservationId'] ?? '').toString();
 
-    // Intercambios: a su panel.
     if (type.contains('swap')) {
       _irAPanel('Intercambios');
       return;
     }
-    // Informe/inspección: a su formulario.
     if ((type.contains('inspection') || type.contains('out_report')) &&
         reservationId.isNotEmpty) {
       _irAPanel('Domicilios');
@@ -86,7 +84,6 @@ class _HomeShellState extends State<HomeShell> {
       );
       return;
     }
-    // Reservas, colas, recordatorios, fijadas: al calendario de esa casa.
     if (propertyId.isNotEmpty) {
       _irAPanel('Domicilios');
       try {
@@ -105,9 +102,7 @@ class _HomeShellState extends State<HomeShell> {
             ),
           );
         }
-      } catch (_) {
-        // Si no se puede cargar la casa, al menos deja el panel de Domicilios.
-      }
+      } catch (_) {}
     }
   }
 

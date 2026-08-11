@@ -184,9 +184,8 @@ class DataService {
     await supabase.from('reservations').delete().eq('id', id);
   }
 
-  // Ajustes de reserva (tope de días y precio/noche). Vía RPC para que cualquier
-  // usuario pueda leerlos: system_config solo lo ve el mega, y sin esto un usuario
-  // normal no sabía el tope y no podía reservar.
+  // Vía RPC a propósito: system_config solo lo ve el mega; sin esto un usuario
+  // normal no sabría el tope y no podría reservar.
   static Future<({int maxDays, double pricePerNight})> bookingSettings() async {
     final data = await supabase.rpc('booking_settings');
     final m = (data is List ? (data.isEmpty ? null : data.first) : data)
@@ -252,17 +251,11 @@ class DataService {
     await supabase.from('reservation_waitlist').delete().eq('id', id);
   }
 
-  // ---------------------------------------------------------------
-  // Intercambios y reservas fijas
-  // ---------------------------------------------------------------
-  /// Marca (o desmarca) una reserva como fija. Solo admin; el servidor valida.
   static Future<void> setReservationFixed(String reservationId, bool fixed) async {
     await supabase.rpc('set_reservation_fixed',
         params: {'p_reservation_id': reservationId, 'p_fixed': fixed});
   }
 
-  /// Propone un intercambio: ofrezco un tramo de una reserva mía y pido el tramo
-  /// (casa + fechas) que ocupa la reserva de otra persona.
   static Future<void> proposeSwap({
     required String offerProperty,
     required DateTime offerStart,
@@ -286,7 +279,6 @@ class DataService {
         .rpc('respond_swap', params: {'p_swap_id': swapId, 'p_accept': accept});
   }
 
-  /// Mis intercambios (propuestos por mí o hacia mí), con nombres y casas.
   static Future<List<ReservationSwap>> mySwaps() async {
     final rows = await supabase
         .from('reservation_swaps')

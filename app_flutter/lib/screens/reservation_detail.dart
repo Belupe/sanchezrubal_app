@@ -345,9 +345,6 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   }
 }
 
-// Formulario para proponer un intercambio. Se ofrece un tramo de la reserva
-// propia y se pide el tramo (casa + fechas) que ocupa la reserva de otra
-// persona, acordado de palabra. El servidor localiza al dueño y le avisa.
 class _ProposeSwapSheet extends StatefulWidget {
   final Reservation reservation;
   const _ProposeSwapSheet({required this.reservation});

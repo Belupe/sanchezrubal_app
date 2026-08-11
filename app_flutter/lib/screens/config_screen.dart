@@ -599,8 +599,6 @@ class _TemplateCardState extends State<_TemplateCard> {
   }
 }
 
-// Límites de reserva: tope de días (la quincena) y precio por noche. Lo puede
-// tocar el mega y el admin principal; la autorización real la impone el RPC.
 class _LimitesTab extends StatefulWidget {
   const _LimitesTab();
 

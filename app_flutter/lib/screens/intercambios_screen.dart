@@ -153,8 +153,6 @@ class _SwapCard extends StatelessWidget {
     final df = DateFormat('d MMM', 'es');
     final otro = entrante ? (swap.proposerName ?? 'Alguien') : (swap.targetName ?? 'Alguien');
 
-    // Desde el punto de vista de quien mira: lo que "recibe" y lo que "da".
-    // Al proponente: da su oferta, recibe lo que pide. Al objetivo, al revés.
     final recibe = entrante
         ? '${swap.offerPropertyName ?? 'una casa'} · ${df.format(swap.offerStart)}–${df.format(swap.offerEnd)}'
         : '${swap.wantPropertyName ?? 'una casa'} · ${df.format(swap.wantStart)}–${df.format(swap.wantEnd)}';
