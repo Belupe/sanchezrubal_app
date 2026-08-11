@@ -3,6 +3,12 @@ node_modules/
 .env.local
 env
 
+# Backend de Supabase: se gestiona en local y por el Dashboard, no se publica.
+# Migraciones, Edge Functions, config y tests viven fuera del repo público.
+supabase/
+scripts/push-supabase-secrets.sh
+scripts/push-supabase-secrets.ps1
+
 # Config local de Claude Code (no compartir)
 .claude/settings.local.json
 
