@@ -47,6 +47,14 @@ class PushService {
 
   static final ValueNotifier<bool?> avisosActivos = ValueNotifier(null);
 
+  static final ValueNotifier<Map<String, dynamic>?> destinoPendiente =
+      ValueNotifier(null);
+
+  static void _alTocar(RemoteMessage? m) {
+    if (m == null || m.data.isEmpty) return;
+    destinoPendiente.value = Map<String, dynamic>.from(m.data);
+  }
+
   static bool get plataformaSoportada =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
@@ -56,14 +64,14 @@ class PushService {
   static bool get permitido => avisosActivos.value == true;
 
   static String get comoActivarlo => switch (defaultTargetPlatform) {
-        TargetPlatform.iOS =>
-          'Ajustes → Portal Familia → Notificaciones → Permitir notificaciones.',
-        TargetPlatform.macOS =>
-          'Ajustes del Sistema → Notificaciones → Portal Familia → Permitir notificaciones.',
-        TargetPlatform.android =>
-          'Ajustes → Aplicaciones → Portal Familia → Notificaciones.',
-        _ => 'Esta plataforma no admite notificaciones.',
-      };
+    TargetPlatform.iOS =>
+      'Ajustes → Portal Familia → Notificaciones → Permitir notificaciones.',
+    TargetPlatform.macOS =>
+      'Ajustes del Sistema → Notificaciones → Portal Familia → Permitir notificaciones.',
+    TargetPlatform.android =>
+      'Ajustes → Aplicaciones → Portal Familia → Notificaciones.',
+    _ => 'Esta plataforma no admite notificaciones.',
+  };
 
   static Future<void> init() async {
     if (kIsWeb) return;
@@ -77,7 +85,8 @@ class PushService {
       return;
     }
 
-    final esApple = defaultTargetPlatform == TargetPlatform.iOS ||
+    final esApple =
+        defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS;
     final platform = switch (defaultTargetPlatform) {
       TargetPlatform.iOS => 'ios',
@@ -88,11 +97,16 @@ class PushService {
       await Firebase.initializeApp();
       final messaging = FirebaseMessaging.instance;
 
+      messaging.getInitialMessage().then(
+        _alTocar,
+      ); // app abierta desde el aviso
+      FirebaseMessaging.onMessageOpenedApp.listen(_alTocar); // app en 2º plano
+
       final resp = await messaging.requestPermission();
 
       avisosActivos.value =
           resp.authorizationStatus == AuthorizationStatus.authorized ||
-              resp.authorizationStatus == AuthorizationStatus.provisional;
+          resp.authorizationStatus == AuthorizationStatus.provisional;
       if (!permitido) {
         estado = 'Desactivadas. Los avisos llegarán por correo. $comoActivarlo';
         LogService.evento('Push: permiso ${resp.authorizationStatus.name}');

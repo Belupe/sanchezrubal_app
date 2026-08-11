@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../main.dart';
+import '../models/property.dart';
 import '../services/data_service.dart';
 import '../services/push_service.dart';
 import '../services/update_service.dart';
@@ -10,8 +11,10 @@ import 'anuncios_screen.dart';
 import 'casas_screen.dart';
 import 'config_screen.dart';
 import 'inspecciones_screen.dart';
+import 'inspection_screen.dart';
 import 'intercambios_screen.dart';
 import 'mfa_screen.dart';
+import 'property_calendar_screen.dart';
 import 'registros_screen.dart';
 import 'sorteos_screen.dart';
 import 'usuarios_screen.dart';
@@ -43,9 +46,74 @@ class _HomeShellState extends State<HomeShell> {
 
     PushService.init();
 
+    PushService.destinoPendiente.addListener(_procesarDestino);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) UpdateService.checkForUpdate(context);
+      if (!mounted) return;
+      UpdateService.checkForUpdate(context);
+      _procesarDestino();
     });
+  }
+
+  @override
+  void dispose() {
+    PushService.destinoPendiente.removeListener(_procesarDestino);
+    super.dispose();
+  }
+
+  Future<void> _procesarDestino() async {
+    final data = PushService.destinoPendiente.value;
+    if (data == null || !mounted) return;
+    PushService.destinoPendiente.value = null; // consumir: no repetir el salto
+
+    final type = (data['type'] ?? '').toString().toLowerCase();
+    final propertyId = (data['propertyId'] ?? '').toString();
+    final reservationId = (data['reservationId'] ?? '').toString();
+
+    // Intercambios: a su panel.
+    if (type.contains('swap')) {
+      _irAPanel('Intercambios');
+      return;
+    }
+    // Informe/inspección: a su formulario.
+    if ((type.contains('inspection') || type.contains('out_report')) &&
+        reservationId.isNotEmpty) {
+      _irAPanel('Domicilios');
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => InspectionScreen(reservationId: reservationId),
+        ),
+      );
+      return;
+    }
+    // Reservas, colas, recordatorios, fijadas: al calendario de esa casa.
+    if (propertyId.isNotEmpty) {
+      _irAPanel('Domicilios');
+      try {
+        final props = await DataService.properties();
+        Property? prop;
+        for (final p in props) {
+          if (p.id == propertyId) {
+            prop = p;
+            break;
+          }
+        }
+        if (prop != null && mounted) {
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => PropertyCalendarScreen(property: prop!),
+            ),
+          );
+        }
+      } catch (_) {
+        // Si no se puede cargar la casa, al menos deja el panel de Domicilios.
+      }
+    }
+  }
+
+  void _irAPanel(String titulo) {
+    final i = _items.indexWhere((it) => it.title == titulo);
+    if (i >= 0 && mounted) setState(() => _selected = i);
   }
 
   Future<void> _load() async {
@@ -61,18 +129,17 @@ class _HomeShellState extends State<HomeShell> {
   bool get _isPrincipal => _role == 'MEGA_ADMIN' || _role == 'PRINCIPAL_ADMIN';
 
   List<_NavItem> get _items => [
-        const _NavItem('Anuncios', Icons.campaign, AnunciosScreen()),
-        const _NavItem('Domicilios', Icons.home_work, CasasScreen()),
-        if (_isPrincipal)
-          const _NavItem('Inspecciones', Icons.fact_check, InspeccionesScreen()),
-        const _NavItem('Registros', Icons.history, RegistrosScreen()),
-        const _NavItem('Intercambios', Icons.swap_horiz, IntercambiosScreen()),
-        if (_isPrincipal)
-          const _NavItem('Sorteos', Icons.casino, SorteosScreen()),
-        const _NavItem('Grupos y usuarios', Icons.group, UsuariosScreen()),
-        const _NavItem('Configuración', Icons.settings, ConfigScreen()),
-        const _NavItem('Perfil', Icons.person, ProfileTab()),
-      ];
+    const _NavItem('Anuncios', Icons.campaign, AnunciosScreen()),
+    const _NavItem('Domicilios', Icons.home_work, CasasScreen()),
+    if (_isPrincipal)
+      const _NavItem('Inspecciones', Icons.fact_check, InspeccionesScreen()),
+    const _NavItem('Registros', Icons.history, RegistrosScreen()),
+    const _NavItem('Intercambios', Icons.swap_horiz, IntercambiosScreen()),
+    if (_isPrincipal) const _NavItem('Sorteos', Icons.casino, SorteosScreen()),
+    const _NavItem('Grupos y usuarios', Icons.group, UsuariosScreen()),
+    const _NavItem('Configuración', Icons.settings, ConfigScreen()),
+    const _NavItem('Perfil', Icons.person, ProfileTab()),
+  ];
 
   Future<void> _logout() async {
     final ok = await showDialog<bool>(
@@ -82,11 +149,13 @@ class _HomeShellState extends State<HomeShell> {
         content: const Text('¿Seguro que quieres cerrar sesión?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Cerrar sesión')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cerrar sesión'),
+          ),
         ],
       ),
     );
@@ -117,11 +186,14 @@ class _HomeShellState extends State<HomeShell> {
             children: [
               DrawerHeader(
                 decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary),
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 child: const Align(
                   alignment: Alignment.bottomLeft,
-                  child: Text('Portal Familia',
-                      style: TextStyle(color: Colors.white, fontSize: 22)),
+                  child: Text(
+                    'Portal Familia',
+                    style: TextStyle(color: Colors.white, fontSize: 22),
+                  ),
                 ),
               ),
               for (var i = 0; i < items.length; i++)
@@ -184,8 +256,10 @@ class _AvisoNotificaciones extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
             child: Row(
               children: [
-                Icon(Icons.notifications_off,
-                    color: theme.colorScheme.onErrorContainer),
+                Icon(
+                  Icons.notifications_off,
+                  color: theme.colorScheme.onErrorContainer,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -243,13 +317,17 @@ class _ProfileTabState extends State<ProfileTab> {
       case 'FAMILY_SECOND_ADMIN':
         return 'Administrador secundario';
       default:
-
         return 'Usuario';
     }
   }
 
-  Future<String?> _prompt(String title, String label,
-      {String initial = '', bool obscure = false, String? helper}) async {
+  Future<String?> _prompt(
+    String title,
+    String label, {
+    String initial = '',
+    bool obscure = false,
+    String? helper,
+  }) async {
     final ctrl = TextEditingController(text: initial);
     return showDialog<String>(
       context: context,
@@ -259,15 +337,20 @@ class _ProfileTabState extends State<ProfileTab> {
           controller: ctrl,
           obscureText: obscure,
           decoration: InputDecoration(
-              labelText: label, helperText: helper, border: const OutlineInputBorder()),
+            labelText: label,
+            helperText: helper,
+            border: const OutlineInputBorder(),
+          ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-              child: const Text('Guardar')),
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Guardar'),
+          ),
         ],
       ),
     );
@@ -286,11 +369,18 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _changeEmail() async {
-    final current = await _prompt('Confirma tu identidad', 'Contraseña actual',
-        obscure: true, helper: 'Por seguridad, confirma tu contraseña actual.');
+    final current = await _prompt(
+      'Confirma tu identidad',
+      'Contraseña actual',
+      obscure: true,
+      helper: 'Por seguridad, confirma tu contraseña actual.',
+    );
     if (current == null || current.isEmpty) return;
-    final v = await _prompt('Cambiar correo', 'Nuevo correo',
-        helper: 'Se enviará un enlace de confirmación al nuevo correo.');
+    final v = await _prompt(
+      'Cambiar correo',
+      'Nuevo correo',
+      helper: 'Se enviará un enlace de confirmación al nuevo correo.',
+    );
     if (v == null || v.isEmpty) return;
     try {
       await DataService.changeEmail(current, v);
@@ -304,11 +394,19 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _changePassword() async {
-    final current = await _prompt('Confirma tu identidad', 'Contraseña actual',
-        obscure: true, helper: 'Por seguridad, confirma tu contraseña actual.');
+    final current = await _prompt(
+      'Confirma tu identidad',
+      'Contraseña actual',
+      obscure: true,
+      helper: 'Por seguridad, confirma tu contraseña actual.',
+    );
     if (current == null || current.isEmpty) return;
-    final v = await _prompt('Cambiar contraseña', 'Nueva contraseña',
-        obscure: true, helper: PasswordPolicy.helpText);
+    final v = await _prompt(
+      'Cambiar contraseña',
+      'Nueva contraseña',
+      obscure: true,
+      helper: PasswordPolicy.helpText,
+    );
     if (v == null) return;
 
     final err = PasswordPolicy.validate(v);
@@ -368,8 +466,9 @@ class _ProfileTabState extends State<ProfileTab> {
               leading: const Icon(Icons.verified_user_outlined),
               title: const Text('Verificación en dos pasos (2FA)'),
               subtitle: const Text('Opcional: un código extra al entrar'),
-              onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const MfaScreen())),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const MfaScreen())),
             ),
             const Divider(),
             Padding(
@@ -384,17 +483,20 @@ class _ProfileTabState extends State<ProfileTab> {
                     showSelectedIcon: false,
                     segments: const [
                       ButtonSegment(
-                          value: ThemeMode.system,
-                          icon: Icon(Icons.brightness_auto),
-                          tooltip: 'Sistema'),
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.brightness_auto),
+                        tooltip: 'Sistema',
+                      ),
                       ButtonSegment(
-                          value: ThemeMode.light,
-                          icon: Icon(Icons.light_mode),
-                          tooltip: 'Claro'),
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode),
+                        tooltip: 'Claro',
+                      ),
                       ButtonSegment(
-                          value: ThemeMode.dark,
-                          icon: Icon(Icons.dark_mode),
-                          tooltip: 'Oscuro'),
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode),
+                        tooltip: 'Oscuro',
+                      ),
                     ],
                     selected: {themeNotifier.value},
                     onSelectionChanged: (s) {
