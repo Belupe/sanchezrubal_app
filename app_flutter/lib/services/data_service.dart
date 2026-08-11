@@ -183,13 +183,23 @@ class DataService {
     await supabase.from('reservations').delete().eq('id', id);
   }
 
-  static Future<int> maxReservationDays() async {
-    final row = await supabase
-        .from('system_config')
-        .select('max_reservation_days')
-        .eq('id', 'global')
-        .maybeSingle();
-    return (row?['max_reservation_days'] as int?) ?? 30;
+  // Ajustes de reserva (tope de días y precio/noche). Vía RPC para que cualquier
+  // usuario pueda leerlos: system_config solo lo ve el mega, y sin esto un usuario
+  // normal no sabía el tope y no podía reservar.
+  static Future<({int maxDays, double pricePerNight})> bookingSettings() async {
+    final data = await supabase.rpc('booking_settings');
+    final m = (data is List ? (data.isEmpty ? null : data.first) : data)
+        as Map<String, dynamic>?;
+    return (
+      maxDays: (m?['max_days'] as int?) ?? 15,
+      pricePerNight: (m?['price_per_night'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  static Future<void> updateBookingSettings(
+      {required int maxDays, required double pricePerNight}) async {
+    await supabase.rpc('update_booking_settings',
+        params: {'p_max_days': maxDays, 'p_price': pricePerNight});
   }
 
   static Future<String?> testSmtp() async {

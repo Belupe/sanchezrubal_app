@@ -23,6 +23,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
   String? _error;
 
   bool get _isMega => _role == 'MEGA_ADMIN';
+  bool get _isPrincipal => _role == 'MEGA_ADMIN' || _role == 'PRINCIPAL_ADMIN';
 
   @override
   void initState() {
@@ -82,7 +83,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
     if (_isMega) {
       return const DefaultTabController(
-        length: 3,
+        length: 4,
         child: Column(
           children: [
             TabBar(
@@ -90,6 +91,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               tabs: [
                 Tab(text: 'SMTP y general'),
                 Tab(text: 'Plantillas'),
+                Tab(text: 'Límites'),
                 Tab(text: 'Soporte'),
               ],
             ),
@@ -98,6 +100,31 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 children: [
                   _SystemConfigTab(),
                   _TemplatesTab(),
+                  _LimitesTab(),
+                  _SoporteTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_isPrincipal) {
+      return const DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            TabBar(
+              tabs: [
+                Tab(text: 'Límites'),
+                Tab(text: 'Soporte'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _LimitesTab(),
                   _SoporteTab(),
                 ],
               ),
@@ -124,7 +151,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
   final _smtpUser = TextEditingController();
   final _smtpPass = TextEditingController();
   bool _smtpSecure = false;
-  final _maxDays = TextEditingController();
   bool _testing = false;
   String? _testResult;
 
@@ -165,7 +191,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpPass.text =
         '';
     _smtpSecure = cfg?.smtpSecure ?? false;
-    _maxDays.text = cfg?.maxReservationDays.toString() ?? '';
   }
 
   Future<void> _test() async {
@@ -201,21 +226,13 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpPort.dispose();
     _smtpUser.dispose();
     _smtpPass.dispose();
-    _maxDays.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final port = int.tryParse(_smtpPort.text.trim());
-    final days = int.tryParse(_maxDays.text.trim());
     if (_smtpPort.text.trim().isNotEmpty && port == null) {
       setState(() => _error = 'El puerto SMTP debe ser un número.');
-      return;
-    }
-    if (days == null || days < 1) {
-      setState(
-        () => _error = 'Los días por reserva deben ser un número mayor que 0.',
-      );
       return;
     }
     setState(() {
@@ -228,8 +245,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         'smtp_port': port,
         'smtp_user': _smtpUser.text.trim(),
         'smtp_secure': _smtpSecure,
-        'max_reservation_days': days,
-        'max_reservation_days_cap': days,
       });
 
       if (_smtpPass.text.isNotEmpty) {
@@ -257,29 +272,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('General', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-
-                TextField(
-                  controller: _maxDays,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Días por reserva',
-                    helperText: 'Todas las reservas duran exactamente estos días.',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -603,6 +595,143 @@ class _TemplateCardState extends State<_TemplateCard> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Límites de reserva: tope de días (la quincena) y precio por noche. Lo puede
+// tocar el mega y el admin principal; la autorización real la impone el RPC.
+class _LimitesTab extends StatefulWidget {
+  const _LimitesTab();
+
+  @override
+  State<_LimitesTab> createState() => _LimitesTabState();
+}
+
+class _LimitesTabState extends State<_LimitesTab> {
+  final _maxDays = TextEditingController();
+  final _price = TextEditingController();
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final s = await DataService.bookingSettings();
+      _maxDays.text = s.maxDays.toString();
+      _price.text = s.pricePerNight.toStringAsFixed(2);
+      setState(() => _loading = false);
+    } catch (e) {
+      setState(() {
+        _error = friendlyError(e, fallback: 'No se pudieron cargar los límites.');
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _maxDays.dispose();
+    _price.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final days = int.tryParse(_maxDays.text.trim());
+    final price = double.tryParse(_price.text.trim().replaceAll(',', '.'));
+    if (days == null || days < 1) {
+      setState(() => _error = 'El máximo de días debe ser un número mayor que 0.');
+      return;
+    }
+    if (price == null || price < 0) {
+      setState(() => _error = 'El precio por noche no puede ser negativo.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await DataService.updateBookingSettings(maxDays: days, pricePerNight: price);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Límites guardados')));
+      }
+    } catch (e) {
+      setState(() => _error = friendlyError(e, fallback: 'No se pudo guardar.'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Reservas', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _maxDays,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Días máximos por reserva',
+                    helperText: 'El tope (una quincena). Se puede reservar menos.',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _price,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Precio por noche (€)',
+                    helperText:
+                        'Se calcula al reservar. Cambiarlo no afecta a lo ya reservado.',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!, style: const TextStyle(color: Colors.red)),
+        ],
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: _saving
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Guardar límites'),
+          ),
+        ),
+      ],
     );
   }
 }

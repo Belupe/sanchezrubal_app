@@ -11,6 +11,8 @@ class Reservation {
   final String? propertyName;
   final String? familyGroupName;
   final String? familyColor;
+  final double? pricePerNight;
+  final double? totalPrice;
 
   Reservation({
     required this.id,
@@ -25,7 +27,11 @@ class Reservation {
     this.propertyName,
     this.familyGroupName,
     this.familyColor,
+    this.pricePerNight,
+    this.totalPrice,
   });
+
+  int get nights => endDate.difference(startDate).inDays;
 
   factory Reservation.fromMap(Map<String, dynamic> m) => Reservation(
         id: m['id'] as String,
@@ -40,5 +46,7 @@ class Reservation {
         propertyName: m['properties'] is Map ? m['properties']['name'] as String? : null,
         familyGroupName: m['family_groups'] is Map ? m['family_groups']['name'] as String? : null,
         familyColor: m['family_groups'] is Map ? m['family_groups']['color'] as String? : null,
+        pricePerNight: (m['price_per_night'] as num?)?.toDouble(),
+        totalPrice: (m['total_price'] as num?)?.toDouble(),
       );
 }

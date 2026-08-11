@@ -112,6 +112,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('EEE d MMM yyyy', 'es');
+    final eur = NumberFormat.currency(locale: 'es', symbol: '€', decimalDigits: 2);
     final r = widget.r;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -124,6 +125,18 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           const SizedBox(height: 4),
           Text(r.isMaintenance ? 'Bloqueo de mantenimiento' : 'Reserva familiar',
               style: TextStyle(color: Theme.of(context).hintColor)),
+          if (!r.isMaintenance && (r.totalPrice ?? 0) > 0) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.euro, size: 18),
+              const SizedBox(width: 6),
+              Text('${eur.format(r.totalPrice)}  ',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text('· ${r.nights} ${r.nights == 1 ? 'noche' : 'noches'} × '
+                  '${eur.format(r.pricePerNight ?? 0)}',
+                  style: TextStyle(color: Theme.of(context).hintColor)),
+            ]),
+          ],
           const Divider(height: 24),
 
           if (widget.canEditDates) ...[
