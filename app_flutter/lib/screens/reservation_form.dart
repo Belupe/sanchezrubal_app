@@ -231,7 +231,7 @@ class _ReservationFormState extends State<ReservationForm> {
                           icon: Icon(Icons.event_available)),
                       ButtonSegment(
                           value: _Modo.individual,
-                          label: Text('Individual'),
+                          label: Text('Por días'),
                           icon: Icon(Icons.date_range)),
                     ],
                     selected: {_modo},
