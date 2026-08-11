@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _email.text.trim(),
         password: _password.text,
       );
-      // AuthGate reacciona automáticamente al iniciar sesión.
+
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {

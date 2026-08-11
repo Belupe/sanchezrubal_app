@@ -2,10 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_familia/config.dart';
 import 'package:portal_familia/services/log_service.dart';
 
-/// El registro de fallos está pensado para que el usuario nos lo ENVÍE (por
-/// correo o por el menú de compartir del móvil). Si se cuela una credencial,
-/// se filtra en cuanto alguien reenvía el fichero. Esta prueba blinda esa
-/// redacción: es lo único de LogService que, si se rompe, hace daño.
 void main() {
   group('LogService.redactar', () {
     test('quita los JWT de Supabase (sesión y refresh)', () {
@@ -23,7 +19,7 @@ void main() {
       expect(r, isNot(contains('abc123')));
       expect(r, isNot(contains('zzz-999')));
       expect(r, contains('<REDACTADO>'));
-      // Lo que NO es secreto debe seguir ahí: si no, el informe no sirve.
+
       expect(r, contains('expires_in'));
     });
 
@@ -35,7 +31,6 @@ void main() {
     });
 
     test('quita la firma de las URLs prefirmadas de MinIO', () {
-      // Las excepciones de Dio incluyen la URL ENTERA, con su firma.
       const url =
           'https://media.sanchezrubal.net/inspecciones/foto.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256'
           '&X-Amz-Credential=MINIOKEY%2F20260801%2Fus-east-1%2Fs3%2Faws4_request'
@@ -43,7 +38,7 @@ void main() {
       final r = LogService.redactar('DioException: $url');
       expect(r, isNot(contains('3f1a9c8e7d6b5a4c')));
       expect(r, isNot(contains('MINIOKEY')));
-      // El host y la ruta sí interesan para diagnosticar.
+
       expect(r, contains('media.sanchezrubal.net'));
       expect(r, contains('foto.jpg'));
     });

@@ -2,11 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_familia/config.dart';
 import 'package:portal_familia/services/update_service.dart';
 
-/// [C-02] El auto-update descarga un binario y lo EJECUTA — y en la
-/// instalación de sistema de Linux lo instala como root. Lo único que impide
-/// que un `version.json` manipulado apunte a un binario ajeno son dos cosas:
-/// esta comprobación de origen y la verificación del SHA-256. Esta prueba
-/// blinda la primera.
 void main() {
   final host = Uri.parse(AppConfig.updateBaseUrl).host;
 

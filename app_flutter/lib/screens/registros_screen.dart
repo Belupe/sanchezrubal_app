@@ -4,8 +4,6 @@ import 'package:intl/intl.dart';
 import '../models/audit_log.dart';
 import '../services/data_service.dart';
 
-/// Ventana de registros/auditoría: quién ha creado, modificado o eliminado
-/// reservas (los datos los registra automáticamente la base de datos).
 class RegistrosScreen extends StatefulWidget {
   const RegistrosScreen({super.key});
 

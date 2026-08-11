@@ -27,8 +27,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
   bool get _isPrincipal => _role == 'MEGA_ADMIN' || _role == 'PRINCIPAL_ADMIN';
 
-  /// Qué eres DENTRO de tu casa. Desde la migración 0025 es un dato distinto
-  /// del rango global: un mega administrador puede ser un miembro más.
   String? get _miPapelEnCasa => _myProfile?['group_role'] as String?;
 
   @override
@@ -46,13 +44,10 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       final role = await DataService.currentRole();
       final groups = await DataService.familyGroups();
       final profile = await DataService.myProfile();
-      // Solo los principales pueden listar a todo el mundo; para el resto la
-      // consulta la corta el RLS, así que ni se pide.
+
       final esPrincipal = role == 'MEGA_ADMIN' || role == 'PRINCIPAL_ADMIN';
       final profiles = esPrincipal ? await DataService.allProfiles() : <Profile>[];
-      // Los administradores primero y, dentro de cada rango, por nombre.
-      // Primero por rango global y, a igualdad, por el papel en la casa. Son
-      // dos escalas distintas desde la migración 0025.
+
       profiles.sort((a, b) {
         const global = {'MEGA_ADMIN': 0, 'PRINCIPAL_ADMIN': 1, 'USER': 2};
         const casa = {'FAMILY_ADMIN': 0, 'FAMILY_SECOND_ADMIN': 1, 'MEMBER': 2};
@@ -80,7 +75,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
-  /// Ejecuta una acción de gestión y recarga; si falla, lo cuenta sin romper.
   Future<void> _run(Future<void> Function() action) async {
     try {
       await action();
@@ -116,9 +110,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     return 'Grupo desconocido';
   }
 
-  /// El admin familiar gestiona los miembros de SU grupo (permiso y expulsión);
-  /// los principales, los de cualquiera. Dar de baja cuentas sigue siendo solo
-  /// de principal, y va por `puedeEliminarCuentas`.
   bool _gestionaGrupo(FamilyGroup g) =>
       _isPrincipal ||
       (_miPapelEnCasa == 'FAMILY_ADMIN' &&
@@ -199,9 +190,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                 initialValue: role,
                 decoration: const InputDecoration(
                     labelText: 'Rol', border: OutlineInputBorder()),
-                // Un admin familiar solo reparte POR DEBAJO de sí mismo. La
-                // función admin-users lo rechazaría igualmente, pero no tiene
-                // sentido ofrecer opciones que van a fallar.
+
                 items: [
                   const DropdownMenuItem(
                       value: 'MEMBER', child: Text('Miembro')),
@@ -220,8 +209,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                 onChanged: (v) => setLocal(() => role = v ?? 'MEMBER'),
               ),
               const SizedBox(height: 12),
-              // El admin familiar solo da de alta en SU grupo: no elige. El
-              // servidor impone el suyo aunque el cliente mande otro.
+
               if (_isPrincipal)
                 DropdownButtonFormField<String>(
                   initialValue: groupId,
@@ -264,7 +252,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
         role: role,
         familyGroupId: groupId,
       );
-      // [B-03] La cuenta ya existe y reasignaría grupo/rol: confirmar y reintentar.
+
       if (res['requiresConfirm'] == true) {
         if (!mounted) return;
         final confirm = await showDialog<bool>(
@@ -313,8 +301,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     }
 
     if (!_isPrincipal) {
-      // No principal: solo su grupo. El admin familiar puede además dar de alta
-      // gente en él y gestionarla desde dentro; el resto lo ve en solo lectura.
       final myGroupId = _myProfile?['family_group_id'] as String?;
       final mine = _groups.where((g) => g.id == myGroupId).toList();
       final esAdminFamiliar = _miPapelEnCasa == 'FAMILY_ADMIN' && mine.isNotEmpty;
@@ -353,9 +339,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       );
     }
 
-    // Dos pestañas: los grupos por un lado y TODOS los usuarios por otro. Antes
-    // solo se listaban grupos, así que quien no pertenecía a ninguno no aparecía
-    // en ninguna parte y no había forma de cambiarle el rol ni de eliminarlo.
     return DefaultTabController(
       length: 2,
       child: Column(
@@ -435,12 +418,10 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
   Widget _userCard(Profile p) {
     final esYo = p.id == _myId;
-    // No se edita ni la cuenta propia ni la de un mega administrador: lo primero
-    // evita quitarte los permisos sin querer y quedarte fuera; lo segundo, que la
-    // instalación se quede sin nadie capaz de administrarla.
+
     final editable = !esYo && p.role != 'MEGA_ADMIN';
     final quien = p.name.trim().isNotEmpty ? p.name.trim() : (p.email ?? '?');
-    // Si el grupo guardado ya no existe, el desplegable no puede preseleccionarlo.
+
     final grupoActual =
         _groups.any((g) => g.id == p.familyGroupId) ? p.familyGroupId : null;
 
@@ -474,8 +455,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
             ]),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 4, children: [
-              // Rango global: solo se enseña si es alguien que administra la
-              // app. 'Usuario' a secas no aporta nada.
+
               if (p.role != 'USER') Chip(label: Text(p.roleLabel)),
               Chip(label: Text(_nombreGrupo(p.familyGroupId))),
               if (p.groupRoleLabel != null)

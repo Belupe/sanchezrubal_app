@@ -64,8 +64,6 @@ class _ReservationFormState extends State<ReservationForm> {
     super.dispose();
   }
 
-  /// Solo se elige la ENTRADA: la duración es fija (una quincena), así que la
-  /// salida se calcula. Antes se podía elegir y el servidor la rechazaba después.
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -94,10 +92,6 @@ class _ReservationFormState extends State<ReservationForm> {
       _error = null;
     });
     try {
-      // Los avisos (confirmación a quien reserva, aviso al administrador,
-      // difusión del mantenimiento) los dispara un trigger de la base de datos
-      // al insertar. La app ya NO pide nada: si lo hiciera, ese correo sería el
-      // único que podría perderse por cerrar la pantalla medio segundo antes.
       await DataService.createReservation(
         propertyId: _propertyId!,
         start: _start,
@@ -109,7 +103,6 @@ class _ReservationFormState extends State<ReservationForm> {
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      // Si el rechazo es por solapamiento, ofrecemos la lista de espera.
       if (e.toString().contains('Ya existe una reserva')) {
         if (mounted) await _offerWaitlist();
       } else {
@@ -121,7 +114,6 @@ class _ReservationFormState extends State<ReservationForm> {
     }
   }
 
-  /// Diálogo: apuntarse a la lista de espera de esas fechas ocupadas.
   Future<void> _offerWaitlist() async {
     final yes = await showDialog<bool>(
       context: context,

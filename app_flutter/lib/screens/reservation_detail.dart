@@ -6,25 +6,19 @@ import '../services/data_service.dart';
 import '../utils/errors.dart';
 import 'inspection_screen.dart';
 
-/// Abre el detalle de una reserva con opciones de edición/borrado según el rol.
-/// `onChanged` se llama cuando algo cambió (para recargar el calendario).
 Future<void> showReservationDetail(
     BuildContext context, Reservation r, VoidCallback onChanged) async {
   final role = await DataService.currentRole();
   final profile = await DataService.myProfile();
   final uid = DataService.uid;
   final isPrincipal = role == 'MEGA_ADMIN' || role == 'PRINCIPAL_ADMIN';
-  // El papel dentro de la casa vive en group_members desde la migración 0025;
-  // `role` ya solo dice el rango global.
+
   final groupRole = profile?['group_role'] as String?;
   final isGroupAdmin = isPrincipal ||
       ((groupRole == 'FAMILY_ADMIN' || groupRole == 'FAMILY_SECOND_ADMIN') &&
           profile?['family_group_id'] == r.familyGroupId);
   final isCreator = r.createdById == uid;
 
-  // [A-04] El calendario lee de la vista de ocupación (sin `notes`). Si el
-  // usuario puede editar, recupera la fila completa de la tabla para conservar
-  // los comentarios; el RLS la devuelve solo al creador/grupo/admin.
   Reservation full = r;
   if (isCreator || isGroupAdmin) {
     final fetched = await DataService.reservationById(r.id);
@@ -132,7 +126,6 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
               style: TextStyle(color: Theme.of(context).hintColor)),
           const Divider(height: 24),
 
-          // Fechas
           if (widget.canEditDates) ...[
             Row(children: [
               Expanded(
@@ -173,7 +166,6 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
 
           const SizedBox(height: 8),
 
-          // Personas + notas (creador o admin)
           if (widget.canEditDetails) ...[
             Row(children: [
               const Text('Personas'),

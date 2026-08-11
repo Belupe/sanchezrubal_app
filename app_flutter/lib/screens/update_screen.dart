@@ -2,18 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../services/update_service.dart';
 
-/// Pantalla de actualización del escritorio (Windows y Linux). Se abre sola al
-/// detectar una versión nueva.
-///
-/// Tiene dos modos, según lo que permita la forma en que se instaló la app
-/// (ver [UpdateChannel]):
-///
-///  - **se actualiza sola**: descarga el paquete, verifica su SHA-256 y lo
-///    instala. En la instalación de sistema de Linux, además, el escritorio
-///    pedirá la contraseña de administrador.
-///  - **solo avisa**: no se puede instalar desde aquí (por ejemplo una copia
-///    suelta sin permisos de escritura), así que se ofrece abrir la página de
-///    descargas.
 class UpdateScreen extends StatefulWidget {
   final UpdateInfo info;
   const UpdateScreen({super.key, required this.info});
@@ -30,8 +18,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
   @override
   void initState() {
     super.initState();
-    // Solo se auto-arranca si de verdad podemos instalarla; si no, la pantalla
-    // se queda esperando a que el usuario pulse "Descargar".
+
     if (widget.info.puedeInstalarSola) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _start());
     }
@@ -50,7 +37,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
         if (mounted) setState(() => _progress = p);
       },
     );
-    // Si va bien, la app ya se ha cerrado dentro de downloadVerifyInstall.
+
     if (err != null && mounted) {
       setState(() {
         _error = err;
@@ -68,8 +55,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
   Widget build(BuildContext context) {
     final info = widget.info;
     final theme = Theme.of(context);
-    // Bloquea "atrás" mientras instala o si es obligatoria; si falla y no es
-    // obligatoria, se puede cerrar y seguir usando la versión actual.
+
     final canLeave = !_busy && !info.mandatory;
     final soloAvisa = !info.puedeInstalarSola;
 

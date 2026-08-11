@@ -1,22 +1,8 @@
-// Fija el contrato entre FamilyGroup.fromMap y Profile.fromMap.
-//
-// Los dos modelos hablan de lo mismo desde extremos opuestos: `familyGroups()`
-// pide los grupos con sus miembros anidados, y `allProfiles()` pide los perfiles
-// con su pertenencia anidada. Profile.fromMap solo entiende la segunda forma, así
-// que FamilyGroup.fromMap tiene que rearmarla.
-//
-// Cuando dejó de hacerlo, nada falló: el papel llegaba nulo y la ficha del grupo
-// pintaba a todo el mundo como "Miembro" aunque en la base de datos estuviera
-// bien guardado. Un cambio de permiso se guardaba, la pantalla recargaba y
-// volvía a salir "Miembro", así que parecía que no se guardaba nada.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_familia/models/family_group.dart';
 import 'package:portal_familia/models/profile.dart';
 
 void main() {
-  // Tal cual lo devuelve PostgREST para la consulta de DataService.familyGroups():
-  //   select id, name, color, owner_id,
-  //          group_members(group_id, role, profiles(id, name, email, role))
   Map<String, dynamic> respuestaDelServidor() => {
         'id': 'g1',
         'name': 'Sanchez Bas',
@@ -54,7 +40,6 @@ void main() {
     expect(pedro.groupRole, 'FAMILY_ADMIN');
     expect(marian.groupRole, 'FAMILY_SECOND_ADMIN');
 
-    // Es lo que se ve en pantalla: el desplegable de permiso y la etiqueta.
     expect(pedro.groupRoleLabel, 'Administrador familiar');
     expect(marian.groupRoleLabel, 'Administrador secundario');
   });
@@ -63,8 +48,6 @@ void main() {
     final grupo = FamilyGroup.fromMap(respuestaDelServidor());
     final pedro = grupo.members.firstWhere((m) => m.id == 'u1');
 
-    // Son ortogonales desde la migración 0025: administrar tu casa no te hace
-    // administrador de la aplicación.
     expect(pedro.role, 'USER');
     expect(pedro.isPrincipal, isFalse);
     expect(pedro.isGroupAdmin, isTrue);
@@ -81,8 +64,6 @@ void main() {
     expect(grupo.members, isEmpty);
   });
 
-  // La otra mitad del contrato: la forma que Profile.fromMap recibe de verdad
-  // cuando la consulta va al revés (DataService.allProfiles()).
   test('Profile.fromMap lee la pertenencia anidada', () {
     final p = Profile.fromMap({
       'id': 'u1',

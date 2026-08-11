@@ -6,17 +6,12 @@ import '../main.dart';
 import '../services/media_service.dart';
 import '../utils/errors.dart';
 
-/// En ESCRITORIO (Windows, macOS y Linux) `image_picker` no implementa la
-/// cámara: `ImageSource.camera` lanza siempre. Por eso ahí solo se ofrece
-/// elegir archivos del disco; las fotos y vídeos se hacen desde el móvil.
 bool get _esEscritorio =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux);
 
-/// Formulario de inspección de salida: sube fotos/vídeo a MinIO y guarda
-/// el reporte (out_reports) con las referencias de los archivos.
 class InspectionScreen extends StatefulWidget {
   final String reservationId;
   const InspectionScreen({super.key, required this.reservationId});
@@ -28,7 +23,7 @@ class InspectionScreen extends StatefulWidget {
 class _InspectionScreenState extends State<InspectionScreen> {
   final _picker = ImagePicker();
   final _notes = TextEditingController();
-  final List<Map<String, String>> _media = []; // {type, key, name}
+  final List<Map<String, String>> _media = [];
   String _status = 'OK';
   bool _busy = false;
   String? _msg;
@@ -156,8 +151,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              // En el ordenador no hay cámara: el botón se oculta y los otros
-              // dos hablan de archivos, que es lo que abre el selector GTK/Win32.
+
               if (!_esEscritorio)
                 OutlinedButton.icon(
                   onPressed: _busy ? null : () => _add(video: false, source: ImageSource.camera),

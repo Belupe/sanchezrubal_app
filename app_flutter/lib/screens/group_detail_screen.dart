@@ -7,18 +7,11 @@ import '../services/data_service.dart';
 import '../utils/colors.dart';
 import '../utils/errors.dart';
 
-/// Ventana de detalle de un grupo: gestor de usuarios en tarjetas, con
-/// cambio de permisos y expulsión del grupo.
 class GroupDetailScreen extends StatefulWidget {
   final FamilyGroup group;
 
-  /// Puede gestionar a los miembros: cambiar su permiso y expulsarlos. Cierto
-  /// para los principales y para el admin familiar DE ESTE grupo.
   final bool isPrincipal;
 
-  /// Puede dar de baja la cuenta entera. Solo los principales: borrar es
-  /// irreversible y alcanza a alguien que puede estar en más sitios que este
-  /// grupo, así que un admin familiar únicamente expulsa.
   final bool puedeEliminarCuentas;
   const GroupDetailScreen(
       {super.key,
@@ -179,7 +172,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         role: role,
         familyGroupId: _group.id,
       );
-      // [B-03] La cuenta ya existe y reasignaría grupo/rol: confirmar y reintentar.
+
       if (res['requiresConfirm'] == true) {
         if (!mounted) return;
         final confirm = await showDialog<bool>(
@@ -230,9 +223,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Widget _memberCard(Profile m) {
-    // Su rango global ya no impide gestionarlo aquí: lo que se toca es su papel
-    // EN ESTA CASA, que desde la 0025 es un dato aparte. Un mega administrador
-    // puede ser un miembro más de su familia sin dejar de ser lo que es.
     final canManage = widget.isPrincipal;
     return Card(
       child: Padding(
@@ -280,10 +270,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   const DropdownMenuItem(
                       value: 'FAMILY_SECOND_ADMIN',
                       child: Text('Admin. secundario')),
-                  // Nombrar a otro admin familiar es cosa de un principal: si un
-                  // admin familiar pudiera hacerlo, el escalón de permisos no
-                  // serviría de nada. La política RLS lo rechazaría igualmente,
-                  // pero mejor no ofrecer lo que va a fallar.
+
                   if (widget.puedeEliminarCuentas)
                     const DropdownMenuItem(
                         value: 'FAMILY_ADMIN', child: Text('Admin. familiar')),

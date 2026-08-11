@@ -4,7 +4,7 @@ class OutReport {
   final String? propertyName;
   final String generalStatus;
   final String? notes;
-  final List<Map<String, dynamic>> mediaUrls; // [{type, key}]
+  final List<Map<String, dynamic>> mediaUrls;
   final int? rating;
   final DateTime? checkOut;
   final DateTime createdAt;

@@ -28,10 +28,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _msg = null;
     });
     try {
-      // El correo de restablecimiento lo envía Supabase Auth (GoTrue).
-      // [2L-10] redirectTo a un deep link de la app: el enlace abre Portal
-      // Familia (no una web ajena) y dispara el flujo de nueva contraseña.
-      // (La URL debe estar en Auth → Redirect URLs del proyecto.)
       await supabase.auth.resetPasswordForEmail(
         _email.text.trim(),
         redirectTo: 'portalfamilia://reset-password',

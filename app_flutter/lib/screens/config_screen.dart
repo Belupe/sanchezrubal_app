@@ -52,10 +52,6 @@ class _ConfigScreenState extends State<ConfigScreen> {
     }
   }
 
-  // Ninguna rama devuelve Scaffold ni AppBar: esta pantalla se monta dentro de
-  // home_shell, que ya aporta ambas y pinta el título de la sección. Las cuatro
-  // AppBar que había aquí (carga, error, con pestañas y sin ellas) apilaban una
-  // segunda barra y repetían "Configuración". Mismo caso que inspecciones_screen.
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -85,8 +81,6 @@ class _ConfigScreenState extends State<ConfigScreen> {
     }
 
     if (_isMega) {
-      // El TabBar iba colgado del `bottom:` de la AppBar. Al quitarla, va suelto
-      // justo debajo de la barra del shell y el TabBarView ocupa el resto.
       return const DefaultTabController(
         length: 3,
         child: Column(
@@ -117,9 +111,6 @@ class _ConfigScreenState extends State<ConfigScreen> {
   }
 }
 
-// ====================================================================
-// (1) SMTP y general
-// ====================================================================
 class _SystemConfigTab extends StatefulWidget {
   const _SystemConfigTab();
 
@@ -172,14 +163,12 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpPort.text = cfg?.smtpPort?.toString() ?? '';
     _smtpUser.text = cfg?.smtpUser ?? '';
     _smtpPass.text =
-        ''; // [M-07] no se descarga; en blanco = conservar la guardada.
+        '';
     _smtpSecure = cfg?.smtpSecure ?? false;
     _maxDays.text = cfg?.maxReservationDays.toString() ?? '';
   }
 
   Future<void> _test() async {
-    // [I-06] El correo de prueba va SIEMPRE al propio correo del mega (el
-    // servidor ignora cualquier destino), así que no se pide uno.
     setState(() {
       _testing = true;
       _testResult = null;
@@ -242,8 +231,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
         'max_reservation_days': days,
         'max_reservation_days_cap': days,
       });
-      // [M-07] La contraseña SMTP va a Vault por separado; solo se cambia si el
-      // mega escribió algo (campo en blanco = conservar la actual).
+
       if (_smtpPass.text.isNotEmpty) {
         await DataService.setSmtpPassword(_smtpPass.text);
       }
@@ -277,8 +265,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
               children: [
                 Text('General', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                // Un único campo: la familia reserva siempre por quincenas, así
-                // que mínimo y tope son el mismo número y se escriben a la vez.
+
                 TextField(
                   controller: _maxDays,
                   keyboardType: TextInputType.number,
@@ -397,9 +384,6 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
   }
 }
 
-// ====================================================================
-// (2) Plantillas de correo
-// ====================================================================
 class _TemplatesTab extends StatefulWidget {
   const _TemplatesTab();
 
@@ -623,15 +607,6 @@ class _TemplateCardState extends State<_TemplateCard> {
   }
 }
 
-// ====================================================================
-// Soporte (cualquier rol)
-// ====================================================================
-// Antes esto era "Mis notificaciones" y solo servía para activar o desactivar
-// el recordatorio previo a la estancia. Se retiró: ese aviso pasa a estar
-// SIEMPRE activo (send-email ya lo trataba así cuando el usuario no tenía
-// fila) y su texto se edita desde la plantilla PRE_STAY en Supabase, sin
-// recompilar. Lo que sí hacía falta era un sitio al que mandar a alguien
-// cuando algo va mal, y de ahí el cambio de nombre.
 class _SoporteTab extends StatelessWidget {
   const _SoporteTab();
 
@@ -644,21 +619,6 @@ class _SoporteTab extends StatelessWidget {
   }
 }
 
-// ====================================================================
-// (4) Diagnóstico — registro de fallos
-// ====================================================================
-
-/// Deja a mano el informe del último fallo para poder pedírselo al usuario.
-///
-/// El botón principal lo manda a soporte por correo con un solo toque, en las
-/// cinco plataformas: el destinatario lo fija la Edge Function `send-log`, así
-/// que nadie tiene que escribir una dirección ni acertarla. Antes esto era
-/// notablemente peor: en móvil había que pasar por el menú de compartir y
-/// elegir un cliente de correo, y en escritorio no había forma de enviarlo,
-/// solo "abrir la carpeta" y adjuntar el fichero a mano.
-///
-/// Se conservan las dos vías antiguas como respaldo, porque el envío depende
-/// del SMTP y de la red: si el correo falla, el fichero sigue estando ahí.
 class _DiagnosticoCard extends StatefulWidget {
   const _DiagnosticoCard();
 
@@ -670,12 +630,6 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
   bool _enviando = false;
   String? _resultado;
 
-  /// Manda el registro a soporte por correo. Es el camino principal.
-  ///
-  /// Se envía el informe del último fallo si lo hay y, si no, el registro de la
-  /// sesión en curso: los errores que se tragan (push, red, permisos) no
-  /// cierran la app y por tanto nunca generan un `ultimo-fallo.log`, que era
-  /// justo el caso en el que más falta hace poder mirar algo.
   Future<void> _enviarASoporte() async {
     final f = LogService.ultimoFallo ?? LogService.sesionActual;
     if (f == null) {
@@ -688,8 +642,7 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
     });
     try {
       final esFallo = LogService.ultimoFallo != null;
-      // Segunda pasada de saneado. El registro ya se redacta al escribirse,
-      // pero esto va a salir por correo hacia fuera y la función es barata.
+
       final contenido = LogService.redactar(await f.readAsString());
       final err = await DataService.enviarRegistroASoporte(
         registro: contenido,
@@ -716,9 +669,6 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
     }
   }
 
-  /// Lleva a los ajustes del sistema. Si no se puede abrir —depende del
-  /// fabricante en Android—, al menos se copia la ruta a mano para que la
-  /// persona no se quede sin saber adónde ir.
   Future<void> _abrirAjustesDeNotificaciones() async {
     final abierto = await PushService.abrirAjustes();
     if (abierto || !mounted) return;
@@ -746,7 +696,7 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
       abierta = false;
     }
     if (abierta || !mounted) return;
-    // Sin gestor de archivos (o sin xdg-open): al menos que pueda copiar la ruta.
+
     await Clipboard.setData(ClipboardData(text: dir.path));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -754,11 +704,6 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
     );
   }
 
-  /// Envía el informe del último fallo si lo hay y, si no, el registro de la
-  /// sesión en curso. Antes solo se podía enviar cuando la app se había
-  /// cerrado sola, que es justo cuando MENOS falta hace: los fallos que se
-  /// tragan (push, red, permisos) no cierran la app y eran imposibles de
-  /// diagnosticar en un móvil.
   Future<void> _compartirInforme() async {
     final f = LogService.ultimoFallo ?? LogService.sesionActual;
     if (f == null) return;
@@ -803,16 +748,12 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 8),
-            // Estado de las notificaciones: un fallo de push no cierra la app,
-            // así que sin esto no hay forma de saber por qué no llegan.
+
             SelectableText(
               'Notificaciones — ${PushService.estado}',
               style: theme.textTheme.bodySmall,
             ),
-            // Si el permiso está denegado, el texto de arriba no basta: hay que
-            // decirlo como un problema y dar el camino para arreglarlo. La
-            // ventana del sistema solo sale UNA vez, así que desde aquí ya no
-            // se puede volver a pedir: solo llevar a los ajustes.
+
             if (PushService.plataformaSoportada && !PushService.permitido) ...[
               const SizedBox(height: 12),
               Container(
@@ -850,9 +791,7 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
               ),
             ],
             const SizedBox(height: 16),
-            // Camino principal, igual en las cinco plataformas. Siempre
-            // habilitado: si no hay fallo manda el registro de la sesión, que
-            // es el único rastro de los errores que no cierran la app.
+
             FilledButton.icon(
               onPressed: _enviando ? null : _enviarASoporte,
               icon: _enviando
@@ -877,7 +816,7 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
                 ),
               ),
             ],
-            // Respaldos, por si el correo no sale (SMTP caído, sin red).
+
             if (_esEscritorio) ...[
               const SizedBox(height: 12),
               SelectableText(

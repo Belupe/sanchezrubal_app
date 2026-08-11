@@ -1,8 +1,8 @@
 class AuditLog {
-  final String action; // CREATE | UPDATE | DELETE
-  final String entityType; // reservation | ...
+  final String action;
+  final String entityType;
   final String? entityId;
-  final Map<String, dynamic>? details; // {old, new}
+  final Map<String, dynamic>? details;
   final String? userName;
   final DateTime createdAt;
 
@@ -50,7 +50,6 @@ class AuditLog {
     }
   }
 
-  /// Datos relevantes del registro (p. ej. el rango de fechas).
   Map<String, dynamic>? get snapshot {
     final n = details?['new'];
     final o = details?['old'];

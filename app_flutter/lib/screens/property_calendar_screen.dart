@@ -15,8 +15,6 @@ import 'registros_screen.dart';
 import 'reservation_detail.dart';
 import 'reservation_form.dart';
 
-/// Calendario individual de un domicilio: cada familia con su color, leyenda
-/// lateral y clic en una reserva para ver toda su información.
 class PropertyCalendarScreen extends StatefulWidget {
   final Property property;
   const PropertyCalendarScreen({super.key, required this.property});
@@ -38,7 +36,7 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
   void initState() {
     super.initState();
     _load();
-    // Realtime: reservas y cola de ESTE domicilio se actualizan solas.
+
     _channel = subscribeTables(
       'property_${widget.property.id}',
       ['reservations', 'reservation_waitlist'],
@@ -107,8 +105,6 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
         .toList();
   }
 
-  /// Celda de día: si hay reserva, se pinta del color de la familia
-  /// (un bloque de N días se ve como una franja de color).
   Widget _dayCell(DateTime day,
       {bool selected = false, bool today = false, bool outside = false}) {
     final items = _forDay(day);
@@ -138,7 +134,6 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
     );
   }
 
-  /// Leyenda: familias (o mantenimiento) presentes, con su color, sin repetir.
   List<MapEntry<String, Color>> _legend() {
     final map = <String, Color>{};
     for (final r in _all) {
@@ -230,7 +225,6 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
         ),
         const Divider(height: 1),
 
-        // Leyenda color → familia
         if (legend.isNotEmpty)
           Padding(
             padding: const EdgeInsets.all(12),
@@ -248,7 +242,6 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
           ),
         const Divider(height: 1),
 
-        // Reservas del día seleccionado
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Text(
@@ -271,7 +264,6 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
                 onTap: () => showReservationDetail(context, r, _load),
               )),
 
-        // Lista de espera (cola) del domicilio
         if (_waitlist.isNotEmpty) ...[
           const Divider(height: 1),
           Padding(
@@ -280,7 +272,7 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
                 style: Theme.of(context).textTheme.titleSmall),
           ),
           ..._waitlist.asMap().entries.map((e) {
-            final pos = e.key + 1; // posición FIFO en la cola
+            final pos = e.key + 1;
             final w = e.value;
             final mine = w.requestedById == DataService.uid;
             return ListTile(

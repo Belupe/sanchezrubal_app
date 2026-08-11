@@ -4,8 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/mfa_service.dart';
 
-/// [M-11] Pantalla para activar / desactivar la verificación en dos pasos (2FA)
-/// por TOTP. Es opcional para cada usuario.
 class MfaScreen extends StatefulWidget {
   const MfaScreen({super.key});
 
@@ -16,7 +14,6 @@ class MfaScreen extends StatefulWidget {
 class _MfaScreenState extends State<MfaScreen> {
   late Future<List<Factor>> _future;
 
-  // Estado del alta en curso (null = no estamos dando de alta).
   AuthMFAEnrollResponse? _enrolling;
   final _code = TextEditingController();
   bool _busy = false;
@@ -89,12 +86,11 @@ class _MfaScreenState extends State<MfaScreen> {
   }
 
   Future<void> _cancelEnroll() async {
-    // Deshace el factor sin verificar que se acaba de crear.
     final id = _enrolling?.id;
     setState(() => _busy = true);
     try {
       if (id != null) await MfaService.unenroll(id);
-    } catch (_) {/* si falla, el propio alta lo limpia la próxima vez */}
+    } catch (_) {}
     if (mounted) {
       setState(() => _busy = false);
       _reload();
@@ -287,7 +283,6 @@ class _MfaScreenState extends State<MfaScreen> {
   }
 }
 
-/// Campo de solo lectura con botón de copiar.
 class _CopyField extends StatelessWidget {
   final String label;
   final String value;

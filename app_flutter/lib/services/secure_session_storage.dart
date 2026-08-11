@@ -1,28 +1,14 @@
+// Almacenamiento seguro de la sesión (keychain/keystore).
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// [M-09] Almacenamiento CIFRADO de la sesión de Supabase (JWT + refresh token)
-/// en Keychain (iOS/macOS) / EncryptedSharedPreferences-Keystore (Android), con
-/// la MISMA clave que usa supabase_flutter por defecto ("sb-<subdominio>-auth-token")
-/// para migrar la sesión existente sin desloguear al actualizar.
-///
-/// Robustez: supabase_flutter llama initialize()/hasAccessToken()/accessToken()
-/// SIN try/catch. El backend cifrado de Android puede lanzar al descifrar si el
-/// Keystore se invalida (cambio de bloqueo/biometría, update de OS, restore). Por
-/// eso TODAS las operaciones van protegidas: ante un fallo se degrada a "sin
-/// sesión" (re-login una vez) en lugar de crashear el arranque en bucle. El texto
-/// plano nunca reaparece.
-// Opciones por defecto (flutter_secure_storage 10.x): Keystore en Android,
-// Keychain en iOS/macOS. Se usan los defaults para no depender de parámetros que
-// cambian entre versiones; el sistema operativo cifra el dato en reposo.
 const FlutterSecureStorage _secure = FlutterSecureStorage();
 
 String _persistSessionKey(String supabaseUrl) =>
     'sb-${Uri.parse(supabaseUrl).host.split('.').first}-auth-token';
 
-/// LocalStorage cifrado para la sesión de Supabase.
 class SecureSessionStorage extends LocalStorage {
   SecureSessionStorage({required String supabaseUrl})
       : _key = _persistSessionKey(supabaseUrl);
@@ -35,8 +21,6 @@ class SecureSessionStorage extends LocalStorage {
     await _migrateFromSharedPreferences();
   }
 
-  /// Migración transparente de una sola vez desde SharedPreferences (en claro).
-  /// Best-effort: nunca debe impedir arrancar la app.
   Future<void> _migrateFromSharedPreferences() async {
     try {
       if (await _secure.containsKey(key: _key)) return;
@@ -47,11 +31,9 @@ class SecureSessionStorage extends LocalStorage {
         await prefs.remove(_key);
       }
     } catch (_) {
-      // No bloquear el arranque.
     }
   }
 
-  /// Borra la entrada (posiblemente corrupta) sin lanzar, para auto-sanar.
   Future<void> _safeDelete() async {
     try {
       await _secure.delete(key: _key);
@@ -73,7 +55,6 @@ class SecureSessionStorage extends LocalStorage {
     try {
       return await _secure.read(key: _key);
     } catch (_) {
-      // Fallo de descifrado → re-login en vez de crash-loop; auto-sanar.
       await _safeDelete();
       return null;
     }
@@ -87,13 +68,10 @@ class SecureSessionStorage extends LocalStorage {
     try {
       await _secure.write(key: _key, value: persistSessionString);
     } catch (_) {
-      // Si no se puede persistir, la sesión sigue viva en memoria; no propagar.
     }
   }
 }
 
-/// Almacén cifrado para el code_verifier del flujo PKCE (deep links / recuperación
-/// de contraseña). Protegido igual para no romper el intercambio de código.
 class SecurePkceAsyncStorage extends GotrueAsyncStorage {
   const SecurePkceAsyncStorage();
 

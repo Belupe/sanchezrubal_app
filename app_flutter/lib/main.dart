@@ -1,3 +1,4 @@
+// Punto de entrada: arranque, sesión, deep links y navegación raíz.
 import 'dart:async';
 import 'dart:ui' show AppExitResponse;
 
@@ -19,12 +20,7 @@ import 'services/log_service.dart';
 import 'services/mfa_service.dart';
 import 'services/secure_session_storage.dart';
 
-/// [args] son los argumentos con los que el sistema lanzó el ejecutable. En
-/// Linux es la ÚNICA vía para el arranque en frío desde un enlace
-/// `portalfamilia://` (ver [DeepLinkService.init]).
 Future<void> main(List<String> args) async {
-  // Todo el arranque va dentro de una zona guardada para que cualquier error
-  // asíncrono que se escape acabe en el registro de fallos.
   runZonedGuarded(
     () => _arrancar(args),
     (e, s) => LogService.error(e, s, 'zona raíz'),
@@ -34,10 +30,8 @@ Future<void> main(List<String> args) async {
 Future<void> _arrancar(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lo PRIMERO: así el registro cubre también los fallos del propio arranque.
   await LogService.init();
 
-  // Errores del framework (build/layout/paint) y errores asíncronos sueltos.
   final erroresPrevios = FlutterError.onError;
   FlutterError.onError = (details) {
     LogService.errorFlutter(details);
@@ -45,29 +39,22 @@ Future<void> _arrancar(List<String> args) async {
   };
   PlatformDispatcher.instance.onError = (e, s) {
     LogService.error(e, s, 'PlatformDispatcher');
-    return true; // ya está registrado; no tumbamos la app por esto
+    return true;
   };
 
-  // Linux: un AppImage no instala nada, así que registra su propio .desktop
-  // la primera vez para que funcionen los enlaces portalfamilia:// del correo.
   await LinuxDesktopIntegration.registrarSiHaceFalta();
 
   await initializeDateFormatting('es', null);
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     publishableKey: AppConfig.supabaseAnonKey,
-    // [M-09] Sesión (JWT + refresh) y code_verifier PKCE cifrados en reposo.
+
     authOptions: FlutterAuthClientOptions(
       localStorage: SecureSessionStorage(supabaseUrl: AppConfig.supabaseUrl),
       pkceAsyncStorage: const SecurePkceAsyncStorage(),
     ),
   );
-  // [2M-04] Estado de "recuperación de contraseña pendiente". Debe sobrevivir a
-  // un reinicio en frío: la sesión de recuperación se PERSISTE en disco, y al
-  // reabrir la app supabase emite `initialSession` (no `passwordRecovery`), así
-  // que además del evento en caliente se guarda un flag persistente cifrado.
-  //  1) Al arrancar: si el flag está puesto y hay sesión, seguimos bloqueando;
-  //     si el flag está puesto pero ya no hay sesión, se limpia (obsoleto).
+
   final pending = await _leerFlagRecuperacion();
   if (pending == '1') {
     if (supabase.auth.currentSession != null) {
@@ -76,8 +63,7 @@ Future<void> _arrancar(List<String> args) async {
       await _borrarFlagRecuperacion();
     }
   }
-  //  2) En caliente: el enlace de recuperación puede abrir la app antes de que
-  //     el AuthGate se suscriba; este listener global lo captura siempre.
+
   supabase.auth.onAuthStateChange.listen((state) async {
     if (state.event == AuthChangeEvent.passwordRecovery) {
       await _escribirFlagRecuperacion();
@@ -91,25 +77,13 @@ Future<void> _arrancar(List<String> args) async {
   runApp(PortalFamiliaApp(argumentosDeArranque: args));
 }
 
-/// Acceso global al cliente de Supabase.
 final supabase = Supabase.instance.client;
 
-/// [2M-04] Activo mientras haya una sesión de recuperación pendiente de fijar
-/// una contraseña nueva. Lo consume el AuthGate para bloquear la app en
-/// SetNewPasswordScreen. Se respalda en un flag persistente (ver abajo) para
-/// que sobreviva a reinicios en frío.
 final passwordRecoveryNotifier = ValueNotifier<bool>(false);
 
 const _recoveryStore = FlutterSecureStorage();
 const _kPendingRecovery = 'pending_pw_recovery';
 
-// El almacén cifrado depende del llavero del sistema, y ese llavero puede NO
-// estar disponible: en Linux sin gnome-keyring/KWallet (o con el llavero
-// bloqueado) lanza `PlatformException(KeyringLocked)`, y en Android el Keystore
-// puede invalidarse al cambiar el bloqueo de pantalla. Sin estas envolturas ese
-// fallo se propagaba desde main() ANTES de runApp y la app no llegaba a abrir.
-// Ahora se degrada a "no hay flag": como mucho se pierde el bloqueo de
-// recuperación de contraseña, que es recuperable, en vez de no arrancar.
 Future<String?> _leerFlagRecuperacion() async {
   try {
     return await _recoveryStore.read(key: _kPendingRecovery);
@@ -135,18 +109,13 @@ Future<void> _borrarFlagRecuperacion() async {
   }
 }
 
-/// [2M-04] Marca la recuperación como resuelta: borra el flag persistente y
-/// desactiva el bloqueo. La llama SetNewPasswordScreen al fijar la contraseña.
 Future<void> clearPasswordRecovery() async {
   await _borrarFlagRecuperacion();
   passwordRecoveryNotifier.value = false;
 }
 
-/// Clave global del Navigator: permite abrir pantallas desde los deep links
-/// (fuera del árbol de widgets).
 final navigatorKey = GlobalKey<NavigatorState>();
 
-/// Tema actual (lo cambia el usuario en Perfil; se persiste en ui_preferences).
 final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
 ThemeMode themeModeFromString(String? s) {
@@ -176,7 +145,6 @@ const _seed = Color(0xFF2563EB);
 class PortalFamiliaApp extends StatefulWidget {
   const PortalFamiliaApp({super.key, this.argumentosDeArranque = const []});
 
-  /// Argumentos con los que el sistema lanzó el ejecutable.
   final List<String> argumentosDeArranque;
 
   @override
@@ -191,14 +159,6 @@ class _PortalFamiliaAppState extends State<PortalFamiliaApp> {
     super.initState();
     DeepLinkService.init(argumentosDeArranque: widget.argumentosDeArranque);
 
-    // Cierre LIMPIO del registro: si la app se cierra por aquí, no era un
-    // fallo y no debe quedar rastro. Si muere sin pasar por aquí, el marcador
-    // sobrevive y el registro se conserva como `ultimo-fallo.log`.
-    //
-    //  · Escritorio: cerrar la ventana → onExitRequested / onDetach.
-    //  · Móvil: irse a segundo plano ya cuenta como cierre limpio, porque a
-    //    partir de ahí el sistema puede matar la app cuando quiera y eso es
-    //    normal, no un fallo. Al volver, se reabre la sesión.
     _ciclo = AppLifecycleListener(
       onExitRequested: () async {
         LogService.cierreLimpio();
@@ -248,7 +208,6 @@ class _PortalFamiliaAppState extends State<PortalFamiliaApp> {
   }
 }
 
-/// Muestra el login o la app según haya sesión activa.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -259,22 +218,17 @@ class AuthGate extends StatelessWidget {
       builder: (context, _) {
         final session = supabase.auth.currentSession;
         if (session == null) {
-          // Sin sesión: no hay recuperación pendiente.
           passwordRecoveryNotifier.value = false;
           return const LoginScreen();
         }
-        // [2M-04] La sesión de recuperación NO da acceso pleno: hasta fijar una
-        // contraseña nueva, se muestra SetNewPasswordScreen (bloquea el resto).
+
         return ValueListenableBuilder<bool>(
           valueListenable: passwordRecoveryNotifier,
           builder: (context, recovering, __) {
             if (recovering) {
-              // onDone (al fijar la contraseña) borra el flag persistente y
-              // desbloquea la app. [2M-04]
               return const SetNewPasswordScreen(onDone: clearPasswordRecovery);
             }
-            // [M-11] Si la cuenta tiene 2FA (TOTP verificado) y la sesión sigue
-            // en AAL1, pedimos el código antes de entrar. Sin 2FA no se ve.
+
             if (MfaService.needsChallenge()) return const MfaChallengeScreen();
             return const HomeShell();
           },

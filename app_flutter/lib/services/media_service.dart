@@ -1,17 +1,9 @@
+// Subida y descarga de fotos/vídeos con URLs firmadas (media-sign).
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../main.dart';
 
-/// Subida/descarga de media de inspecciones contra MinIO mediante URLs
-/// prefirmadas que emite la Edge Function `media-sign` (tras verificar
-/// permisos con el RLS). Los archivos NO pasan por Supabase.
 class MediaService {
-  /// Sube bytes y devuelve la CLAVE del objeto (para guardar en
-  /// out_reports.media_urls).
-  ///
-  /// NOTA: para vídeos grandes (> 100 MB) habría que usar subida
-  /// multiparte por el límite del plan free de Cloudflare. Aquí va un
-  /// PUT simple, suficiente para fotos y vídeos cortos.
   static Future<String> upload({
     required String reservationId,
     required String filename,
@@ -22,14 +14,12 @@ class MediaService {
       'op': 'put',
       'reservationId': reservationId,
       'filename': filename,
-      'size': bytes.length, // el servidor valida contra MEDIA_MAX_UPLOAD_BYTES
+      'size': bytes.length,
     });
     final data = (res.data as Map);
     final url = data['url'] as String;
     final key = data['key'] as String;
 
-    // [M-02] El Content-Type va FIRMADO por media-sign: hay que reenviar
-    // EXACTAMENTE las cabeceras que devuelve o MinIO rechaza el PUT (403).
     final signedHeaders = <String, String>{};
     (data['headers'] as Map?)?.forEach((k, v) =>
         signedHeaders[k.toString()] = v.toString());
@@ -46,7 +36,6 @@ class MediaService {
     return key;
   }
 
-  /// URL temporal para ver un objeto.
   static Future<String> signedUrl(String reservationId, String key) async {
     final res = await supabase.functions.invoke('media-sign', body: {
       'op': 'get',

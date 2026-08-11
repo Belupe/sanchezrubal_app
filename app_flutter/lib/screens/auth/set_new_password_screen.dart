@@ -4,10 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../main.dart';
 import '../../utils/password_policy.dart';
 
-/// [2M-04] Pantalla OBLIGATORIA tras abrir el enlace de recuperación. La sesión
-/// de recuperación NO da acceso a la app hasta fijar una contraseña nueva: esta
-/// pantalla bloquea el resto (no hay "atrás") y solo al guardar con éxito llama
-/// a [onDone] para que el AuthGate deje entrar.
 class SetNewPasswordScreen extends StatefulWidget {
   final VoidCallback onDone;
   const SetNewPasswordScreen({super.key, required this.onDone});
@@ -31,7 +27,7 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
 
   Future<void> _save() async {
     final pass = _password.text;
-    // [M-13] Espejo de la política del servidor (mínimo 10, no solo dígitos).
+
     final err = PasswordPolicy.validate(pass);
     if (err != null) {
       setState(() => _error = err);
@@ -58,14 +54,12 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
   }
 
   Future<void> _cancel() async {
-    // Salir de la recuperación = cerrar la sesión de recuperación y volver al login.
     await supabase.auth.signOut();
     widget.onDone();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Bloquea el gesto "atrás": la única salida es guardar o cancelar (logout).
     return PopScope(
       canPop: false,
       child: Scaffold(

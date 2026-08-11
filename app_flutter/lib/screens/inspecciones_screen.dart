@@ -5,9 +5,6 @@ import '../models/out_report.dart';
 import '../services/data_service.dart';
 import '../services/media_service.dart';
 
-/// Panel para que los administradores revisen las inspecciones de salida
-/// subidas (fotos/vídeo). Carga los reportes con DataService.outReports() y
-/// permite abrir el detalle con la media firmada vía MediaService.signedUrl().
 class InspeccionesScreen extends StatefulWidget {
   const InspeccionesScreen({super.key});
 
@@ -33,7 +30,7 @@ class _InspeccionesScreenState extends State<InspeccionesScreen> {
     });
     try {
       final data = await DataService.outReports();
-      // Más recientes primero.
+
       data.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       setState(() => _reports = data);
     } catch (_) {
@@ -49,10 +46,6 @@ class _InspeccionesScreenState extends State<InspeccionesScreen> {
     );
   }
 
-  // Sin Scaffold ni AppBar propias: esta pantalla se monta dentro de home_shell,
-  // que ya aporta ambas y pinta el título de la sección. Añadir otra AppBar aquí
-  // apilaba dos barras y el título salía repetido. La pantalla de detalle sí
-  // lleva la suya, porque esa se abre con Navigator.push y necesita su volver.
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -196,8 +189,6 @@ class _ReportCard extends StatelessWidget {
   }
 }
 
-/// Pantalla de detalle: muestra la media del reporte. Para cada item de
-/// mediaUrls obtiene una URL temporal con MediaService.signedUrl().
 class _InspeccionDetalle extends StatelessWidget {
   final OutReport report;
   const _InspeccionDetalle({required this.report});

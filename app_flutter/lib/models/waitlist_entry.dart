@@ -1,6 +1,3 @@
-/// Una solicitud en la lista de espera (cola) de un domicilio. Cuando la
-/// reserva que bloquea esas fechas se cancela, el primero de la cola (orden
-/// por createdAt) es promovido automáticamente y hereda la reserva.
 class WaitlistEntry {
   final String id;
   final String propertyId;
@@ -10,10 +7,10 @@ class WaitlistEntry {
   final DateTime endDate;
   final int guestCount;
   final String? notes;
-  final String status; // waiting | promoted | cancelled | expired
+  final String status;
   final DateTime createdAt;
-  final String? requesterName; // join profiles
-  final String? propertyName; // join properties
+  final String? requesterName;
+  final String? propertyName;
 
   WaitlistEntry({
     required this.id,

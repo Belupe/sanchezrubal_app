@@ -32,18 +32,16 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   String? _role;
   int _selected = 0;
-  /// La franja de notificaciones se puede cerrar, pero solo hasta el siguiente
-  /// arranque: no se guarda en ningún sitio a propósito.
+
   bool _avisoPushOculto = false;
 
   @override
   void initState() {
     super.initState();
     _load();
-    // Registra el dispositivo para push (no bloqueante; se auto-desactiva si
-    // Firebase aún no está configurado).
+
     PushService.init();
-    // Tras entrar, comprueba si hay APK nuevo (solo Android; no bloqueante).
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) UpdateService.checkForUpdate(context);
     });
@@ -151,15 +149,6 @@ class _HomeShellState extends State<HomeShell> {
   }
 }
 
-/// Franja que aparece al abrir la app cuando las notificaciones están apagadas.
-///
-/// Vivía solo en Configuración → Soporte, donde no la veía nunca quien
-/// justamente hay que convencer: el que las tiene desactivadas no entra ahí.
-///
-/// Se puede cerrar, pero vuelve en el siguiente arranque. Es a propósito: sin
-/// permiso esa persona no recibe ningún aviso en el dispositivo, y dejarla
-/// olvidarlo para siempre con un toque haría que la franja no sirviera de nada.
-/// Tampoco se insiste más de eso, que sería acoso.
 class _AvisoNotificaciones extends StatelessWidget {
   const _AvisoNotificaciones({required this.oculto, required this.onOcultar});
 
@@ -179,16 +168,12 @@ class _AvisoNotificaciones extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // En Windows y Linux no hay push que activar, así que la franja solo sería
-    // ruido: no existe ninguna acción que esa persona pueda tomar.
     if (oculto || !PushService.plataformaSoportada) {
       return const SizedBox.shrink();
     }
     return ValueListenableBuilder<bool?>(
       valueListenable: PushService.avisosActivos,
       builder: (context, activos, __) {
-        // null = todavía preguntando. No se enseña nada hasta saberlo, para no
-        // dar un aviso alarmante que desaparezca medio segundo después.
         if (activos != false) return const SizedBox.shrink();
         final theme = Theme.of(context);
         return Material(
@@ -228,7 +213,6 @@ class _AvisoNotificaciones extends StatelessWidget {
   }
 }
 
-/// Pestaña de perfil: datos, cambiar correo/contraseña, tema y logout.
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
 
@@ -257,8 +241,7 @@ class _ProfileTabState extends State<ProfileTab> {
       case 'FAMILY_SECOND_ADMIN':
         return 'Administrador secundario';
       default:
-        // 'USER' es el rango global de quien no administra nada; su papel en la
-        // casa, si tiene, se muestra aparte.
+
         return 'Usuario';
     }
   }
@@ -301,7 +284,6 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _changeEmail() async {
-    // [M-12] Confirma identidad con la contraseña actual antes de cambiar.
     final current = await _prompt('Confirma tu identidad', 'Contraseña actual',
         obscure: true, helper: 'Por seguridad, confirma tu contraseña actual.');
     if (current == null || current.isEmpty) return;
@@ -320,14 +302,13 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _changePassword() async {
-    // [M-12] Confirma identidad con la contraseña actual antes de cambiar.
     final current = await _prompt('Confirma tu identidad', 'Contraseña actual',
         obscure: true, helper: 'Por seguridad, confirma tu contraseña actual.');
     if (current == null || current.isEmpty) return;
     final v = await _prompt('Cambiar contraseña', 'Nueva contraseña',
         obscure: true, helper: PasswordPolicy.helpText);
     if (v == null) return;
-    // [M-13] Espejo de la política del servidor (mínimo 10, no solo dígitos).
+
     final err = PasswordPolicy.validate(v);
     if (err != null) {
       _snack(err);

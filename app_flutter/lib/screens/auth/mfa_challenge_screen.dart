@@ -4,10 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../main.dart';
 import '../../services/mfa_service.dart';
 
-/// [M-11] Pantalla de desafío de 2FA en el login: la sesión existe pero está en
-/// AAL1 y la cuenta tiene un factor TOTP verificado, así que pedimos el código
-/// antes de dejar entrar. Al verificar, la sesión sube a AAL2 y el AuthGate
-/// muestra la app automáticamente.
 class MfaChallengeScreen extends StatefulWidget {
   const MfaChallengeScreen({super.key});
 
@@ -39,12 +35,11 @@ class _MfaChallengeScreenState extends State<MfaChallengeScreen> {
     try {
       final factorId = await MfaService.firstVerifiedFactorId();
       if (factorId == null) {
-        // No hay factor (caso raro): no bloqueamos, dejamos pasar.
         setState(() => _error = 'No hay ningún método de 2FA configurado.');
         return;
       }
       await MfaService.verifyChallenge(factorId, code);
-      // El AuthGate reacciona al cambio de sesión (ahora AAL2).
+
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {

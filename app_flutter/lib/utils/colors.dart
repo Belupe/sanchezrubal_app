@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Convierte un hex ('#RRGGBB' o 'RRGGBB') a Color.
 Color colorFromHex(String hex) {
   var v = hex.replaceAll('#', '').trim();
   if (v.length == 6) v = 'FF$v';
@@ -8,9 +7,6 @@ Color colorFromHex(String hex) {
   return parsed == null ? Colors.blueGrey : Color(parsed);
 }
 
-/// Color distinto y bien separado para cada familia, por índice, usando el
-/// ángulo áureo (137.5°). Para N familias razonables no se repiten ni quedan
-/// visualmente cercanos.
 String familyColorForIndex(int index) {
   final hue = (index * 137.508) % 360.0;
   return _hslToHex(hue, 0.62, 0.50);
