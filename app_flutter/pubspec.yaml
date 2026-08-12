@@ -49,6 +49,7 @@ dependencies:
   # (la 13.x es la que casa con package_info_plus 10.x por la versión de win32;
   # las 10.x-12.x piden win32 ^5 y rompen la resolución)
   share_plus: ^13.3.0
+  pdf: ^3.13.0
 
 dev_dependencies:
   flutter_test:

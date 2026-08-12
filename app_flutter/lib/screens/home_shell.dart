@@ -503,6 +503,58 @@ class _ProfileTabState extends State<ProfileTab> {
                 ],
               ),
             ),
+            const Divider(),
+            ValueListenableBuilder<A11yPrefs>(
+              valueListenable: a11yNotifier,
+              builder: (context, a, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      Icon(Icons.accessibility_new),
+                      SizedBox(width: 16),
+                      Text('Accesibilidad'),
+                    ]),
+                  ),
+                  Row(children: [
+                    const SizedBox(width: 40),
+                    const Text('A', style: TextStyle(fontSize: 13)),
+                    Expanded(
+                      child: Slider(
+                        value: a.escalaTexto,
+                        min: 0.85,
+                        max: 1.45,
+                        divisions: 4,
+                        label: '${(a.escalaTexto * 100).round()} %',
+                        onChanged: (v) =>
+                            guardarA11y(a.copyWith(escalaTexto: v)),
+                      ),
+                    ),
+                    const Text('A', style: TextStyle(fontSize: 22)),
+                  ]),
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.only(left: 40),
+                    title: const Text('Alto contraste'),
+                    value: a.altoContraste,
+                    onChanged: (v) => guardarA11y(a.copyWith(altoContraste: v)),
+                  ),
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.only(left: 40),
+                    title: const Text('Texto en negrita'),
+                    value: a.negrita,
+                    onChanged: (v) => guardarA11y(a.copyWith(negrita: v)),
+                  ),
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.only(left: 40),
+                    title: const Text('Reducir animaciones'),
+                    value: a.sinAnimaciones,
+                    onChanged: (v) =>
+                        guardarA11y(a.copyWith(sinAnimaciones: v)),
+                  ),
+                ],
+              ),
+            ),
           ],
         );
       },

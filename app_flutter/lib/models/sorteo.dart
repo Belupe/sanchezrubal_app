@@ -9,6 +9,7 @@ class Sorteo {
   final String name;
   final DateTime createdAt;
   final String? createdByName;
+  final String? seed;
   final List<SorteoResultado> resultados;
 
   Sorteo({
@@ -16,6 +17,7 @@ class Sorteo {
     required this.name,
     required this.createdAt,
     this.createdByName,
+    this.seed,
     this.resultados = const [],
   });
 
@@ -31,6 +33,7 @@ class Sorteo {
       name: m['name'] as String,
       createdAt: DateTime.parse(m['created_at'] as String),
       createdByName: m['profiles'] is Map ? m['profiles']['name'] as String? : null,
+      seed: m['seed'] as String?,
       resultados: res,
     );
   }

@@ -111,14 +111,6 @@ class DataService {
     await supabase.from('properties').delete().eq('id', id);
   }
 
-  static Future<List<Reservation>> reservations() async {
-    final rows = await supabase
-        .from('reservations')
-        .select('*, properties(name), family_groups(name, color)')
-        .order('start_date');
-    return (rows as List).map((e) => Reservation.fromMap(e)).toList();
-  }
-
   static Future<List<Reservation>> reservationsForProperty(String propertyId) async {
     final rows = await supabase
         .from('calendar_occupancy')
@@ -244,18 +236,25 @@ class DataService {
         .from('waitlist_occupancy')
         .select('*, profiles!requested_by_id(name)')
         .eq('property_id', propertyId)
-        .eq('status', 'waiting')
+        .inFilter('status', ['waiting', 'offered'])
         .order('created_at');
     return (rows as List).map((e) => WaitlistEntry.fromMap(e)).toList();
   }
 
-  static Future<List<WaitlistEntry>> myWaitlistEntries() async {
-    final rows = await supabase
+  // La vista compartida no expone offered_until; la fila propia sí (RLS).
+  static Future<DateTime?> myOfferDeadline(String entryId) async {
+    final row = await supabase
         .from('reservation_waitlist')
-        .select('*, properties(name)')
-        .eq('requested_by_id', uid!)
-        .order('created_at', ascending: false);
-    return (rows as List).map((e) => WaitlistEntry.fromMap(e)).toList();
+        .select('offered_until')
+        .eq('id', entryId)
+        .maybeSingle();
+    final s = row?['offered_until'] as String?;
+    return s == null ? null : DateTime.parse(s);
+  }
+
+  static Future<void> respondWaitlistOffer(String entryId, bool accept) async {
+    await supabase.rpc('respond_waitlist_offer',
+        params: {'p_id': entryId, 'p_accept': accept});
   }
 
   static Future<void> cancelWaitlistEntry(String id) async {
@@ -334,10 +333,6 @@ class DataService {
     return (rows as List).map((e) => Profile.fromMap(e)).toList();
   }
 
-  static Future<void> setRole(String userId, String role) async {
-    await supabase.from('profiles').update({'role': role}).eq('id', userId);
-  }
-
   static Future<void> setGroupRole(String userId, String groupRole) async {
     await supabase
         .from('group_members')
@@ -391,7 +386,7 @@ class DataService {
   static Future<List<Sorteo>> sorteos() async {
     final rows = await supabase
         .from('sorteos')
-        .select('id, name, created_at, '
+        .select('id, name, created_at, seed, '
             'profiles!sorteos_created_by_id_fkey(name), '
             'sorteo_resultados(premio, family_groups(name))')
         .order('created_at', ascending: false);

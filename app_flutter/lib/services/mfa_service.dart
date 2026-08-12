@@ -9,9 +9,6 @@ class MfaService {
     return res.totp.where((f) => f.status == FactorStatus.verified).toList();
   }
 
-  static Future<bool> hasVerifiedTotp() async =>
-      (await verifiedTotpFactors()).isNotEmpty;
-
   static Future<AuthMFAEnrollResponse> enrollTotp() async {
     final existing = await supabase.auth.mfa.listFactors();
     for (final f in existing.totp) {

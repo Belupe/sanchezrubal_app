@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
@@ -14,6 +15,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/mfa_challenge_screen.dart';
 import 'screens/auth/set_new_password_screen.dart';
 import 'screens/home_shell.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/deep_link_service.dart';
 import 'services/linux_desktop_integration.dart';
 import 'services/log_service.dart';
@@ -45,6 +47,7 @@ Future<void> _arrancar(List<String> args) async {
   await LinuxDesktopIntegration.registrarSiHaceFalta();
 
   await initializeDateFormatting('es', null);
+  await cargarA11y();
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     publishableKey: AppConfig.supabaseAnonKey,
@@ -118,6 +121,60 @@ final navigatorKey = GlobalKey<NavigatorState>();
 
 final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
+class A11yPrefs {
+  final double escalaTexto;
+  final bool altoContraste;
+  final bool negrita;
+  final bool sinAnimaciones;
+  const A11yPrefs({
+    this.escalaTexto = 1.0,
+    this.altoContraste = false,
+    this.negrita = false,
+    this.sinAnimaciones = false,
+  });
+
+  A11yPrefs copyWith({
+    double? escalaTexto,
+    bool? altoContraste,
+    bool? negrita,
+    bool? sinAnimaciones,
+  }) =>
+      A11yPrefs(
+        escalaTexto: escalaTexto ?? this.escalaTexto,
+        altoContraste: altoContraste ?? this.altoContraste,
+        negrita: negrita ?? this.negrita,
+        sinAnimaciones: sinAnimaciones ?? this.sinAnimaciones,
+      );
+}
+
+final a11yNotifier = ValueNotifier<A11yPrefs>(const A11yPrefs());
+
+Future<void> cargarA11y() async {
+  final sp = await SharedPreferences.getInstance();
+  a11yNotifier.value = A11yPrefs(
+    escalaTexto: sp.getDouble('a11y_escala') ?? 1.0,
+    altoContraste: sp.getBool('a11y_contraste') ?? false,
+    negrita: sp.getBool('a11y_negrita') ?? false,
+    sinAnimaciones: sp.getBool('a11y_sin_animaciones') ?? false,
+  );
+}
+
+Future<void> guardarA11y(A11yPrefs p) async {
+  a11yNotifier.value = p;
+  final sp = await SharedPreferences.getInstance();
+  await sp.setDouble('a11y_escala', p.escalaTexto);
+  await sp.setBool('a11y_contraste', p.altoContraste);
+  await sp.setBool('a11y_negrita', p.negrita);
+  await sp.setBool('a11y_sin_animaciones', p.sinAnimaciones);
+}
+
+class _SinTransicion extends PageTransitionsBuilder {
+  const _SinTransicion();
+  @override
+  Widget buildTransitions<T>(route, context, animation, secondaryAnimation, child) =>
+      child;
+}
+
 ThemeMode themeModeFromString(String? s) {
   switch (s) {
     case 'light':
@@ -176,33 +233,53 @@ class _PortalFamiliaAppState extends State<PortalFamiliaApp> {
     super.dispose();
   }
 
+  ThemeData _tema(Brightness b, A11yPrefs a) => ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _seed,
+          brightness: b,
+          contrastLevel: a.altoContraste ? 1.0 : 0.0,
+        ),
+        useMaterial3: true,
+        pageTransitionsTheme: a.sinAnimaciones
+            ? PageTransitionsTheme(builders: {
+                for (final p in TargetPlatform.values) p: const _SinTransicion(),
+              })
+            : null,
+      );
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
-      builder: (context, mode, _) => MaterialApp(
-        navigatorKey: navigatorKey,
-        title: 'Portal Familia',
-        debugShowCheckedModeBanner: false,
-        locale: const Locale('es'),
-        supportedLocales: const [Locale('es'), Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: ThemeData(
-          colorSchemeSeed: _seed,
-          brightness: Brightness.light,
-          useMaterial3: true,
+      builder: (context, mode, _) => ValueListenableBuilder<A11yPrefs>(
+        valueListenable: a11yNotifier,
+        builder: (context, a11y, _) => MaterialApp(
+          navigatorKey: navigatorKey,
+          title: 'Portal Familia',
+          debugShowCheckedModeBanner: false,
+          locale: const Locale('es'),
+          supportedLocales: const [Locale('es'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          theme: _tema(Brightness.light, a11y),
+          darkTheme: _tema(Brightness.dark, a11y),
+          themeMode: mode,
+          builder: (context, child) {
+            final mq = MediaQuery.of(context);
+            return MediaQuery(
+              data: mq.copyWith(
+                textScaler: TextScaler.linear(a11y.escalaTexto),
+                boldText: mq.boldText || a11y.negrita,
+                disableAnimations: mq.disableAnimations || a11y.sinAnimaciones,
+              ),
+              child: child!,
+            );
+          },
+          home: const AuthGate(),
         ),
-        darkTheme: ThemeData(
-          colorSchemeSeed: _seed,
-          brightness: Brightness.dark,
-          useMaterial3: true,
-        ),
-        themeMode: mode,
-        home: const AuthGate(),
       ),
     );
   }
@@ -230,10 +307,40 @@ class AuthGate extends StatelessWidget {
             }
 
             if (MfaService.needsChallenge()) return const MfaChallengeScreen();
-            return const HomeShell();
+            return const _HomeConOnboarding();
           },
         );
       },
     );
+  }
+}
+
+class _HomeConOnboarding extends StatefulWidget {
+  const _HomeConOnboarding();
+
+  @override
+  State<_HomeConOnboarding> createState() => _HomeConOnboardingState();
+}
+
+class _HomeConOnboardingState extends State<_HomeConOnboarding> {
+  bool? _pendiente;
+
+  @override
+  void initState() {
+    super.initState();
+    OnboardingScreen.pendiente().then((v) {
+      if (mounted) setState(() => _pendiente = v);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_pendiente == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_pendiente!) {
+      return OnboardingScreen(onDone: () => setState(() => _pendiente = false));
+    }
+    return const HomeShell();
   }
 }

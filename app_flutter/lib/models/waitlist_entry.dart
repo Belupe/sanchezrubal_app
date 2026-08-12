@@ -9,6 +9,7 @@ class WaitlistEntry {
   final String? notes;
   final String status;
   final DateTime createdAt;
+  final DateTime? offeredUntil;
   final String? requesterName;
   final String? propertyName;
 
@@ -23,6 +24,7 @@ class WaitlistEntry {
     required this.createdAt,
     this.familyGroupId,
     this.notes,
+    this.offeredUntil,
     this.requesterName,
     this.propertyName,
   });
@@ -38,6 +40,9 @@ class WaitlistEntry {
         notes: m['notes'] as String?,
         status: (m['status'] as String?) ?? 'waiting',
         createdAt: DateTime.parse(m['created_at'] as String),
+        offeredUntil: m['offered_until'] == null
+            ? null
+            : DateTime.parse(m['offered_until'] as String),
         requesterName: m['profiles'] is Map ? m['profiles']['name'] as String? : null,
         propertyName: m['properties'] is Map ? m['properties']['name'] as String? : null,
       );

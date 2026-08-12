@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../models/family_group.dart';
@@ -352,6 +353,18 @@ class _SorteosScreenState extends State<SorteosScreen> {
                       'Avalado por: ${s.createdByName ?? 'Desconocido'}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (s.seed != null)
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: s.seed!));
+                          _snack('Semilla copiada.');
+                        },
+                        child: Text(
+                          'Semilla: ${s.seed} (toca para copiar; con ella '
+                          'cualquiera puede recomputar el resultado)',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
                     const SizedBox(height: 8),
                     if (s.resultados.isEmpty)
                       const Text('Sin resultados.')

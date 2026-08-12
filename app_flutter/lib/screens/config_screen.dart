@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/system_config.dart';
 import '../services/data_service.dart';
+import '../services/export_service.dart';
 import '../services/log_service.dart';
 import '../services/push_service.dart';
 import '../utils/errors.dart';
@@ -611,6 +612,7 @@ class _LimitesTabState extends State<_LimitesTab> {
   final _price = TextEditingController();
   bool _loading = true;
   bool _saving = false;
+  bool _exporting = false;
   String? _error;
 
   @override
@@ -729,8 +731,56 @@ class _LimitesTabState extends State<_LimitesTab> {
                 : const Text('Guardar límites'),
           ),
         ),
+        const SizedBox(height: 24),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Exportar reservas',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text('Todas las reservas, con fechas, personas y precios.',
+                    style: TextStyle(color: Theme.of(context).hintColor)),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.table_chart_outlined),
+                      label: const Text('CSV'),
+                      onPressed: _exporting ? null : () => _export(csv: true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('PDF'),
+                      onPressed: _exporting ? null : () => _export(csv: false),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _export({required bool csv}) async {
+    setState(() => _exporting = true);
+    try {
+      await (csv ? ExportService.exportarCsv() : ExportService.exportarPdf());
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(friendlyError(e, fallback: 'No se pudo exportar.'))));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 }
 

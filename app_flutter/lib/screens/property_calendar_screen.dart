@@ -26,6 +26,8 @@ class PropertyCalendarScreen extends StatefulWidget {
 class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
   List<Reservation> _all = [];
   List<WaitlistEntry> _waitlist = [];
+  DateTime? _offerDeadline;
+  bool _respondingOffer = false;
   bool _loading = true;
   String? _error;
   DateTime _focused = DateTime.now();
@@ -61,15 +63,44 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
     try {
       final data = await DataService.reservationsForProperty(widget.property.id);
       final waitlist = await DataService.waitlistForProperty(widget.property.id);
+      DateTime? deadline;
+      final mia = waitlist.where((w) =>
+          w.status == 'offered' && w.requestedById == DataService.uid);
+      if (mia.isNotEmpty) {
+        deadline = await DataService.myOfferDeadline(mia.first.id);
+      }
       if (!mounted) return;
       setState(() {
         _all = data;
         _waitlist = waitlist;
+        _offerDeadline = deadline;
       });
     } catch (e) {
       if (mounted) setState(() => _error = 'No se pudieron cargar las reservas.');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _respondOffer(WaitlistEntry w, bool accept) async {
+    setState(() => _respondingOffer = true);
+    try {
+      await DataService.respondWaitlistOffer(w.id, accept);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(accept
+                ? '¡Reserva creada! Las fechas son tuyas.'
+                : 'Oferta rechazada; pasa al siguiente de la lista.')));
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+      _load();
+    } finally {
+      if (mounted) setState(() => _respondingOffer = false);
     }
   }
 
@@ -275,22 +306,68 @@ class _PropertyCalendarScreenState extends State<PropertyCalendarScreen> {
             final pos = e.key + 1;
             final w = e.value;
             final mine = w.requestedById == DataService.uid;
-            return ListTile(
-              leading: CircleAvatar(
-                radius: 14,
-                child: Text('$pos', style: const TextStyle(fontSize: 13)),
+            final ofrecida = w.status == 'offered';
+            return Column(children: [
+              ListTile(
+                leading: CircleAvatar(
+                  radius: 14,
+                  backgroundColor: ofrecida ? Colors.green : null,
+                  child: ofrecida
+                      ? const Icon(Icons.notifications_active,
+                          size: 16, color: Colors.white)
+                      : Text('$pos', style: const TextStyle(fontSize: 13)),
+                ),
+                title: Text(mine ? 'Tú' : (w.requesterName ?? 'En espera')),
+                subtitle: Text(
+                    '${df.format(w.startDate)} → ${df.format(w.endDate)} · ${w.guestCount} pers.'
+                    '${ofrecida ? '\nHueco libre: oferta pendiente de respuesta' : ''}'),
+                trailing: mine && !ofrecida
+                    ? IconButton(
+                        icon: const Icon(Icons.cancel_outlined),
+                        tooltip: 'Salir de la lista',
+                        onPressed: () => _cancelWaitlist(w),
+                      )
+                    : null,
               ),
-              title: Text(mine ? 'Tú' : (w.requesterName ?? 'En espera')),
-              subtitle: Text(
-                  '${df.format(w.startDate)} → ${df.format(w.endDate)} · ${w.guestCount} pers.'),
-              trailing: mine
-                  ? IconButton(
-                      icon: const Icon(Icons.cancel_outlined),
-                      tooltip: 'Salir de la lista',
-                      onPressed: () => _cancelWaitlist(w),
-                    )
-                  : null,
-            );
+              if (mine && ofrecida)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_offerDeadline != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            'Tienes hasta ${DateFormat('EEE d MMM, HH:mm', 'es').format(_offerDeadline!.toLocal())} para responder.',
+                            style: TextStyle(
+                                color: Theme.of(context).hintColor,
+                                fontSize: 12),
+                          ),
+                        ),
+                      Row(children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _respondingOffer
+                                ? null
+                                : () => _respondOffer(w, false),
+                            child: const Text('Rechazar'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _respondingOffer
+                                ? null
+                                : () => _respondOffer(w, true),
+                            child: const Text('Aceptar reserva'),
+                          ),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+            ]);
           }),
         ],
         const SizedBox(height: 80),
