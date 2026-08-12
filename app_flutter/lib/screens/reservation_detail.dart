@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../models/property.dart';
+import '../models/profile.dart';
 import '../models/reservation.dart';
 import '../services/data_service.dart';
 import '../utils/errors.dart';
@@ -345,6 +345,8 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   }
 }
 
+DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
 class _ProposeSwapSheet extends StatefulWidget {
   final Reservation reservation;
   const _ProposeSwapSheet({required this.reservation});
@@ -354,13 +356,18 @@ class _ProposeSwapSheet extends StatefulWidget {
 }
 
 class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
-  late DateTime _offerStart = widget.reservation.startDate;
-  late DateTime _offerEnd = widget.reservation.endDate;
-  List<Property> _properties = [];
-  String? _wantProperty;
-  late DateTime _wantStart = DateTime.now();
-  late DateTime _wantEnd = DateTime.now().add(const Duration(days: 7));
+  late DateTime _offerStart = _day(widget.reservation.startDate);
+  late DateTime _offerEnd = _day(widget.reservation.endDate);
+
+  List<Profile> _people = [];
+  Profile? _person;
+  List<Reservation> _personRes = [];
+  Reservation? _wantRes;
+  DateTime? _wantStart;
+  DateTime? _wantEnd;
+
   bool _loading = true;
+  bool _loadingRes = false;
   bool _saving = false;
   String? _error;
 
@@ -371,33 +378,54 @@ class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
   }
 
   Future<void> _init() async {
-    final props = await DataService.properties();
+    final people = await DataService.allProfiles();
     if (!mounted) return;
     setState(() {
-      _properties = props;
-      _wantProperty = props.isNotEmpty ? props.first.id : null;
+      _people = people.where((p) => p.id != DataService.uid).toList();
       _loading = false;
     });
   }
 
-  Future<void> _pick(DateTime initial, DateTime first, DateTime last,
-      ValueChanged<DateTime> onPicked) async {
-    final picked = await showDatePicker(
+  Future<void> _pickPerson() async {
+    final chosen = await showModalBottomSheet<Profile>(
       context: context,
-      initialDate: initial,
-      firstDate: first,
-      lastDate: last,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _PersonPicker(people: _people),
     );
-    if (picked != null) setState(() => onPicked(picked));
+    if (chosen == null) return;
+    setState(() {
+      _person = chosen;
+      _wantRes = null;
+      _wantStart = null;
+      _wantEnd = null;
+      _personRes = [];
+      _loadingRes = true;
+      _error = null;
+    });
+    final res = await DataService.reservationsByPerson(chosen.id);
+    if (!mounted) return;
+    setState(() {
+      _personRes = res;
+      _loadingRes = false;
+    });
+  }
+
+  void _pickWantReservation(Reservation r) {
+    setState(() {
+      _wantRes = r;
+      _wantStart = _day(r.startDate);
+      _wantEnd = _day(r.endDate);
+    });
   }
 
   Future<void> _submit() async {
-    if (_wantProperty == null) {
-      setState(() => _error = 'Elige la casa que quieres.');
+    if (_wantRes == null || _wantStart == null || _wantEnd == null) {
+      setState(() => _error = 'Elige la reserva de la otra persona.');
       return;
     }
-    if (!_offerEnd.isAfter(_offerStart) || !_wantEnd.isAfter(_wantStart)) {
-      setState(() => _error = 'Las fechas no son válidas.');
+    if (!_offerEnd.isAfter(_offerStart) || !_wantEnd!.isAfter(_wantStart!)) {
+      setState(() => _error = 'Los tramos deben tener al menos una noche.');
       return;
     }
     setState(() {
@@ -409,9 +437,9 @@ class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
         offerProperty: widget.reservation.propertyId,
         offerStart: _offerStart,
         offerEnd: _offerEnd,
-        wantProperty: _wantProperty!,
-        wantStart: _wantStart,
-        wantEnd: _wantEnd,
+        wantProperty: _wantRes!.propertyId,
+        wantStart: _wantStart!,
+        wantEnd: _wantEnd!,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -424,8 +452,8 @@ class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final df = DateFormat('EEE d MMM yyyy', 'es');
     final r = widget.reservation;
+    final hint = Theme.of(context).hintColor;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: _loading
@@ -439,69 +467,80 @@ class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
                 Text('Proponer intercambio',
                     style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 16),
-                Text('Ofreces (de tu reserva en ${r.propertyName ?? 'tu casa'})',
+                Text('Ofreces · ${r.propertyName ?? 'tu casa'}',
                     style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _pick(_offerStart, r.startDate, r.endDate,
-                          (d) => _offerStart = d),
-                      child: Text(df.format(_offerStart)),
-                    ),
-                  ),
-                  const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Icon(Icons.arrow_forward, size: 16)),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _pick(_offerEnd, r.startDate, r.endDate,
-                          (d) => _offerEnd = d),
-                      child: Text(df.format(_offerEnd)),
-                    ),
-                  ),
-                ]),
-                const Divider(height: 28),
-                Text('Quieres (fechas acordadas con la otra persona)',
-                    style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _wantProperty,
-                  decoration: const InputDecoration(
-                      labelText: 'Casa', border: OutlineInputBorder()),
-                  items: _properties
-                      .map((p) =>
-                          DropdownMenuItem(value: p.id, child: Text(p.name)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _wantProperty = v),
+                Text('Arrastra para elegir qué tramo de tu reserva das',
+                    style: TextStyle(color: hint, fontSize: 12)),
+                const SizedBox(height: 10),
+                _DragRangeBar(
+                  rangeStart: _day(r.startDate),
+                  rangeEnd: _day(r.endDate),
+                  selStart: _offerStart,
+                  selEnd: _offerEnd,
+                  onChanged: (a, b) => setState(() {
+                    _offerStart = a;
+                    _offerEnd = b;
+                  }),
                 ),
+                const Divider(height: 32),
+                Text('Quieres · con quién',
+                    style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _pick(_wantStart, DateTime(2020),
-                          DateTime(2035), (d) => _wantStart = d),
-                      child: Text(df.format(_wantStart)),
-                    ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.person_search),
+                  label: Text(_person?.name ?? 'Buscar persona'),
+                  onPressed: _saving ? null : _pickPerson,
+                ),
+                if (_loadingRes) ...[
+                  const SizedBox(height: 16),
+                  const Center(child: CircularProgressIndicator()),
+                ] else if (_person != null && _personRes.isEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text('${_person!.name} no tiene reservas próximas.',
+                      style: TextStyle(color: hint)),
+                ] else if (_person != null) ...[
+                  const SizedBox(height: 12),
+                  Text('Elige su reserva', style: TextStyle(color: hint, fontSize: 12)),
+                  const SizedBox(height: 6),
+                  ..._personRes.map((res) => _ResChoice(
+                        res: res,
+                        selected: _wantRes?.id == res.id,
+                        onTap: () => _pickWantReservation(res),
+                      )),
+                ],
+                if (_wantRes != null) ...[
+                  const SizedBox(height: 16),
+                  Text('Arrastra para elegir qué tramo quieres',
+                      style: TextStyle(color: hint, fontSize: 12)),
+                  const SizedBox(height: 10),
+                  _DragRangeBar(
+                    rangeStart: _day(_wantRes!.startDate),
+                    rangeEnd: _day(_wantRes!.endDate),
+                    selStart: _wantStart!,
+                    selEnd: _wantEnd!,
+                    onChanged: (a, b) => setState(() {
+                      _wantStart = a;
+                      _wantEnd = b;
+                    }),
                   ),
-                  const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Icon(Icons.arrow_forward, size: 16)),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _pick(_wantEnd, DateTime(2020),
-                          DateTime(2035), (d) => _wantEnd = d),
-                      child: Text(df.format(_wantEnd)),
-                    ),
+                  const SizedBox(height: 16),
+                  _SwapSummary(
+                    youGetProperty: _wantRes!.propertyName ?? 'una casa',
+                    youGetStart: _wantStart!,
+                    youGetEnd: _wantEnd!,
+                    otherName: _person!.name,
+                    otherGetProperty: r.propertyName ?? 'tu casa',
+                    otherGetStart: _offerStart,
+                    otherGetEnd: _offerEnd,
                   ),
-                ]),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(_error!, style: const TextStyle(color: Colors.red)),
                 ],
                 const SizedBox(height: 20),
                 FilledButton(
-                  onPressed: _saving ? null : _submit,
+                  onPressed: _saving || _wantRes == null ? null : _submit,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: _saving
@@ -515,5 +554,239 @@ class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
               ],
             ),
     );
+  }
+}
+
+class _PersonPicker extends StatefulWidget {
+  final List<Profile> people;
+  const _PersonPicker({required this.people});
+
+  @override
+  State<_PersonPicker> createState() => _PersonPickerState();
+}
+
+class _PersonPickerState extends State<_PersonPicker> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.people
+        .where((p) => p.name.toLowerCase().contains(_q.toLowerCase()))
+        .toList();
+    return Padding(
+      padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            autofocus: true,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Buscar persona',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) => setState(() => _q = v),
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.5),
+            child: ListView(
+              shrinkWrap: true,
+              children: filtered
+                  .map((p) => ListTile(
+                        leading: const Icon(Icons.person_outline),
+                        title: Text(p.name),
+                        subtitle: Text(p.roleLabel),
+                        onTap: () => Navigator.pop(context, p),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResChoice extends StatelessWidget {
+  final Reservation res;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ResChoice(
+      {required this.res, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('d MMM', 'es');
+    return Card(
+      color: selected ? Theme.of(context).colorScheme.primaryContainer : null,
+      child: ListTile(
+        leading: const Icon(Icons.home_outlined),
+        title: Text(res.propertyName ?? 'Casa'),
+        subtitle: Text('${df.format(res.startDate)} – ${df.format(res.endDate)}'),
+        trailing: selected ? const Icon(Icons.check_circle) : null,
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _SwapSummary extends StatelessWidget {
+  final String youGetProperty;
+  final DateTime youGetStart;
+  final DateTime youGetEnd;
+  final String otherName;
+  final String otherGetProperty;
+  final DateTime otherGetStart;
+  final DateTime otherGetEnd;
+  const _SwapSummary({
+    required this.youGetProperty,
+    required this.youGetStart,
+    required this.youGetEnd,
+    required this.otherName,
+    required this.otherGetProperty,
+    required this.otherGetStart,
+    required this.otherGetEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('d MMM', 'es');
+    String span(DateTime a, DateTime b) => '${df.format(a)} – ${df.format(b)}';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.arrow_downward, size: 16, color: Colors.green),
+            const SizedBox(width: 6),
+            Expanded(
+                child: Text('Tú recibes: $youGetProperty · '
+                    '${span(youGetStart, youGetEnd)}')),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            const Icon(Icons.arrow_upward, size: 16, color: Colors.orange),
+            const SizedBox(width: 6),
+            Expanded(
+                child: Text('$otherName recibe: $otherGetProperty · '
+                    '${span(otherGetStart, otherGetEnd)}')),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _DragRangeBar extends StatelessWidget {
+  final DateTime rangeStart;
+  final DateTime rangeEnd;
+  final DateTime selStart;
+  final DateTime selEnd;
+  final void Function(DateTime start, DateTime end) onChanged;
+  const _DragRangeBar({
+    required this.rangeStart,
+    required this.rangeEnd,
+    required this.selStart,
+    required this.selEnd,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = DateTime(rangeEnd.year, rangeEnd.month, rangeEnd.day)
+        .difference(DateTime(rangeStart.year, rangeStart.month, rangeStart.day))
+        .inDays;
+    final days = List.generate(
+        total + 1,
+        (i) => DateTime(rangeStart.year, rangeStart.month, rangeStart.day + i));
+    final n = days.length;
+    int idxOf(DateTime d) {
+      for (var i = 0; i < n; i++) {
+        if (days[i].year == d.year &&
+            days[i].month == d.month &&
+            days[i].day == d.day) {
+          return i;
+        }
+      }
+      return 0;
+    }
+
+    final selA = idxOf(selStart).clamp(0, n - 1);
+    final selB = idxOf(selEnd).clamp(0, n - 1);
+    final cs = Theme.of(context).colorScheme;
+    final df = DateFormat('EEE d', 'es');
+
+    void handle(double dx, double width, {int? anchor}) {
+      final cellW = width / n;
+      var idx = (dx / cellW).floor().clamp(0, n - 1);
+      var a = anchor ?? selA;
+      var lo = a < idx ? a : idx;
+      var hi = a < idx ? idx : a;
+      if (lo == hi) {
+        if (hi < n - 1) {
+          hi += 1;
+        } else {
+          lo -= 1;
+        }
+      }
+      onChanged(days[lo], days[hi]);
+    }
+
+    return LayoutBuilder(builder: (context, c) {
+      final width = c.maxWidth;
+      int? anchor;
+      return GestureDetector(
+        onTapDown: (d) => handle(d.localPosition.dx, width),
+        onHorizontalDragStart: (d) {
+          final cellW = width / n;
+          anchor = (d.localPosition.dx / cellW).floor().clamp(0, n - 1);
+          handle(d.localPosition.dx, width, anchor: anchor);
+        },
+        onHorizontalDragUpdate: (d) =>
+            handle(d.localPosition.dx, width, anchor: anchor),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: List.generate(n, (i) {
+                  final on = i >= selA && i <= selB;
+                  return Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      decoration: BoxDecoration(
+                        color: on ? cs.primary : cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('${days[i].day}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: on ? cs.onPrimary : cs.onSurfaceVariant,
+                          )),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('${df.format(days[selA])} → ${df.format(days[selB])}  ·  '
+                '${selB - selA} ${selB - selA == 1 ? 'noche' : 'noches'}',
+                style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      );
+    });
   }
 }

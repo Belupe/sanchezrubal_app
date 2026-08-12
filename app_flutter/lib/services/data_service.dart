@@ -128,6 +128,17 @@ class DataService {
     return (rows as List).map((e) => Reservation.fromMap(e)).toList();
   }
 
+  static Future<List<Reservation>> reservationsByPerson(String personId) async {
+    final rows = await supabase
+        .from('calendar_occupancy')
+        .select('*, properties(name), family_groups(name, color)')
+        .eq('created_by_id', personId)
+        .eq('is_maintenance', false)
+        .gte('end_date', DateTime.now().toIso8601String())
+        .order('start_date');
+    return (rows as List).map((e) => Reservation.fromMap(e)).toList();
+  }
+
   static Future<Reservation?> reservationById(String id) async {
     final row = await supabase
         .from('reservations')
