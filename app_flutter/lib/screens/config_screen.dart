@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../models/system_config.dart';
 import '../services/data_service.dart';
 import '../services/export_service.dart';
@@ -123,12 +122,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               ],
             ),
             Expanded(
-              child: TabBarView(
-                children: [
-                  _LimitesTab(),
-                  _SoporteTab(),
-                ],
-              ),
+              child: TabBarView(children: [_LimitesTab(), _SoporteTab()]),
             ),
           ],
         ),
@@ -189,8 +183,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     _smtpHost.text = cfg?.smtpHost ?? '';
     _smtpPort.text = cfg?.smtpPort?.toString() ?? '';
     _smtpUser.text = cfg?.smtpUser ?? '';
-    _smtpPass.text =
-        '';
+    _smtpPass.text = '';
     _smtpSecure = cfg?.smtpSecure ?? false;
   }
 
@@ -633,7 +626,10 @@ class _LimitesTabState extends State<_LimitesTab> {
       setState(() => _loading = false);
     } catch (e) {
       setState(() {
-        _error = friendlyError(e, fallback: 'No se pudieron cargar los límites.');
+        _error = friendlyError(
+          e,
+          fallback: 'No se pudieron cargar los límites.',
+        );
         _loading = false;
       });
     }
@@ -650,7 +646,9 @@ class _LimitesTabState extends State<_LimitesTab> {
     final days = int.tryParse(_maxDays.text.trim());
     final price = double.tryParse(_price.text.trim().replaceAll(',', '.'));
     if (days == null || days < 1) {
-      setState(() => _error = 'El máximo de días debe ser un número mayor que 0.');
+      setState(
+        () => _error = 'El máximo de días debe ser un número mayor que 0.',
+      );
       return;
     }
     if (price == null || price < 0) {
@@ -662,13 +660,19 @@ class _LimitesTabState extends State<_LimitesTab> {
       _error = null;
     });
     try {
-      await DataService.updateBookingSettings(maxDays: days, pricePerNight: price);
+      await DataService.updateBookingSettings(
+        maxDays: days,
+        pricePerNight: price,
+      );
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Límites guardados')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Límites guardados')));
       }
     } catch (e) {
-      setState(() => _error = friendlyError(e, fallback: 'No se pudo guardar.'));
+      setState(
+        () => _error = friendlyError(e, fallback: 'No se pudo guardar.'),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -688,21 +692,27 @@ class _LimitesTabState extends State<_LimitesTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Reservas', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Reservas',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _maxDays,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'Días máximos por reserva',
-                    helperText: 'El tope (una quincena). Se puede reservar menos.',
+                    helperText:
+                        'El tope (una quincena). Se puede reservar menos.',
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _price,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Precio por noche (€)',
                     helperText:
@@ -727,7 +737,8 @@ class _LimitesTabState extends State<_LimitesTab> {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Guardar límites'),
           ),
         ),
@@ -738,29 +749,37 @@ class _LimitesTabState extends State<_LimitesTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Exportar reservas',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Exportar reservas',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 4),
-                Text('Todas las reservas, con fechas, personas y precios.',
-                    style: TextStyle(color: Theme.of(context).hintColor)),
+                Text(
+                  'Todas las reservas, con fechas, personas y precios.',
+                  style: TextStyle(color: Theme.of(context).hintColor),
+                ),
                 const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.table_chart_outlined),
-                      label: const Text('CSV'),
-                      onPressed: _exporting ? null : () => _export(csv: true),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.table_chart_outlined),
+                        label: const Text('CSV'),
+                        onPressed: _exporting ? null : () => _export(csv: true),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                      label: const Text('PDF'),
-                      onPressed: _exporting ? null : () => _export(csv: false),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('PDF'),
+                        onPressed: _exporting
+                            ? null
+                            : () => _export(csv: false),
+                      ),
                     ),
-                  ),
-                ]),
+                  ],
+                ),
               ],
             ),
           ),
@@ -775,8 +794,11 @@ class _LimitesTabState extends State<_LimitesTab> {
       await (csv ? ExportService.exportarCsv() : ExportService.exportarPdf());
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(friendlyError(e, fallback: 'No se pudo exportar.'))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyError(e, fallback: 'No se pudo exportar.')),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -839,7 +861,8 @@ class _DiagnosticoCardState extends State<_DiagnosticoCard> {
     } catch (e) {
       if (!mounted) return;
       setState(
-        () => _resultado = '❌ ${friendlyError(e, fallback: 'No se pudo enviar el registro.')}',
+        () => _resultado =
+            '❌ ${friendlyError(e, fallback: 'No se pudo enviar el registro.')}',
       );
     } finally {
       if (mounted) setState(() => _enviando = false);
