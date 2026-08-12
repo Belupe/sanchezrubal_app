@@ -6,7 +6,7 @@ publish_to: "none"
 # El número tras el '+' es OTRA cosa: el contador interno de Apple
 # (CFBundleVersion). Solo puede subir y nunca repetirse, así que no sigue el
 # esquema de arriba — si retrocediera, App Store Connect rechazaría la subida.
-version: 1.3.3+12
+version: 1.4.0+13
 
 environment:
   # [2I-08] Alineado con lo que exige el pubspec.lock (Dart >=3.12).
