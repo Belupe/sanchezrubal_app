@@ -9,6 +9,9 @@ supabase/
 scripts/push-supabase-secrets.sh
 scripts/push-supabase-secrets.ps1
 
+# Monitorización (web de estado): infraestructura del perímetro, no se publica.
+monitorizacion/
+
 # Config local de Claude Code (no compartir)
 .claude/settings.local.json
 
