@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/data_service.dart';
+
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onDone;
   const OnboardingScreen({super.key, required this.onDone});
 
+  // El flag vive en el perfil (por usuario); lo local es solo caché.
   static Future<bool> pendiente() async {
     final sp = await SharedPreferences.getInstance();
-    return !(sp.getBool('onboarding_visto') ?? false);
+    if (sp.getBool('onboarding_visto') ?? false) return false;
+    try {
+      final visto = await DataService.onboardingVisto();
+      if (visto) await sp.setBool('onboarding_visto', true);
+      return !visto;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -63,6 +73,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final sp = await SharedPreferences.getInstance();
     await sp.setBool('onboarding_visto', true);
     widget.onDone();
+    try {
+      await DataService.marcarOnboardingVisto();
+    } catch (_) {}
   }
 
   @override

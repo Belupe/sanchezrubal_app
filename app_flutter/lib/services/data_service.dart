@@ -83,11 +83,29 @@ class DataService {
     await supabase.auth.updateUser(UserAttributes(email: newEmail));
   }
 
-  static Future<void> saveThemeMode(String mode) async {
+  // Fusiona en vez de reemplazar: ui_preferences guarda también 'onboarding'.
+  static Future<void> _mergeUiPreferences(Map<String, dynamic> patch) async {
+    final row = await supabase
+        .from('profiles')
+        .select('ui_preferences')
+        .eq('id', uid!)
+        .maybeSingle();
+    final actual = (row?['ui_preferences'] as Map?)?.cast<String, dynamic>() ?? {};
     await supabase
         .from('profiles')
-        .update({'ui_preferences': {'theme': mode}})
+        .update({'ui_preferences': {...actual, ...patch}})
         .eq('id', uid!);
+  }
+
+  static Future<void> saveThemeMode(String mode) =>
+      _mergeUiPreferences({'theme': mode});
+
+  static Future<void> marcarOnboardingVisto() =>
+      _mergeUiPreferences({'onboarding': true});
+
+  static Future<bool> onboardingVisto() async {
+    final p = await myProfile();
+    return ((p?['ui_preferences'] as Map?)?['onboarding'] as bool?) ?? false;
   }
 
   static Future<List<Property>> properties() async {
