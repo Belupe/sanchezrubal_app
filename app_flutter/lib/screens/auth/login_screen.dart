@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../main.dart';
+import '../../widgets/password_widgets.dart';
 import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -34,7 +34,6 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _email.text.trim(),
         password: _password.text,
       );
-
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
@@ -58,9 +57,11 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const Icon(Icons.home_work, size: 56, color: Color(0xFF2563EB)),
                 const SizedBox(height: 12),
-                Text('Portal Familia',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  'Portal Familia',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 32),
                 TextField(
                   controller: _email,
@@ -72,14 +73,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                PasswordField(
                   controller: _password,
-                  obscureText: true,
+                  label: 'Contraseña',
                   autofillHints: const [AutofillHints.password],
                   onSubmitted: (_) => _signIn(),
-                  decoration: const InputDecoration(
-                    labelText: 'Contraseña',
-                    border: OutlineInputBorder(),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '¿Primera vez? Entra con el enlace de tu correo de '
+                  'invitación o pulsa «¿Olvidaste tu contraseña?».',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).hintColor,
                   ),
                 ),
                 if (_error != null) ...[
@@ -95,15 +101,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Text('Entrar'),
                   ),
                 ),
                 TextButton(
                   onPressed: _loading
                       ? null
-                      : () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => const ForgotPasswordScreen())),
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ForgotPasswordScreen(),
+                          ),
+                        ),
                   child: const Text('¿Olvidaste tu contraseña?'),
                 ),
               ],

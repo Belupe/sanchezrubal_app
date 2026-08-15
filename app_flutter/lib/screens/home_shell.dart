@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../main.dart';
 import '../models/property.dart';
 import '../services/data_service.dart';
@@ -7,6 +6,7 @@ import '../services/push_service.dart';
 import '../services/update_service.dart';
 import '../utils/errors.dart';
 import '../utils/password_policy.dart';
+import '../widgets/password_widgets.dart';
 import 'anuncios_screen.dart';
 import 'casas_screen.dart';
 import 'config_screen.dart';
@@ -328,15 +328,16 @@ class _ProfileTabState extends State<ProfileTab> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(title),
-        content: TextField(
-          controller: ctrl,
-          obscureText: obscure,
-          decoration: InputDecoration(
-            labelText: label,
-            helperText: helper,
-            border: const OutlineInputBorder(),
-          ),
-        ),
+        content: obscure
+            ? PasswordField(controller: ctrl, label: label, helper: helper)
+            : TextField(
+                controller: ctrl,
+                decoration: InputDecoration(
+                  labelText: label,
+                  helperText: helper,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -395,20 +396,12 @@ class _ProfileTabState extends State<ProfileTab> {
       obscure: true,
       helper: 'Por seguridad, confirma tu contraseña actual.',
     );
-    if (current == null || current.isEmpty) return;
-    final v = await _prompt(
-      'Cambiar contraseña',
-      'Nueva contraseña',
-      obscure: true,
-      helper: PasswordPolicy.helpText,
+    if (current == null || current.isEmpty || !mounted) return;
+    final v = await showDialog<String>(
+      context: context,
+      builder: (_) => const _NuevaPasswordDialog(),
     );
     if (v == null) return;
-
-    final err = PasswordPolicy.validate(v);
-    if (err != null) {
-      _snack(err);
-      return;
-    }
     try {
       await DataService.changePassword(current, v);
       _snack('Contraseña actualizada.');
@@ -511,28 +504,32 @@ class _ProfileTabState extends State<ProfileTab> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 4),
-                    child: Row(children: [
-                      Icon(Icons.accessibility_new),
-                      SizedBox(width: 16),
-                      Text('Accesibilidad'),
-                    ]),
-                  ),
-                  Row(children: [
-                    const SizedBox(width: 40),
-                    const Text('A', style: TextStyle(fontSize: 13)),
-                    Expanded(
-                      child: Slider(
-                        value: a.escalaTexto,
-                        min: 0.85,
-                        max: 1.45,
-                        divisions: 4,
-                        label: '${(a.escalaTexto * 100).round()} %',
-                        onChanged: (v) =>
-                            guardarA11y(a.copyWith(escalaTexto: v)),
-                      ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.accessibility_new),
+                        SizedBox(width: 16),
+                        Text('Accesibilidad'),
+                      ],
                     ),
-                    const Text('A', style: TextStyle(fontSize: 22)),
-                  ]),
+                  ),
+                  Row(
+                    children: [
+                      const SizedBox(width: 40),
+                      const Text('A', style: TextStyle(fontSize: 13)),
+                      Expanded(
+                        child: Slider(
+                          value: a.escalaTexto,
+                          min: 0.85,
+                          max: 1.45,
+                          divisions: 4,
+                          label: '${(a.escalaTexto * 100).round()} %',
+                          onChanged: (v) =>
+                              guardarA11y(a.copyWith(escalaTexto: v)),
+                        ),
+                      ),
+                      const Text('A', style: TextStyle(fontSize: 22)),
+                    ],
+                  ),
                   SwitchListTile(
                     contentPadding: const EdgeInsets.only(left: 40),
                     title: const Text('Alto contraste'),
@@ -558,6 +555,65 @@ class _ProfileTabState extends State<ProfileTab> {
           ],
         );
       },
+    );
+  }
+}
+
+class _NuevaPasswordDialog extends StatefulWidget {
+  const _NuevaPasswordDialog();
+
+  @override
+  State<_NuevaPasswordDialog> createState() => _NuevaPasswordDialogState();
+}
+
+class _NuevaPasswordDialogState extends State<_NuevaPasswordDialog> {
+  final _pass = TextEditingController();
+  final _confirm = TextEditingController();
+
+  bool get _todoBien =>
+      PasswordPolicy.cumple(_pass.text) && _pass.text == _confirm.text;
+
+  @override
+  void dispose() {
+    _pass.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar contraseña'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PasswordField(
+              controller: _pass,
+              label: 'Nueva contraseña',
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            PasswordField(
+              controller: _confirm,
+              label: 'Repite la contraseña',
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            PasswordChecklist(password: _pass.text, confirm: _confirm.text),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _todoBien ? () => Navigator.pop(context, _pass.text) : null,
+          child: const Text('Guardar'),
+        ),
+      ],
     );
   }
 }

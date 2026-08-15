@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../main.dart';
 import '../../utils/password_policy.dart';
+import '../../widgets/password_widgets.dart';
 
 class SetNewPasswordScreen extends StatefulWidget {
   final VoidCallback onDone;
@@ -17,6 +18,9 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
   final _confirm = TextEditingController();
   bool _loading = false;
   String? _error;
+
+  bool get _todoBien =>
+      PasswordPolicy.cumple(_password.text) && _password.text == _confirm.text;
 
   @override
   void dispose() {
@@ -78,32 +82,29 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
                 children: [
                   const Text('Crea una contraseña nueva para tu cuenta.'),
                   const SizedBox(height: 16),
-                  TextField(
+                  PasswordField(
                     controller: _password,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Nueva contraseña',
-                      helperText: PasswordPolicy.helpText,
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Nueva contraseña',
+                    autofillHints: const [AutofillHints.newPassword],
+                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  PasswordField(
                     controller: _confirm,
-                    obscureText: true,
-                    onSubmitted: (_) => _loading ? null : _save(),
-                    decoration: const InputDecoration(
-                      labelText: 'Repite la contraseña',
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Repite la contraseña',
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _loading || !_todoBien ? null : _save(),
                   ),
+                  const SizedBox(height: 12),
+                  PasswordChecklist(
+                      password: _password.text, confirm: _confirm.text),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(_error!, style: const TextStyle(color: Colors.red)),
                   ],
                   const SizedBox(height: 20),
                   FilledButton(
-                    onPressed: _loading ? null : _save,
+                    onPressed: _loading || !_todoBien ? null : _save,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: _loading
