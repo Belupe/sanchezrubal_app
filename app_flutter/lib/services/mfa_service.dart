@@ -1,6 +1,5 @@
 // Segundo factor (TOTP).
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../main.dart';
 
 class MfaService {

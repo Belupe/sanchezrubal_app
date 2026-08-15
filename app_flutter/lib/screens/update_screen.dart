@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../services/update_service.dart';
 
 class UpdateScreen extends StatefulWidget {

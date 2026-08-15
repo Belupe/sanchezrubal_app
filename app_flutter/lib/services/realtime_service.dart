@@ -1,6 +1,5 @@
 // Suscripciones en tiempo real (cambios de reservas).
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../main.dart';
 
 RealtimeChannel subscribeTables(

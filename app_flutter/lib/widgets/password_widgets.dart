@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../utils/password_policy.dart';
 
 class PasswordField extends StatefulWidget {

@@ -1,6 +1,5 @@
 // Acceso a datos (PostgREST/RPC). La autorización real la impone el RLS.
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../main.dart';
 import '../models/announcement.dart';
 import '../models/audit_log.dart';

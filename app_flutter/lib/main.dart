@@ -1,7 +1,6 @@
 // Punto de entrada: arranque, sesión, deep links y navegación raíz.
 import 'dart:async';
 import 'dart:ui' show AppExitResponse;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,7 +8,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'config.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/mfa_challenge_screen.dart';

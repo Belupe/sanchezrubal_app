@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
 import '../models/out_report.dart';
 import '../services/data_service.dart';
 import '../services/media_service.dart';

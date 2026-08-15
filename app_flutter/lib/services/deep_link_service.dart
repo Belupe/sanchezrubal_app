@@ -1,7 +1,6 @@
 // Enlaces profundos (portalfamilia://): sesión y establecer contraseña.
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
-
 import '../main.dart';
 import '../screens/inspection_screen.dart';
 import 'log_service.dart';

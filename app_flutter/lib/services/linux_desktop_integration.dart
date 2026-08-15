@@ -1,7 +1,5 @@
 import 'dart:io';
-
 import 'package:flutter/foundation.dart';
-
 import 'log_service.dart';
 
 class LinuxDesktopIntegration {
