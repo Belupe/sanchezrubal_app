@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../models/property.dart';
 import '../services/data_service.dart';
+import '../services/offline_cache.dart';
 import '../services/push_service.dart';
 import '../services/update_service.dart';
 import '../utils/errors.dart';
@@ -154,7 +155,10 @@ class _HomeShellState extends State<HomeShell> {
         ],
       ),
     );
-    if (ok == true) await supabase.auth.signOut();
+    if (ok == true) {
+      await OfflineCache.limpiar();
+      await supabase.auth.signOut();
+    }
   }
 
   @override
@@ -207,6 +211,22 @@ class _HomeShellState extends State<HomeShell> {
       ),
       body: Column(
         children: [
+          ValueListenableBuilder<bool>(
+            valueListenable: OfflineCache.sinConexion,
+            builder: (context, sin, _) => sin
+                ? Container(
+                    width: double.infinity,
+                    color: Colors.orange.shade700,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 6, horizontal: 12),
+                    child: const Text(
+                      'Sin conexión · mostrando los últimos datos guardados',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           _AvisoNotificaciones(
             oculto: _avisoPushOculto,
             onOcultar: () => setState(() => _avisoPushOculto = true),

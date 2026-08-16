@@ -14,6 +14,7 @@ import '../models/waitlist_entry.dart';
 import '../models/reservation_swap.dart';
 import '../utils/errors.dart';
 import '../utils/password_policy.dart';
+import 'offline_cache.dart';
 
 class InvalidCurrentPasswordException implements Exception {
   const InvalidCurrentPasswordException();
@@ -128,10 +129,12 @@ class DataService {
     return ((p?['ui_preferences'] as Map?)?['onboarding'] as bool?) ?? false;
   }
 
-  static Future<List<Property>> properties() async {
-    final rows = await supabase.from('properties').select().order('name');
-    return (rows as List).map((e) => Property.fromMap(e)).toList();
-  }
+  static Future<List<Property>> properties() => OfflineCache.lista(
+        'properties',
+        () async => (await supabase.from('properties').select().order('name'))
+            .cast<Map<String, dynamic>>(),
+        Property.fromMap,
+      );
 
   static Future<void> createProperty({required String name, String? description}) async {
     await supabase.from('properties').insert({'name': name, 'description': description});
@@ -149,14 +152,17 @@ class DataService {
     await supabase.from('properties').delete().eq('id', id);
   }
 
-  static Future<List<Reservation>> reservationsForProperty(String propertyId) async {
-    final rows = await supabase
-        .from('calendar_occupancy')
-        .select('*, properties(name), family_groups(name, color)')
-        .eq('property_id', propertyId)
-        .order('start_date');
-    return (rows as List).map((e) => Reservation.fromMap(e)).toList();
-  }
+  static Future<List<Reservation>> reservationsForProperty(String propertyId) =>
+      OfflineCache.lista(
+        'calendario_$propertyId',
+        () async => (await supabase
+                .from('calendar_occupancy')
+                .select('*, properties(name), family_groups(name, color)')
+                .eq('property_id', propertyId)
+                .order('start_date'))
+            .cast<Map<String, dynamic>>(),
+        Reservation.fromMap,
+      );
 
   static Future<List<Reservation>> reservationsByPerson(String personId) async {
     final rows = await supabase
@@ -270,15 +276,18 @@ class DataService {
     });
   }
 
-  static Future<List<WaitlistEntry>> waitlistForProperty(String propertyId) async {
-    final rows = await supabase
-        .from('waitlist_occupancy')
-        .select('*, profiles!requested_by_id(name)')
-        .eq('property_id', propertyId)
-        .inFilter('status', ['waiting', 'offered'])
-        .order('created_at');
-    return (rows as List).map((e) => WaitlistEntry.fromMap(e)).toList();
-  }
+  static Future<List<WaitlistEntry>> waitlistForProperty(String propertyId) =>
+      OfflineCache.lista(
+        'cola_$propertyId',
+        () async => (await supabase
+                .from('waitlist_occupancy')
+                .select('*, profiles!requested_by_id(name)')
+                .eq('property_id', propertyId)
+                .inFilter('status', ['waiting', 'offered'])
+                .order('created_at'))
+            .cast<Map<String, dynamic>>(),
+        WaitlistEntry.fromMap,
+      );
 
   // La vista compartida no expone offered_until; la fila propia sí (RLS).
   static Future<DateTime?> myOfferDeadline(String entryId) async {
