@@ -66,7 +66,13 @@ class _InspectionScreenState extends State<InspectionScreen> {
     try {
       final XFile? x = video
           ? await _picker.pickVideo(source: source)
-          : await _picker.pickImage(source: source, imageQuality: 80);
+          // Compresión suave: se conserva el detalle, solo se acota el tamaño.
+          : await _picker.pickImage(
+              source: source,
+              imageQuality: 85,
+              maxWidth: 1920,
+              maxHeight: 1920,
+            );
       if (x == null) return;
       final bytes = await x.readAsBytes();
       final key = await MediaService.upload(

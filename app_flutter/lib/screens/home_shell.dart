@@ -552,6 +552,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 ],
               ),
             ),
+            const _AvisosSection(),
           ],
         );
       },
@@ -613,6 +614,87 @@ class _NuevaPasswordDialogState extends State<_NuevaPasswordDialog> {
           onPressed: _todoBien ? () => Navigator.pop(context, _pass.text) : null,
           child: const Text('Guardar'),
         ),
+      ],
+    );
+  }
+}
+
+class _AvisosSection extends StatefulWidget {
+  const _AvisosSection();
+
+  @override
+  State<_AvisosSection> createState() => _AvisosSectionState();
+}
+
+class _AvisosSectionState extends State<_AvisosSection> {
+  Map<String, bool>? _prefs;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    DataService.preferenciasAviso().then((p) {
+      if (mounted) setState(() => _prefs = p);
+    }).catchError((_) {});
+  }
+
+  Future<void> _cambiar(String clave, bool valor) async {
+    final antes = Map<String, bool>.from(_prefs!);
+    setState(() {
+      _prefs![clave] = valor;
+      _guardando = true;
+    });
+    try {
+      await DataService.guardarPreferenciasAviso(_prefs!);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _prefs = antes);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e, fallback: 'No se pudo guardar.'))));
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _prefs;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Icon(Icons.notifications_active_outlined),
+              SizedBox(width: 16),
+              Text('Notificaciones'),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 40, bottom: 4),
+          child: Text('Elige de qué quieres recibir avisos.',
+              style: TextStyle(
+                  fontSize: 12, color: Theme.of(context).hintColor)),
+        ),
+        if (p == null)
+          const Padding(
+            padding: EdgeInsets.only(left: 40, top: 8, bottom: 8),
+            child: SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else
+          ...DataService.categoriasAviso.entries.map((e) => SwitchListTile(
+                contentPadding: const EdgeInsets.only(left: 40),
+                title: Text(e.value),
+                value: p[e.key] ?? true,
+                onChanged:
+                    _guardando ? null : (v) => _cambiar(e.key, v),
+              )),
       ],
     );
   }

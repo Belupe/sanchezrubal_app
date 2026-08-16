@@ -72,6 +72,8 @@ class _ReservationDetailSheet extends StatefulWidget {
 class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   late int _guests = widget.r.guestCount;
   late final _notes = TextEditingController(text: widget.r.notes ?? '');
+  late final List<String> _invitados = [...widget.r.guestsList];
+  final _nuevoInvitado = TextEditingController();
   late DateTime _start = widget.r.startDate;
   late DateTime _end = widget.r.endDate;
   late bool _isFixed = widget.r.isFixed;
@@ -80,6 +82,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   @override
   void dispose() {
     _notes.dispose();
+    _nuevoInvitado.dispose();
     super.dispose();
   }
 
@@ -102,6 +105,16 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _anadirInvitado() {
+    final n = _nuevoInvitado.text.trim();
+    if (n.isEmpty || _invitados.contains(n)) return;
+    setState(() {
+      _invitados.add(n);
+      _nuevoInvitado.clear();
+      if (_invitados.length > _guests) _guests = _invitados.length;
+    });
   }
 
   Future<void> _pick(bool start) async {
@@ -245,6 +258,45 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
                 icon: const Icon(Icons.add_circle_outline),
               ),
             ]),
+            const SizedBox(height: 8),
+            Text('Quiénes vienen (opcional)',
+                style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12)),
+            if (_invitados.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _invitados
+                    .map((n) => Chip(
+                          label: Text(n),
+                          visualDensity: VisualDensity.compact,
+                          onDeleted: _busy
+                              ? null
+                              : () => setState(() => _invitados.remove(n)),
+                        ))
+                    .toList(),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _nuevoInvitado,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Añadir persona',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _anadirInvitado(),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle),
+                onPressed: _busy ? null : _anadirInvitado,
+              ),
+            ]),
+            const SizedBox(height: 8),
             TextField(
               controller: _notes,
               maxLines: 2,
@@ -258,6 +310,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
                   : () => _run(
                         () => DataService.updateReservationDetails(r.id,
                             guestCount: _guests,
+                            guestsList: _invitados,
                             notes: _notes.text.trim().isEmpty
                                 ? null
                                 : _notes.text.trim()),

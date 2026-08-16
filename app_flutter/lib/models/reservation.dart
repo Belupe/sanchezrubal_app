@@ -14,6 +14,7 @@ class Reservation {
   final double? pricePerNight;
   final double? totalPrice;
   final bool isFixed;
+  final List<String> guestsList;
 
   Reservation({
     required this.id,
@@ -31,6 +32,7 @@ class Reservation {
     this.pricePerNight,
     this.totalPrice,
     this.isFixed = false,
+    this.guestsList = const [],
   });
 
   int get nights => endDate.difference(startDate).inDays;
@@ -51,5 +53,10 @@ class Reservation {
         pricePerNight: (m['price_per_night'] as num?)?.toDouble(),
         totalPrice: (m['total_price'] as num?)?.toDouble(),
         isFixed: (m['is_fixed'] as bool?) ?? false,
+        guestsList: (m['guests_list'] as List?)
+                ?.map((e) => e.toString())
+                .where((e) => e.trim().isNotEmpty)
+                .toList() ??
+            const [],
       );
 }

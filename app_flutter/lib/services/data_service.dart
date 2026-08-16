@@ -102,6 +102,27 @@ class DataService {
   static Future<void> marcarOnboardingVisto() =>
       _mergeUiPreferences({'onboarding': true});
 
+  // Las categorías que el usuario puede silenciar. Deben coincidir con
+  // categoria() de la Edge Function notify-changes.
+  static const categoriasAviso = {
+    'reservas': 'Reservas',
+    'cola': 'Lista de espera',
+    'intercambios': 'Intercambios',
+    'inspecciones': 'Inspecciones y partes',
+    'mantenimiento': 'Mantenimiento',
+  };
+
+  static Future<Map<String, bool>> preferenciasAviso() async {
+    final p = await myProfile();
+    final m = (p?['ui_preferences'] as Map?)?['notificaciones'] as Map?;
+    return {
+      for (final c in categoriasAviso.keys) c: (m?[c] as bool?) ?? true,
+    };
+  }
+
+  static Future<void> guardarPreferenciasAviso(Map<String, bool> prefs) =>
+      _mergeUiPreferences({'notificaciones': prefs});
+
   static Future<bool> onboardingVisto() async {
     final p = await myProfile();
     return ((p?['ui_preferences'] as Map?)?['onboarding'] as bool?) ?? false;
@@ -184,10 +205,11 @@ class DataService {
   }
 
   static Future<void> updateReservationDetails(String id,
-      {int? guestCount, String? notes}) async {
+      {int? guestCount, String? notes, List<String>? guestsList}) async {
     final patch = <String, dynamic>{};
     if (guestCount != null) patch['guest_count'] = guestCount;
     if (notes != null) patch['notes'] = notes;
+    if (guestsList != null) patch['guests_list'] = guestsList;
     if (patch.isEmpty) return;
     await supabase.from('reservations').update(patch).eq('id', id);
   }
