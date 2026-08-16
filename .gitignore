@@ -12,6 +12,9 @@ scripts/push-supabase-secrets.ps1
 # Monitorización (web de estado): infraestructura del perímetro, no se publica.
 monitorizacion/
 
+# Copias de seguridad de la base de datos (credenciales y volcados).
+copias/
+
 # Config local de Claude Code (no compartir)
 .claude/settings.local.json
 
