@@ -50,3 +50,7 @@ logs/
 logs_data/
 sqlite_data/
 uploads_data/
+
+# Capturas de Android: muestran nombres reales de la familia, las casas y
+# el historial de actividad. El repo es publico.
+docs/capturas/android/
