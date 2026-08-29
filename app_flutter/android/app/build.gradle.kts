@@ -25,7 +25,9 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "net.sanchezrubal.portal_familia"
-    compileSdk = flutter.compileSdkVersion
+    // 37, no flutter.compileSdkVersion (36): flutter_secure_storage exige que
+    // quien depende de él compile contra la API 37 o superior.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -70,23 +72,24 @@ android {
 // si se pusiera dentro de buildTypes.release {} se evaluaría en la fase de
 // configuración para CUALQUIER invocación de Gradle (incluido `flutter run` en
 // debug) y rompería también el build de debug.
-// IMPORTANTE: whenReady recibe un Action<TaskExecutionGraph>; en Kotlin DSL el
-// grafo llega como PARÁMETRO del lambda (no como receptor `this`), por eso se
-// declara `graph ->` y se usa `graph.allTasks` (NO `allTasks` a secas, que sería
-// una referencia no resuelta y rompería la compilación del build script).
-gradle.taskGraph.whenReady { graph ->
-    val buildingRelease = graph.allTasks.any { task ->
-        val n = task.name
-        n.contains("Release") &&
-            (n.startsWith("assemble") || n.startsWith("bundle") || n.startsWith("package"))
-    }
-    if (buildingRelease && !keystorePropertiesFile.exists()) {
-        throw GradleException(
-            "Falta android/key.properties: no se puede firmar el build de RELEASE.\n" +
-            "Crea android/key.properties (gitignored) con keyAlias, keyPassword, " +
-            "storeFile y storePassword apuntando al keystore de release.\n" +
-            "El build de release NO cae a la firma debug por seguridad."
-        )
+// IMPORTANTE: se engancha a las tareas de release y el chequeo va en doFirst, o
+// sea en tiempo de EJECUCIÓN. No usar gradle.taskGraph.whenReady: en el DSL de
+// Kotlin de Gradle 9 esa llamada ya no resuelve el Action<TaskExecutionGraph> y
+// rompe la compilación del propio build script.
+tasks.matching { task ->
+    val n = task.name
+    n.contains("Release") &&
+        (n.startsWith("assemble") || n.startsWith("bundle") || n.startsWith("package"))
+}.configureEach {
+    doFirst {
+        if (!keystorePropertiesFile.exists()) {
+            throw GradleException(
+                "Falta android/key.properties: no se puede firmar el build de RELEASE.\n" +
+                "Crea android/key.properties (gitignored) con keyAlias, keyPassword, " +
+                "storeFile y storePassword apuntando al keystore de release.\n" +
+                "El build de release NO cae a la firma debug por seguridad."
+            )
+        }
     }
 }
 
