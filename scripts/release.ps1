@@ -108,6 +108,7 @@ if ($dataDir -and (Test-Path $dataDir)) {
   $windowsUrl     = if ($envv['DOWNLOAD_WINDOWS_URL'])      { $envv['DOWNLOAD_WINDOWS_URL'] }      else { './windows/portal-familia-setup.exe' }
   $iosUrl         = if ($envv['DOWNLOAD_IOS_URL'])          { $envv['DOWNLOAD_IOS_URL'] }          else { '' }
   $androidPlayUrl = if ($envv['DOWNLOAD_ANDROID_PLAY_URL']) { $envv['DOWNLOAD_ANDROID_PLAY_URL'] } else { '' }
+  $macosUrl       = if ($envv['DOWNLOAD_MACOS_URL'])        { $envv['DOWNLOAD_MACOS_URL'] }        else { '' }
   $linuxAppImgUrl = if ($envv['DOWNLOAD_LINUX_APPIMAGE_URL']) { $envv['DOWNLOAD_LINUX_APPIMAGE_URL'] } else { './linux/portal-familia-x86_64.AppImage' }
   $linuxDebUrl    = if ($envv['DOWNLOAD_LINUX_DEB_URL'])      { $envv['DOWNLOAD_LINUX_DEB_URL'] }      else { './linux/portal-familia_amd64.deb' }
   $tpl = Get-Content (Join-Path $root 'server\updates\index.html') -Raw
@@ -125,6 +126,12 @@ if ($dataDir -and (Test-Path $dataDir)) {
     # Sin enlace: elimina por completo cada bloque entre marcadores (botón + ayuda).
     $tpl = [regex]::Replace($tpl, '(?s)\s*<!--IOS:START-->.*?<!--IOS:END-->', '')
   }
+
+  if ($macosUrl) {
+    $tpl = $tpl -replace '<!--MACOS:START-->', '' -replace '<!--MACOS:END-->', ''
+  } else {
+    $tpl = [regex]::Replace($tpl, '(?s)\s*<!--MACOS:START-->.*?<!--MACOS:END-->', '')
+  }
   # [2I-02] Escapa los valores del .env antes de hornearlos en atributos href
   # (un valor con comillas o < > no puede romper el HTML de la página pública).
   function Html-Attr([string]$v) {
@@ -135,7 +142,8 @@ if ($dataDir -and (Test-Path $dataDir)) {
               Replace('{{DOWNLOAD_WINDOWS_URL}}', (Html-Attr $windowsUrl)).
               Replace('{{DOWNLOAD_LINUX_APPIMAGE_URL}}', (Html-Attr $linuxAppImgUrl)).
               Replace('{{DOWNLOAD_LINUX_DEB_URL}}', (Html-Attr $linuxDebUrl)).
-              Replace('{{DOWNLOAD_IOS_URL}}', (Html-Attr $iosUrl))
+              Replace('{{DOWNLOAD_IOS_URL}}', (Html-Attr $iosUrl)).
+              Replace('{{DOWNLOAD_MACOS_URL}}', (Html-Attr $macosUrl))
   Set-Content (Join-Path $dataDir 'index.html') $tpl -Encoding UTF8
   # privacidad.html: se publica TAL CUAL, sin plantilla, porque no hornea nada
   # del .env. Va aquí y no a mano porque Google Play tiene esa URL registrada:
