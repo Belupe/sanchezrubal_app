@@ -5,7 +5,7 @@ sorteos, usuarios). **Una sola base de código Flutter** → **4 apps nativas**:
 
 | Plataforma | Distribución | Auto-update |
 |-----------|--------------|-------------|
-| **Android** | APK propio alojado en tu Docker (sin Google Play) | ✅ desde la app |
+| **Android** | Google Play, pista de prueba interna (por invitación) | ✅ por Google Play |
 | **Windows** | Instalador `.exe` (Inno Setup) alojado en tu Docker | ✅ desde la app |
 | **Linux** | `AppImage` (**cualquier** distro: Ubuntu, Kali, Arch, Fedora…) + `.deb` (Ubuntu/Debian/Kali) + `.tar.gz`, alojados en tu Docker | ✅ desde la app (el AppImage, sin contraseña) |
 | **Apple (iOS)** | **App Store de forma privada (no listado / *unlisted*)** — accesible solo por enlace, NO público y NO por TestFlight | ✅ auto-update de App Store (cada versión nativa pasa revisión, rápida en no listado) |
@@ -20,6 +20,19 @@ sorteos, usuarios). **Una sola base de código Flutter** → **4 apps nativas**:
 
 ## Novedades
 
+- **Publicada en la App Store** (iOS y macOS) con distribución **no listada**, aprobada por Apple
+  el 30/8/2026: se instala por enlace directo, no aparece en búsquedas.
+- **Modo sin conexión.** Casas, calendarios y colas se guardan tras cada carga correcta; sin
+  cobertura la app abre y muestra los últimos datos con un aviso en la cabecera.
+- **Invitados por reserva.** Además de cuántos van, se puede anotar **quiénes**.
+- **Intercambios entre familias.** Se busca a la persona, se elige su reserva y se seleccionan los
+  tramos arrastrando sobre una barra de días; el precio viaja congelado con cada trozo.
+- **Ajustes de notificaciones por persona.** Cada uno elige qué categorías recibe (reservas, cola,
+  intercambios, inspecciones, mantenimiento); el servidor respeta esa preferencia.
+- **Accesibilidad.** Tamaño de texto, alto contraste, negrita y reducción de animaciones.
+- **Sorteos verificables.** Cada sorteo guarda y muestra su semilla, así que el resultado se puede
+  recomprobar.
+
 - **Compatible con Linux.** Cualquier distro: **AppImage** (un solo fichero, se actualiza solo y
   sin contraseña), **`.deb`** para Ubuntu/Debian/Kali y **`.tar.gz`** con instalador de dos modos.
   Se compila desde Windows dentro de Docker. Guía: [docs/LINUX.md](docs/LINUX.md).
@@ -31,8 +44,8 @@ sorteos, usuarios). **Una sola base de código Flutter** → **4 apps nativas**:
   recibe **2 avisos** ("X canceló" y "las fechas son tuyas").
 - **Tiempo real (Supabase Realtime).** Calendario, reservas, cola y anuncios se actualizan **solos**
   en todos los dispositivos abiertos, sin recargar.
-- **Notificaciones push (FCM).** Avisos de dispositivo además de email. Requiere setup de Firebase
-  (ver guía). Push iOS pendiente de la cuenta Apple/APNs.
+- **Notificaciones push (FCM).** Avisos de dispositivo además de email, funcionando en las cinco
+  plataformas (iOS incluido, por APNs).
 - **iOS ahora por App Store privado** (no listado), no por TestFlight: no caduca y auto-actualiza.
 
 > Guía de la cola + push + tiempo real:
@@ -47,8 +60,9 @@ README.md          ← este archivo
 .env.example       ← ÚNICA fuente de configuración (credenciales, rutas, URLs)
 compose.yaml       ← Docker: minio + updates  (docker compose up -d)
 app_flutter/       ← la app (android/ · ios/ · linux/ · macos/ · windows/ · lib/ · test/)
-supabase/          ← migraciones (0001–0021) + Edge Functions (media-sign · send-email ·
-                     admin-users · test-smtp · send-push · notify-waitlist)
+supabase/          ← migraciones (0001–0047) + Edge Functions (admin-users · health ·
+                     media-sign · notify-changes · send-email · send-log ·
+                     send-push · test-smtp)
 server/            ← soporte del servidor:  cloudflared/ · updates/ (plantillas) ·
                      media-scrub/ (fuente de la imagen que publica GitHub Actions)
 scripts/           ← release.ps1 · build-aab.ps1 · build-windows.ps1 · build-linux.ps1|.sh ·

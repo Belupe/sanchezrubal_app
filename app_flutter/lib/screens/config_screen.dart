@@ -488,20 +488,40 @@ class _TemplateCardState extends State<_TemplateCard> {
     super.dispose();
   }
 
-  String _label(String type) {
-    switch (type) {
-      case 'RESERVATION_CONFIRMATION':
-        return 'Confirmación de reserva';
-      case 'MAINTENANCE':
-        return 'Mantenimiento';
-      case 'INSPECTION_REMINDER':
-        return 'Recordatorio de inspección';
-      case 'PRE_STAY':
-        return 'Antes de la estancia';
-      default:
-        return type;
-    }
-  }
+  // Los 28 tipos que existen hoy en notification_templates. Si se añade uno
+  // nuevo en una migración y no se pone aquí, el editor enseña su nombre crudo.
+  static const _etiquetas = {
+    'RESERVATION_CONFIRMATION': 'Confirmación de reserva',
+    'MAINTENANCE': 'Mantenimiento',
+    'MAINTENANCE_CANCELLED': 'Mantenimiento cancelado',
+    'INSPECTION_REMINDER': 'Recordatorio de inspección',
+    'PRE_STAY': 'Antes de la estancia',
+    'RESERVATION_FIXED': 'Reserva marcada como fija',
+    'SWAP_PROPOSED': 'Intercambio propuesto',
+    'SWAP_ACCEPTED': 'Intercambio aceptado',
+    'SWAP_REJECTED': 'Intercambio rechazado',
+    'WAITLIST_OFFERED': 'Cola · oferta de fechas',
+    'WAITLIST_OFFER_EXPIRED': 'Cola · oferta caducada',
+    'WAITLIST_PROMOTED': 'Cola · fechas adjudicadas',
+    'WAITLIST_CANCELLED': 'Cola · solicitud cancelada',
+    'USER_RESERVATION_CONFIRMED': 'Tu reserva está confirmada',
+    'USER_RESERVATION_UPDATED': 'Tu reserva ha cambiado',
+    'USER_RESERVATION_CANCELLED': 'Tu reserva se ha cancelado',
+    'USER_WAITLIST_JOINED': 'Estás en la lista de espera',
+    'USER_WAITLIST_PROMOTED': 'Las fechas son tuyas',
+    'USER_WAITLIST_BEHIND_YOU': 'Alguien espera tus fechas',
+    'USER_OUT_REPORT_DONE': 'Has enviado el parte de salida',
+    'ADMIN_RESERVATION_CREATED': 'Admin · Reserva creada',
+    'ADMIN_RESERVATION_UPDATED': 'Admin · Reserva modificada',
+    'ADMIN_RESERVATION_CANCELLED': 'Admin · Reserva cancelada',
+    'ADMIN_WAITLIST_JOINED': 'Admin · Nueva solicitud en la cola',
+    'ADMIN_WAITLIST_PROMOTED': 'Admin · Cola adjudicada',
+    'ADMIN_OUT_REPORT': 'Admin · Parte de salida recibido',
+    'ADMIN_INSPECTION_MISSING': 'Admin · Inspección sin hacer',
+    'ADMIN_PRE_STAY': 'Admin · Antes de la estancia',
+  };
+
+  String _label(String type) => _etiquetas[type] ?? type;
 
   Future<void> _save() async {
     setState(() {

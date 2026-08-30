@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
+import 'services/data_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/mfa_challenge_screen.dart';
 import 'screens/auth/set_new_password_screen.dart';
@@ -66,6 +67,9 @@ Future<void> _arrancar(List<String> args) async {
   }
 
   supabase.auth.onAuthStateChange.listen((state) async {
+    // Cualquier cambio de sesión tira el perfil cacheado: si no, tras cambiar
+    // de usuario se seguiría sirviendo el rol del anterior.
+    DataService.invalidarPerfil();
     if (state.event == AuthChangeEvent.passwordRecovery) {
       await _escribirFlagRecuperacion();
       passwordRecoveryNotifier.value = true;

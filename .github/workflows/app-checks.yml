@@ -1,0 +1,47 @@
+# =====================================================================
+#  Comprobaciones de la app Flutter
+# =====================================================================
+#  Ejecuta el analizador y los tests en cada push a main y en cada PR.
+#  NO compila artefactos: de eso se encargan los scripts de release, que
+#  necesitan el keystore y los certificados y no viven aquí.
+#
+#  La versión de Flutter se fija a propósito, igual que en local: si se
+#  dejara "latest", un día cambiaría el canal estable y el fallo aparecería
+#  aquí sin que nadie hubiera tocado el código.
+# =====================================================================
+name: app-checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app_flutter/**'
+      - '.github/workflows/app-checks.yml'
+  pull_request:
+    paths:
+      - 'app_flutter/**'
+  workflow_dispatch:
+
+jobs:
+  analizar-y-probar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app_flutter
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Dependencias
+        run: flutter pub get
+
+      - name: Analizador
+        run: flutter analyze
+
+      - name: Tests
+        run: flutter test

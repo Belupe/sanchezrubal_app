@@ -23,9 +23,27 @@ class InvalidCurrentPasswordException implements Exception {
 class DataService {
   static String? get uid => supabase.auth.currentUser?.id;
 
-  static Future<Map<String, dynamic>?> myProfile() async {
+  // El perfil se pedía en cada llamada (currentRole, preferenciasAviso,
+  // onboardingVisto...), y el select arrastra `image`, que puede ser un avatar
+  // en base64 de cientos de KB. Se cachea en memoria y se invalida al cambiar
+  // de sesión (ver invalidarPerfil) y tras escribir en profiles.
+  static Map<String, dynamic>? _perfilCache;
+  static String? _perfilCacheUid;
+
+  static void invalidarPerfil() {
+    _perfilCache = null;
+    _perfilCacheUid = null;
+  }
+
+  static Future<Map<String, dynamic>?> myProfile({bool refrescar = false}) async {
     final id = uid;
-    if (id == null) return null;
+    if (id == null) {
+      invalidarPerfil();
+      return null;
+    }
+    if (!refrescar && _perfilCache != null && _perfilCacheUid == id) {
+      return _perfilCache;
+    }
     final row = await supabase
         .from('profiles')
         .select('id, name, email, role, image, ui_preferences, '
@@ -35,11 +53,13 @@ class DataService {
     if (row == null) return null;
     final gm = row['group_members'];
     final miembro = gm is List ? (gm.isEmpty ? null : gm.first) : gm;
-    return {
+    _perfilCache = {
       ...row,
       'family_group_id': miembro?['group_id'],
       'group_role': miembro?['role'],
     };
+    _perfilCacheUid = id;
+    return _perfilCache;
   }
 
   static Future<String?> currentRole() async =>
@@ -56,6 +76,7 @@ class DataService {
     }
     if (patch.isEmpty) return;
     await supabase.from('profiles').update(patch).eq('id', uid!);
+    invalidarPerfil();
   }
 
   static Future<void> _reauthenticate(String currentPassword) async {
@@ -83,18 +104,11 @@ class DataService {
     await supabase.auth.updateUser(UserAttributes(email: newEmail));
   }
 
-  // Fusiona en vez de reemplazar: ui_preferences guarda también 'onboarding'.
+  // La fusión ocurre en la BD (migración 0047), no aquí: leer-fusionar-escribir
+  // desde el cliente permitía que dos guardados casi simultáneos se pisaran.
   static Future<void> _mergeUiPreferences(Map<String, dynamic> patch) async {
-    final row = await supabase
-        .from('profiles')
-        .select('ui_preferences')
-        .eq('id', uid!)
-        .maybeSingle();
-    final actual = (row?['ui_preferences'] as Map?)?.cast<String, dynamic>() ?? {};
-    await supabase
-        .from('profiles')
-        .update({'ui_preferences': {...actual, ...patch}})
-        .eq('id', uid!);
+    await supabase.rpc('merge_ui_preferences', params: {'p_patch': patch});
+    invalidarPerfil();
   }
 
   static Future<void> saveThemeMode(String mode) =>

@@ -1,7 +1,10 @@
 // Caché de solo lectura para poder abrir la app sin cobertura. Guarda la
 // última respuesta buena de cada consulta; si la red falla, se sirve esa.
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' show ClientException;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OfflineCache {
@@ -34,6 +37,11 @@ class OfflineCache {
       sinConexion.value = false;
       return filas.map(crear).toList();
     } catch (e) {
+      // Solo se sirve la copia ante fallos de TRANSPORTE. Un rechazo del RLS,
+      // un cambio de esquema o un error al interpretar la respuesta tienen que
+      // llegar a la pantalla: si a alguien le retiran permisos, no puede seguir
+      // viendo datos viejos con un cartel de "sin conexión".
+      if (!_esFalloDeRed(e)) rethrow;
       final guardado = await _leer(clave);
       if (guardado is List) {
         sinConexion.value = true;
@@ -44,6 +52,14 @@ class OfflineCache {
       rethrow;
     }
   }
+
+  /// Distingue "no hay cobertura" de "el servidor dijo que no".
+  static bool _esFalloDeRed(Object e) =>
+      e is SocketException ||
+      e is ClientException ||
+      e is TimeoutException ||
+      e is HttpException ||
+      e is HandshakeException;
 
   static Future<void> limpiar() async {
     final sp = await SharedPreferences.getInstance();
