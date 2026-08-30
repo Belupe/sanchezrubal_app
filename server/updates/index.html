@@ -44,6 +44,7 @@
       font-size: .9rem; color: #2563eb; text-decoration: none; font-weight: 600;
     }
     .pie a:hover { text-decoration: underline; }
+    .pie .sep { opacity: .45; margin: 0 6px; }
   </style>
 </head>
 <body>
@@ -113,7 +114,13 @@
          hornear nada desde el .env. Google Play exige que esta política sea
          accesible públicamente; tenerla enlazada desde aquí es además lo que
          espera cualquiera que llegue a la página. -->
-    <p class="pie"><a href="privacidad.html">Política de privacidad</a></p>
+    <!-- El repositorio es público a propósito. rel="noopener" porque abre en
+         otra pestaña: sin él, la página destino puede tocar esta por window.opener. -->
+    <p class="pie">
+      <a href="privacidad.html">Política de privacidad</a>
+      <span class="sep">·</span>
+      <a href="https://github.com/Belupe/sanchezrubal_app" target="_blank" rel="noopener">Código fuente en GitHub</a>
+    </p>
   </main>
 </body>
 </html>
