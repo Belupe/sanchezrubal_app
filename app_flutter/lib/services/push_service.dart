@@ -41,7 +41,6 @@ class PushService {
     _tokenActual = token;
   }
 
-  // Sin esto el aparato seguiría recibiendo los avisos de quien ya no lo usa.
   static Future<void> olvidarEsteDispositivo() async {
     final token = _tokenActual;
     _tokenActual = null;

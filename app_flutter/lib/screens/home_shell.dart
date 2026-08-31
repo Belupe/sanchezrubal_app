@@ -156,8 +156,7 @@ class _HomeShellState extends State<HomeShell> {
       ),
     );
     if (ok == true) {
-      // Antes del signOut: la función se apoya en auth.uid() para borrar solo
-      // el token propio, y después de cerrar sesión ya no hay identidad.
+      // Antes del signOut: la función se apoya en auth.uid().
       await PushService.olvidarEsteDispositivo();
       await OfflineCache.limpiar();
       await supabase.auth.signOut();
