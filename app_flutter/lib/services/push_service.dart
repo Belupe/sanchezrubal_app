@@ -27,17 +27,30 @@ class PushService {
     }
   }
 
+  static String? _tokenActual;
+
   static Future<void> saveToken(
     String token, {
     String platform = 'android',
   }) async {
-    final uid = supabase.auth.currentUser?.id;
-    if (uid == null) return;
-    await supabase.from('device_tokens').upsert({
-      'user_id': uid,
-      'token': token,
-      'platform': platform,
-    }, onConflict: 'user_id,token');
+    if (supabase.auth.currentUser == null) return;
+    await supabase.rpc(
+      'register_device_token',
+      params: {'p_token': token, 'p_platform': platform},
+    );
+    _tokenActual = token;
+  }
+
+  // Sin esto el aparato seguiría recibiendo los avisos de quien ya no lo usa.
+  static Future<void> olvidarEsteDispositivo() async {
+    final token = _tokenActual;
+    _tokenActual = null;
+    if (token == null || supabase.auth.currentUser == null) return;
+    try {
+      await supabase.rpc('forget_device_token', params: {'p_token': token});
+    } catch (e, t) {
+      LogService.error(e, t, 'PushService.olvidarEsteDispositivo');
+    }
   }
 
   static const _intentosApns = 30;

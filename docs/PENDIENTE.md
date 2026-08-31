@@ -3,96 +3,66 @@
 Lista viva de lo acordado pero **no hecho todavía**. Aquí se acumula todo —cambios,
 anotaciones, cosas a tener en cuenta— en vez de ir tocando y compilando por cada
 detalle suelto.
-
-> **Cuándo se pone en marcha:** cuando la **1.5.0 esté publicada en la App Store**.
-> Hasta entonces solo se anota.
-
-Cada punto dice si **obliga a recompilar la app** (viaja en la siguiente build) o si
-se despliega solo (backend, documentación, CI).
-
 ---
 
-## Tanda 1 — HECHA el 30/8/2026 (va en la 1.5.1)
+## 1.5.2
 
-Los cinco puntos, más el acumulado, están aplicados. Detalle en el apartado
-**Hecho** del final.
+### Notificaciones: un aparato, un dueño
 
-## Acumulado de antes
+La parte de base de datos **ya está aplicada en producción** (migración
+`0048_tokens_push_por_dispositivo.sql`, 31/8/2026). Lo que queda es la app y el
+despliegue de la función, que van juntos en esta versión.
 
-~~**Etiquetas de las plantillas nuevas en el editor**~~ — HECHO el 30/8/2026.
-**Recompila la app.** `app_flutter/lib/screens/config_screen.dart:491`
+**Por qué.** `device_tokens` tenía la unicidad por pareja `(user_id, token)`, así
+que un mismo token podía pertenecer a dos usuarios a la vez. Como al cerrar
+sesión el token tampoco se borraba, si alguien cerraba sesión en un iPad y
+entraba otra persona quedaban las dos filas: los avisos del primero seguían
+llegando al aparato que ya usaba el segundo. En una familia que comparte o
+hereda aparatos, eso pasa.
 
-`_label()` traduce los tipos de `notification_templates` a nombres legibles con un
-`switch` que solo cubre cuatro. La migración `0027` añadió seis tipos
-(`ADMIN_RESERVATION_CREATED` / `UPDATED` / `CANCELLED`, `ADMIN_WAITLIST_JOINED`,
-`ADMIN_OUT_REPORT`, `MAINTENANCE_CANCELLED`) que salen en el editor con su nombre
-crudo. Es puramente cosmético; por eso se aplazó.
+**Ya hecho en la BD (no tocar, solo para contexto):**
+- `unique (token)` añadida. La vieja `(user_id, token)` **sigue ahí a propósito**
+  y no se puede quitar todavía (ver más abajo).
+- Columna `last_seen` + índice, rellenada desde `created_at` en las filas viejas.
+- `register_device_token(p_token, p_platform)` — alta y refresco en una sola
+  llamada, con el reloj del servidor. El `on conflict (token)` es lo que reasigna
+  el aparato en vez de duplicarlo.
+- `forget_device_token(p_token)` — borrado del token propio al cerrar sesión.
+- Cron `purge-device-tokens`, diario a las 03:15, borra lo que lleve **180 días**
+  sin dar señales. El plazo es largo aposta: esto va de casas de vacaciones y hay
+  quien no abre la app de octubre a marzo; con un plazo corto le borraríamos el
+  token justo antes del sorteo de verano, que es el aviso que sí necesita. FCM
+  invalida por su cuenta sobre los 270 días.
 
----
+**Pendiente en la app** (ya escrito en el árbol de trabajo, sin compilar):
+- [ ] `push_service.dart` — registro por RPC en vez de `upsert`, y
+      `olvidarEsteDispositivo()`.
+- [ ] `home_shell.dart` — llamar a `olvidarEsteDispositivo()` **antes** del
+      `signOut()`: la función se apoya en `auth.uid()` y después de cerrar sesión
+      ya no hay identidad.
 
-## Ideas anotadas, sin decidir
+**Pendiente de desplegar** (no se ha hecho todavía):
+- [ ] `supabase functions deploy send-push` — amplía el catálogo de errores de FCM
+      que se consideran "token muerto": añade `SENDER_ID_MISMATCH` y
+      `THIRD_PARTY_AUTH_ERROR` (discordancia de entorno de APNs). `INVALID_ARGUMENT`
+      queda **deliberadamente acotado**: FCM lo devuelve tanto por token inválido
+      como por mensaje mal formado, así que borrarlo a ciegas podría vaciar la
+      tabla entera si algún día enviamos un `data` incorrecto; solo cuenta si FCM
+      señala explícitamente al campo del token.
 
-Cosas vistas que **no** entran en la tanda 1 y que habría que hablar antes de tocar:
+### Deuda a saldar cuando toda la familia esté en 1.5.2
 
-- **`main.dart` hace de módulo global.** Guarda el cliente de Supabase, el
-  `navigatorKey` y los cuatro `ValueNotifier`, además del arranque, y todos los
-  servicios hacen `import '../main.dart'`. Es la razón de que solo se pueda probar
-  lo que son funciones puras: nada que toque datos es comprobable sin red. Sacar el
-  cliente y los notifiers a un `lib/app_state.dart` es mecánico y abriría la puerta
-  a tests de verdad.
-- **`supabase/` está fuera del repositorio** (por `.gitignore`, al ser público).
-  Eso deja ~5.000 líneas de SQL y ~1.700 de Edge Functions —donde vive toda la
-  seguridad— sin historial ni copia fuera de este Mac. Un repositorio privado
-  aparte, o hacer privado este, resolvería las dos cosas.
-- **`config_screen.dart` va por 1.056 líneas** con cinco pestañas dentro. Trocear
-  por pestaña es mecánico y no urge, pero es el fichero que va a seguir creciendo.
-- **Repetición en las pantallas:** el patrón `_load()` + `setState` + `try/catch` se
-  repite en diez, y solo hay un widget compartido (`password_widgets.dart`) para 21
-  pantallas.
+- [ ] Quitar la restricción vieja, ya redundante:
+      ```sql
+      alter table public.device_tokens
+        drop constraint device_tokens_user_id_token_key;
+      ```
+      **No antes.** Las versiones publicadas (1.5.1 incluida) hacen
+      `upsert(onConflict: 'user_id,token')`; si se quita, PostgREST deja de
+      encontrarla y el registro de tokens falla en todo móvil sin actualizar.
 
----
+### Limpieza puntual
 
-## Limitaciones conocidas que NO se van a tocar
-
-- **RLS es por filas, no por columnas:** un `FAMILY_ADMIN` puede editar también el
-  `name` y la `image` de los miembros de su grupo. Aceptado a conciencia (ver la
-  migración `0024_family_admin_gestiona_su_grupo.sql`).
-- **Los ficheros de MinIO no se borran** al eliminar una reserva o un informe: se
-  acumulan huérfanos. Se resolvería con un trabajo periódico que compare las claves
-  del bucket contra `out_reports`; de momento no compensa.
-- **Protección de contraseñas filtradas (HIBP): no disponible.** Requiere plan Pro
-  de Supabase; el API devuelve 402. No es un clic olvidado, está tras muro de pago.
-
----
-
-## Hecho
-
-- **Puerto SMTP por defecto 587 → 465** (acordado el 6/8/2026). Verificado el
-  29/8/2026: `test-smtp:57`, `notify-changes:206` y `send-log:171` usan ya `?? 465`.
-- **Política de contraseñas del servidor** (`password_min_length=10` + minúscula,
-  mayúscula y número), aplicada el 15/8/2026 por la Management API.
-- **Caducidad del OTP a 24 h** y **las 11 plantillas de Auth en español**, aplicadas
-  el 15/8/2026 por la Management API.
-- **Texto de primerizos en el login**, checklist de contraseña en vivo y ojo de ver
-  contraseña (commit `4864f27`, 15/8/2026).
-
-- **Tanda 1 completa, 30/8/2026** (va en la 1.5.1):
-  1. **README al día**: Android ya no se contradice (Google Play, prueba interna),
-     migraciones 0001–0047, Edge Functions reales (se citaba `notify-waitlist`, que
-     no existe), Novedades reescrita con lo de la 1.4/1.5 y la publicación real.
-  2. **Perfil cacheado en memoria** (`data_service.dart`), invalidado en
-     `onAuthStateChange` y tras cada escritura en `profiles`. Deja de bajarse el
-     avatar en base64 en cada `currentRole()` / `preferenciasAviso()`.
-  3. **La caché sin conexión ya no tapa fallos de permisos**: solo sirve la copia
-     ante errores de transporte (`SocketException`, `ClientException`, timeouts…);
-     un rechazo del RLS se propaga a la pantalla.
-  4. **`ui_preferences` se fusiona en la BD** (migración `0047`, RPC
-     `merge_ui_preferences`, verificado en vivo): se acabó el leer-fusionar-escribir
-     desde el cliente y el riesgo de que dos guardados se pisaran.
-  5. **CI**: `.github/workflows/app-checks.yml` ejecuta `flutter analyze` y
-     `flutter test` en cada push a `main` y en cada PR, con Flutter fijado a 3.44.9.
-  6. **Etiquetas de plantillas**: las 28 de `notification_templates` traducidas
-     (había 4); antes salían con el nombre crudo.
-- **Icono de iOS a sangre** (commit `6aa7e8a`): tenía 192 px de margen blanco y iOS
-  le aplica encima su propia máscara, así que se veía un cuadro dentro de otro.
-  macOS se deja como está: allí el margen es correcto por diseño.
+- [ ] Borrar los 3 tokens de la etapa de pruebas de la cuenta Administrador
+      (los 2 de iOS del 5/8 y el de Android del 29/8, que era el emulador).
+      Las cuentas reales tienen 1 aparato cada una y están limpias.
