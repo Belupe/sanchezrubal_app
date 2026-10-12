@@ -17,10 +17,34 @@ services:
     container_name: sr-supabase-auth
     environment:
       GOTRUE_PASSWORD_MIN_LENGTH: 10
-      GOTRUE_PASSWORD_REQUIRED_CHARACTERS: 'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!@#$$%^&*()_+-=[]{};''\:"|<>?,./`~'
+      GOTRUE_PASSWORD_REQUIRED_CHARACTERS: 'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789'
       GOTRUE_PASSWORD_HIBP_ENABLED: "true"
-      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: "true"
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: "false"
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
       GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
+      GOTRUE_MAILER_OTP_EXP: 86400
+      GOTRUE_MAILER_OTP_LENGTH: 8
+      GOTRUE_SMTP_MAX_FREQUENCY: 1s
+      GOTRUE_MAILER_NOTIFICATIONS_PASSWORD_CHANGED_ENABLED: "true"
+      GOTRUE_MAILER_NOTIFICATIONS_EMAIL_CHANGED_ENABLED: "true"
+      # Plantillas propias: GoTrue las descarga del servicio mail-templates.
+      GOTRUE_MAILER_SUBJECTS_INVITE: "Te damos acceso a Portal Familia"
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Confirma tu correo — Portal Familia"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Restablecer tu contraseña - Portal Familia"
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Tu enlace para entrar — Portal Familia"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "Confirma tu nuevo correo — Portal Familia"
+      GOTRUE_MAILER_SUBJECTS_REAUTHENTICATION: "{{ .Token }} es tu código de verificación"
+      GOTRUE_MAILER_SUBJECTS_PASSWORD_CHANGED_NOTIFICATION: "Tu contraseña ha cambiado — Portal Familia"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGED_NOTIFICATION: "Tu correo ha cambiado — Portal Familia"
+      GOTRUE_MAILER_TEMPLATES_INVITE: http://mail-templates/invite.html
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://mail-templates/confirmation.html
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://mail-templates/recovery.html
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://mail-templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://mail-templates/email_change.html
+      GOTRUE_MAILER_TEMPLATES_REAUTHENTICATION: http://mail-templates/reauthentication.html
+      GOTRUE_MAILER_TEMPLATES_PASSWORD_CHANGED_NOTIFICATION: http://mail-templates/password_changed_notification.html
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGED_NOTIFICATION: http://mail-templates/email_changed_notification.html
       GOTRUE_MFA_TOTP_ENROLL_ENABLED: "true"
       GOTRUE_MFA_TOTP_VERIFY_ENABLED: "true"
       GOTRUE_MFA_MAX_ENROLLED_FACTORS: 10
@@ -30,6 +54,14 @@ services:
       GOTRUE_RATE_LIMIT_VERIFY: 10
       GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 150
       GOTRUE_RATE_LIMIT_SMS_SENT: 0
+
+  # Sirve las plantillas de correo de Auth a la red interna. No publica puertos.
+  mail-templates:
+    container_name: sr-supabase-mail-templates
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./volumes/mail-templates:/usr/share/nginx/html:ro
 
   rest:
     container_name: sr-supabase-rest
