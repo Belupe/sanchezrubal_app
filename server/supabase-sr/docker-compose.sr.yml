@@ -1,0 +1,108 @@
+# Ajustes de Portal Familia sobre el compose oficial de Supabase (self-hosted).
+# Se usa con COMPOSE_FILE=docker-compose.yml:docker-compose.sr.yml en el .env del stack.
+#
+# El nombre de proyecto y los container_name propios permiten convivir con otro
+# Supabase en la misma máquina. ANTES del primer arranque, comprobar que
+# `docker compose config | head -1` dice `name: supabase-sr`.
+name: supabase-sr
+
+services:
+  studio:
+    container_name: sr-supabase-studio
+
+  api-gw:
+    container_name: sr-supabase-envoy
+
+  auth:
+    container_name: sr-supabase-auth
+    environment:
+      GOTRUE_PASSWORD_MIN_LENGTH: 10
+      GOTRUE_PASSWORD_REQUIRED_CHARACTERS: 'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!@#$$%^&*()_+-=[]{};''\:"|<>?,./`~'
+      GOTRUE_PASSWORD_HIBP_ENABLED: "true"
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: "true"
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
+      GOTRUE_MFA_TOTP_ENROLL_ENABLED: "true"
+      GOTRUE_MFA_TOTP_VERIFY_ENABLED: "true"
+      GOTRUE_MFA_MAX_ENROLLED_FACTORS: 10
+      GOTRUE_RATE_LIMIT_HEADER: CF-Connecting-IP
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 10
+      GOTRUE_RATE_LIMIT_OTP: 10
+      GOTRUE_RATE_LIMIT_VERIFY: 10
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 150
+      GOTRUE_RATE_LIMIT_SMS_SENT: 0
+
+  rest:
+    container_name: sr-supabase-rest
+
+  realtime:
+    container_name: sr-supabase-realtime
+    # La pasarela busca a Realtime por este nombre: lleva delante el id del tenant.
+    networks:
+      default:
+        aliases:
+          - realtime-dev.supabase-realtime
+
+  storage:
+    container_name: sr-supabase-storage
+
+  imgproxy:
+    container_name: sr-supabase-imgproxy
+
+  meta:
+    container_name: sr-supabase-meta
+
+  functions:
+    container_name: sr-supabase-edge-functions
+    environment:
+      FUNCTIONS_PUBLIC: ${FUNCTIONS_PUBLIC:-send-email,send-push,notify-changes,health}
+      FUNCTIONS_ALLOWED_ORIGIN: ${FUNCTIONS_ALLOWED_ORIGIN:-*}
+      CRON_SECRET: ${CRON_SECRET}
+      PUSH_SECRET: ${PUSH_SECRET}
+      FCM_SERVICE_ACCOUNT: ${FCM_SERVICE_ACCOUNT:-}
+      MINIO_ENDPOINT: ${MEDIA_PUBLIC_URL}
+      MINIO_BUCKET: ${MEDIA_BUCKET:-inspections}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MEDIA_SIGN_ACCESS_KEY: ${MEDIA_SIGN_ACCESS_KEY}
+      MEDIA_SIGN_SECRET_KEY: ${MEDIA_SIGN_SECRET_KEY}
+      MEDIA_MAX_UPLOAD_BYTES: ${MEDIA_MAX_UPLOAD_BYTES:-104857600}
+
+  db:
+    container_name: sr-supabase-db
+
+  # Postgres no se publica en la red: mantenimiento con `docker exec sr-supabase-db psql`.
+  supavisor:
+    container_name: sr-supabase-pooler
+    ports: !reset []
+
+  # El Studio autoalojado no trae inicio de sesión propio. Hacia fuera solo se
+  # llega a él por aquí. Las rutas de la API (/auth/v1, /rest/v1, /realtime/v1,
+  # /functions/v1) las manda el túnel directas a la pasarela, sin pasar por el SSO.
+  studio-sso:
+    container_name: sr-supabase-studio-sso
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+    restart: unless-stopped
+    depends_on:
+      studio:
+        condition: service_healthy
+    ports:
+      - ${STUDIO_SSO_PORT}:4180/tcp
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: ${STUDIO_SSO_PROVIDER_NAME:-SSO}
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${STUDIO_SSO_ISSUER_URL}
+      OAUTH2_PROXY_CLIENT_ID: ${STUDIO_SSO_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${STUDIO_SSO_CLIENT_SECRET}
+      OAUTH2_PROXY_REDIRECT_URL: ${SUPABASE_PUBLIC_URL}/oauth2/callback
+      OAUTH2_PROXY_SCOPE: openid profile email groups
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_ALLOWED_GROUPS: ${STUDIO_SSO_ALLOWED_GROUPS}
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_COOKIE_SECRET: ${STUDIO_SSO_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_EXPIRE: 12h
+      OAUTH2_PROXY_PASS_BASIC_AUTH: "false"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "false"
+      OAUTH2_PROXY_UPSTREAMS: http://studio:3000/
